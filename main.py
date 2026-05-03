@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
+import logging
 from src.setup.database import engine, Base
 from src.setup.dependencies import CurrentUser
 
@@ -38,7 +41,7 @@ from src.api.Part_A.v1 import (
 from src.api.overall.v1 import appraisal_summary, remarks, finalization, dashboard, faculty
 
 # Create tables
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 origins = [
     "http://localhost:8080",
@@ -47,6 +50,7 @@ origins = [
     "http://localhost:8000",
     "http://localhost:5500",
     "http://localhost:4200",
+    "*",
 ]
 
 app = FastAPI(
@@ -55,9 +59,35 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    logger.error(f"Database error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Database error occurred. This might be due to a schema mismatch or missing data.",
+            "error": str(exc.__dict__.get('orig', str(exc)))
+        },
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "An unexpected error occurred.",
+            "error": str(exc)
+        },
+    )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Adjust this in production to specific domains
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
