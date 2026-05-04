@@ -1,72 +1,56 @@
 # Faculty Appraisal System - Backend API
 
-A high-performance FastAPI backend designed for institutional faculty appraisals across 8 schools. Featuring a multi-level hierarchical reporting system, dynamic form handling, and Supabase integration.
+A high-performance, asynchronous FastAPI backend designed for institutional faculty appraisals across 8 schools. Optimized for low latency (<200ms) and high concurrency.
 
 ## 🚀 Key Features
-- **Hierarchical Access Control:** Strict VC > Dean > Director > HOD > Faculty authorization logic, tailored for institutional hierarchy (e.g., HODs only in specific schools).
-- **Horizontal Data Isolation:** Departments and Schools are strictly isolated to prevent data leaks.
-- **Dynamic Form Support:** Handles three distinct appraisal form types (Standard, Media, Arts/Design) including school-specific categories like Popular Writings for SOMCS.
-- **Submission Tracking:** Real-time dashboard for authorities to monitor appraisal progress.
-- **Production Hardened:** Dockerized with `uv`, optimized for GCP hosting, and non-root security.
+- **Fully Asynchronous Architecture:** Powered by `asyncpg` and SQLAlchemy `AsyncSession` for non-blocking database I/O.
+- **High Performance:** Integrated `orjson` for fast serialization and custom middleware for request timing.
+- **Hierarchical Access Control:** Strict VC > Dean > Director > HOD > Faculty authorization logic.
+- **Production Ready:** Configured with Gunicorn and Uvicorn workers for efficient multi-core processing on GCP Cloud Run.
+- **Database Agnostic:** Designed for portability between Supabase and standard PostgreSQL.
 
 ## 🛠 Tech Stack
-- **Framework:** FastAPI (Python 3.12+)
-- **Package Manager:** `uv` (Fast and reliable)
-- **Database:** PostgreSQL (via Supabase)
-- **Auth & Storage:** Supabase (JWT-based session management & PDF proofs)
-- **Testing:** Pytest with Async support
-
-## 📋 Prerequisites
-- Python 3.12 or higher
-- [uv](https://docs.astral.sh/uv/) installed on your system
-- A Supabase project with a `faculty-docs` storage bucket
+- **Framework:** FastAPI (Asynchronous)
+- **Serialization:** `orjson` (High-speed JSON)
+- **Database Driver:** `asyncpg` (Async PostgreSQL)
+- **ORM:** SQLAlchemy 2.0
+- **Process Manager:** Gunicorn with Uvicorn workers
+- **Auth & Storage:** Supabase (Async integration)
 
 ## ⚙️ Setup & Installation
 
 1.  **Configure Environment:**
     Create a `.env` file in the root:
     ```dotenv
-    DATABASE_URL="postgresql://postgres.[ID]:[PWD]@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+    DATABASE_URL="postgresql://postgres.[ID]:[PWD]@aws-pooler.supabase.com:6543/postgres"
     SUPABASE_URL="https://[ID].supabase.co"
     SUPABASE_ANON_KEY="your-anon-key"
     ```
 
-2.  **Initialize Database:**
-    Open your Supabase SQL Editor and run the scripts in order:
-    - `migrations/phase1_hierarchy_setup.sql` (Creates Schools and Tracking)
-    - `migrations/v2_schema_alignment.sql` (Fixes columns and names)
-    - `migrations/v3_school_specific_updates.sql` (Adds Popular Writings and initializes 8 Schools)
-
-3.  **Run Locally:**
+2.  **Install Dependencies:**
     ```bash
-    # Install dependencies
     uv sync
-    # Start the server
+    ```
+
+3.  **Prepare Test Data (Optional):**
+    ```bash
+    $env:PYTHONPATH="."
+    uv run python setup_test_db.py
+    ```
+
+4.  **Run Locally:**
+    ```bash
     uv run uvicorn main:app --reload
     ```
 
-4.  **Testing:**
-    ```bash
-    $env:PYTHONPATH="."
-    uv run pytest
-    ```
-
 ## 🏗 Deployment (GCP)
-This project is pre-configured for GCP (Cloud Run or GCE):
-- **Dockerfile:** Optimized multi-stage build using `uv`.
-- **Port:** Exposes `8000`.
-- **Security:** Runs as a non-privileged `appuser`.
-
-To build the image:
-```bash
-docker build -t faculty-appraisal-backend .
-```
+The system is optimized for **Google Cloud Run**:
+- **Execution:** Managed by Gunicorn with 4 workers (adjustable via `WORKERS` env var).
+- **Concurrency:** Non-blocking event loop allows for high requests-per-second.
+- **Monitoring:** Check the `X-Process-Time` response header for latency metrics.
 
 ## 📚 Documentation
-For detailed guides, please refer to the `Docs/` directory:
+- [Migration & Portability Strategy](Docs/MIGRATION_STRATEGY.md)
+- [API V1 Reference](Docs/API_V1_REFERENCE.md)
 - [Developer Architecture Guide](Docs/DEVELOPER_GUIDE.md)
-- [Frontend API Reference](Docs/FRONTEND_API_REFERENCE.md)
 - [Testing Guide](Docs/testing_guide.md)
-
-## ⚖️ License
-Internal Institutional Use Only.

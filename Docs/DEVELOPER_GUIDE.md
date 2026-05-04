@@ -1,7 +1,13 @@
 # Faculty Appraisal System - Developer Guide
 
 ## Architecture Overview
-This system is a FastAPI-based backend designed to handle appraisal forms for 8 different schools. It uses a **Hierarchical Access Control** model and is integrated with **Supabase Auth & Storage**.
+This system is a **High-Performance, Asynchronous FastAPI** backend designed to handle appraisal forms for 8 different schools. It uses a **fully non-blocking I/O model** and is integrated with **Supabase Auth & Storage**.
+
+### Core Architecture Pillars:
+1.  **Asynchronous I/O:** Every database query and external API call is performed using `await` via the `asyncpg` driver. This prevents event loop blocking and ensures massive scalability.
+2.  **Fast Serialization:** Uses `orjson` as the default JSON encoder for ultra-fast request/response processing.
+3.  **Hierarchical Access Control:** Enforces a 5-level reporting structure (VC > Dean > Director > HOD > Faculty).
+4.  **Database Agnostic:** Designed for easy migration from Supabase to any standard PostgreSQL environment.
 
 ## 1. Institutional Hierarchy
 The system enforces a 5-level reporting structure:

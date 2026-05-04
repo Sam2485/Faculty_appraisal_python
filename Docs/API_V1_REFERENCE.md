@@ -3,8 +3,10 @@
 This document provides a comprehensive guide to all endpoints in the Faculty Appraisal System.
 
 ## 1. Core Principles
-- **Base URL**: `http://localhost:8000/api/v1`
+- **Asynchronous Engine**: The backend uses an asynchronous non-blocking architecture (`asyncpg`) for ultra-low latency.
+- **Base URL**: `https://[your-app-url]/api/v1`
 - **Auth**: Supabase JWT Bearer Token in `Authorization` header.
+- **Monitoring**: Every response includes an `X-Process-Time` header showing backend execution time in seconds.
 - **Data Types**: All IDs (`id`, `faculty_id`) are UUID strings.
 - **File Uploads**: Use `multipart/form-data` for endpoints accepting a `file`.
 

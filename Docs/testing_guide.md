@@ -5,15 +5,19 @@ This document provides instructions on how to manually test the newly implemente
 ## 1. Prerequisites
 - Ensure you have the dependencies installed:
   ```bash
-  uv pip install -r pyproject.toml  # Or uv sync
+  uv sync
   ```
 - Ensure your `.env` file is configured with your Supabase URL and Keys.
-- Ensure your database is accessible.
+- **Initialize Test Data:** The system requires a faculty record to exist. Run the setup script:
+  ```bash
+  $env:PYTHONPATH="."
+  uv run python setup_test_db.py
+  ```
 
 ## 2. Running the Server
-Start the FastAPI server using uvicorn:
+Start the FastAPI server:
 ```bash
-python -m uvicorn src.main:app --reload
+uv run uvicorn main:app --reload
 ```
 Once running, open your browser to: `http://127.0.0.1:8000/docs` to access the Swagger UI.
 

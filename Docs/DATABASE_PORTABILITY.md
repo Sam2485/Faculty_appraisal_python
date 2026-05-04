@@ -1,32 +1,22 @@
 # Database Portability: Migrating from Supabase to Standard PostgreSQL
 
-The Faculty Appraisal System is designed to be highly portable. While it currently uses Supabase for convenience (Auth, Storage, and Hosted Postgres), it can be transitioned back to a self-hosted or standard PostgreSQL environment with minimal changes.
+The Faculty Appraisal System is designed for maximum portability. The entire backend has been refactored to use an asynchronous architecture that is native to PostgreSQL.
+
+> **Note:** For a detailed step-by-step roadmap including Firebase and full on-premise scenarios, please refer to [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md).
 
 ## 1. Database Configuration
-The application uses SQLAlchemy, which is database-agnostic.
-- **Current Setup:** Uses Supabase connection string in `.env`.
-- **Migration:** Update `DATABASE_URL` in `.env` to point to your standard PostgreSQL instance.
-  ```dotenv
-  DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
-  ```
-- **Schema:** The schema uses standard PostgreSQL types (including UUIDs). You can use `Base.metadata.create_all(bind=engine)` in `main.py` (temporarily uncommented) to recreate the tables on a new instance.
+The application uses **SQLAlchemy 2.0** with the **`asyncpg`** driver, which is the industry standard for high-performance PostgreSQL interactions.
+
+- **Current Setup:** Uses Supabase connection string in `.env`. The backend automatically converts `postgresql://` to `postgresql+asyncpg://`.
+- **Migration:** Simply update the `DATABASE_URL` in `.env` to point to any standard PostgreSQL instance (v15+).
+- **PgBouncer:** If your local server uses PgBouncer in transaction mode, the backend is already pre-configured to handle this safely (via `statement_cache_size: 0`).
 
 ## 2. Authentication Replacement
-Supabase Auth provides JWT verification. In a standard Postgres setup, you would need to:
-- **Implement Local Auth:** Add endpoints for Login/Signup.
-- **JWT Handling:** Use a library like `python-jose` to sign and verify your own tokens.
-- **Update Dependency:** Modify `src/setup/dependencies.py` to verify your local JWTs instead of calling `supabase.auth.get_user()`.
+The system's authorization logic is isolated in `src/setup/dependencies.py`.
+- **Action:** To switch from Supabase to a local provider (like Firebase or Keycloak), you only need to update the `get_current_user` function.
+- **Independence:** The existing 60+ API endpoints and CRUD logic are completely independent of the authentication provider.
 
 ## 3. File Storage Replacement
-Currently, proofs are stored in Supabase Storage buckets.
-- **Requirement:** Standard Postgres does not provide object storage.
-- **Options:**
-    - **Local Disk:** Save files to a directory on the server. Update `src/setup/storage_utils.py` to use `shutil` or `aiofiles` to save locally.
-    - **S3-Compatible Storage:** Use AWS S3, DigitalOcean Spaces, or MinIO. Update `storage_utils.py` to use `boto3`.
-- **Database:** The `document` column in the database stores the file path/URL, so the database schema remains unchanged.
-
-## 4. Networking & Access
-If using a local Postgres server on a different machine:
-- Ensure the Postgres server is listening on the network interface (`listen_addresses = '*'` in `postgresql.conf`).
-- Update `pg_hba.conf` to allow the backend server's IP address.
-- Ensure port `5432` is open in the firewall.
+Currently, PDF proofs are stored in Supabase Storage.
+- **Local Alternative:** You can update `src/setup/storage_utils.py` to save files to a local directory or a local S3-compatible service like **MinIO**.
+- **Database Alignment:** The database schema stores only the file path/URL, so migrating files does not require schema changes.
