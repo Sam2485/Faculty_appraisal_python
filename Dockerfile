@@ -25,4 +25,4 @@ COPY . .
 # 7. Use Gunicorn with Uvicorn workers for production-grade performance
 # Parameterize workers (default to 4, but Cloud Run may override this)
 # Bind to the PORT environment variable provided by Cloud Run
-CMD ["sh", "-c", "gunicorn -w ${WORKERS:-4} -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT:-8080} --timeout 0"]
+CMD ["sh", "-c", "gunicorn -w ${WORKERS:-1} -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT:-8080} --timeout 0"]
