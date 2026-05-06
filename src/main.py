@@ -46,16 +46,19 @@ from .api.Part_A.v1 import (
 )
 
 # Import Overall API
-from .api.overall.v1 import appraisal_summary, remarks, finalization
+from .api.overall.v1 import appraisal_summary, remarks, finalization, non_teaching
 
 # Create all tables defined in Base
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Faculty Appraisal API",
     description="API for managing faculty appraisal data.",
     version="1.0.0",
 )
+
+# Include Non-Teaching router
+app.include_router(non_teaching.router, prefix="/api/v1", tags=["Non-Teaching Appraisal"])
 
 # Include Part B routers
 app.include_router(journal_publication.router, prefix="/api/v1", tags=["Journal Publications"])

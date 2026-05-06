@@ -51,3 +51,6 @@ class Faculty(Base):
     social_contributions = relationship("SocialContribution", back_populates="faculty")
     industry_connections = relationship("IndustryConnect", back_populates="faculty")
     acr_entries = relationship("ACR", back_populates="faculty")
+
+    # Non-Teaching Relationships
+    non_teaching_appraisals = relationship("NonTeachingAppraisal", back_populates="staff")

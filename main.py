@@ -25,6 +25,7 @@ from src.models.overall.remarks import (
 from src.models.overall.finalization import Enclosure, Declaration
 from src.models.overall.school import School
 from src.models.overall.appraisal_summary import AppraisalSummary
+from src.models.overall.non_teaching import NonTeachingAppraisal
 
 # Import API routers
 from src.api.Part_B.v1 import (
@@ -39,7 +40,7 @@ from src.api.Part_A.v1 import (
     social_contributions, industry_connect, qualification_enhancement,
     project, acr, part_a_summary
 )
-from src.api.overall.v1 import appraisal_summary, remarks, finalization, dashboard, faculty
+from src.api.overall.v1 import appraisal_summary, remarks, finalization, dashboard, faculty, non_teaching
 
 app = FastAPI(
     title="Faculty Appraisal API",
@@ -135,6 +136,7 @@ app.include_router(remarks.router, prefix="/api/v1", tags=["Appraisal Remarks"])
 app.include_router(finalization.router, prefix="/api/v1", tags=["Finalization (Enclosures & Declaration)"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard (Higher Authorities)"])
 app.include_router(faculty.router, prefix="/api/v1", tags=["Faculty Profile"])
+app.include_router(non_teaching.router, prefix="/api/v1", tags=["Non-Teaching Appraisal"])
 
 @app.get("/")
 def read_root():

@@ -29,9 +29,12 @@ class User:
         """
         role_weights = {
             "faculty": 0,
+            "staff": 0,
             "hod": 1,
+            "section_head": 2,
             "director": 2,
             "dean": 3,
+            "registrar": 3.5,
             "vc": 4,
             "admin": 5
         }
@@ -48,16 +51,16 @@ class User:
             
         # Hierarchy check
         if user_weight > sub_weight:
-            # VC Access
-            if "vc" in self.roles:
+            # VC or Registrar Access (University-wide for their respective domains)
+            if "vc" in self.roles or "registrar" in self.roles:
                 return True
             
             # Dean Access (Division Isolation)
             if "dean" in self.roles:
                 return self.division == subordinate_division
             
-            # Director Access (School Isolation)
-            if "director" in self.roles:
+            # Director or Section Head Access (School Isolation)
+            if "director" in self.roles or "section_head" in self.roles:
                 return str(self.school_id) == str(subordinate_school_id)
             
             # HOD Access (Departmental/Horizontal Isolation)
