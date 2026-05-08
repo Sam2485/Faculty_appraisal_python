@@ -6,11 +6,13 @@ This guide explains how to deploy the Faculty Appraisal System on a local server
 
 The system supports a **Dual-Mode** architecture. You can toggle between Supabase-managed services and local server-managed services using environment variables.
 
-| Feature | Supabase Mode (Default) | Local Server Mode |
+| Feature | Supabase Mode (legacy) | Local Server Mode (current default) |
 | :--- | :--- | :--- |
 | **Database** | Supabase PostgreSQL | Standalone PostgreSQL |
 | **Authentication** | Supabase Auth (JWT) | Python JWT + `passlib` (Bcrypt) |
-| **File Storage** | Supabase Storage Buckets | Local File System (`./uploads`) |
+| **File Storage** | Supabase Storage Buckets | Local File System (`./uploads`) or GCS |
+
+> **Current state:** The production deployment on GCP Cloud Run uses **Local Server Mode** (`USE_LOCAL_AUTH=true`) with a Supabase-hosted PostgreSQL database and Google Cloud Storage for files. "Supabase Mode" refers specifically to using Supabase's Auth service, which is no longer the default.
 
 ---
 
@@ -45,7 +47,7 @@ LOCAL_STORAGE_DIR=./uploads
 ## 3. How Authentication Works
 
 ### Local Auth Flow
-1. **Registration:** Use `POST /api/v1/auth/register`. This creates a record in the `faculty` table and hashes the password using Bcrypt.
+1. **Registration:** Use `POST /api/v1/auth/register`. This creates a record in the `faculty_profiles` table and hashes the password using Bcrypt.
 2. **Login:** Use `POST /api/v1/auth/login`. This verifies the password and returns a JWT token.
 3. **Verification:** The backend `get_current_user` dependency decodes the JWT using the `JWT_SECRET_KEY` and extracts the user's `id`, `roles`, and `department`.
 

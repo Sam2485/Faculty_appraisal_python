@@ -9,9 +9,10 @@ The system is built using an **Asynchronous Layered Architecture**. The applicat
 
 **Current Infrastructure Stack:**
 *   **Framework:** FastAPI (Python 3.12+)
-*   **Database:** Supabase Managed PostgreSQL (Accessed via `asyncpg`)
-*   **Authentication:** Supabase Auth (JWT verification)
-*   **File Storage:** Supabase Storage (PDF proof management)
+*   **Database:** Supabase Managed PostgreSQL — accessed via `asyncpg`, Transaction Mode (port 6543)
+*   **Authentication:** Local JWT (`USE_LOCAL_AUTH=true`) — bcrypt passwords, tokens signed with `JWT_SECRET_KEY`. Supabase Auth is a legacy fallback.
+*   **File Storage:** Google Cloud Storage (`GCP_STORAGE_BUCKET`). Local `./uploads` filesystem is available as a fallback via `USE_LOCAL_STORAGE=true`.
+*   **Deployment:** GCP Cloud Run (`asia-south1`, project `facultyappraisal-495011`), auto-deployed via GitHub Actions.
 
 ---
 

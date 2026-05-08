@@ -39,5 +39,8 @@ The system sends verification emails using an SMTP server.
 - **`USE_LOCAL_STORAGE`**: Set to `true` if you want to store files on the server's hard drive instead of the cloud (not recommended for Cloud Run).
 
 ## 6. Authentication Mode
-- **`USE_LOCAL_AUTH="true"`**: Recommended. Uses the `faculty_profiles` table in your own database to manage users.
-- **`USE_LOCAL_AUTH="false"`**: Uses Supabase Auth (external). Requires `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+- **`USE_LOCAL_AUTH="true"`**: **This is the current default and recommended mode.** Uses the `faculty_profiles` table in your own database. All `/auth/*` endpoints handle registration, login, and password management.
+- **`USE_LOCAL_AUTH="false"`**: Uses Supabase Auth (external/legacy). Requires `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Not used in the current production deployment.
+
+## 7. CORS (Adding a New Frontend URL)
+The list of allowed frontend origins is hardcoded in `src/main.py` in the `origins` list. If you deploy the frontend to a new URL, add it there and redeploy the backend.

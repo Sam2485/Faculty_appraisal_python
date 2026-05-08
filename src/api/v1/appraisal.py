@@ -166,7 +166,7 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
     await db.execute(delete(models_a.InnovativeTeaching).where(
         models_a.InnovativeTeaching.faculty_email == email,
         models_a.InnovativeTeaching.academic_year == year
-    ))
+    ), execution_options={"synchronize_session": False})
     innov_details = form_data.get("innovDetails")
     innov_score_raw = form_data.get('innovScore')
     
@@ -189,11 +189,11 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         await db.execute(delete(model).where(
             model.faculty_email == email,
             model.academic_year == year
-        ))
+        ), execution_options={"synchronize_session": False})
 
         section_data = form_data.get(key)
         if not section_data and section_data != 0:
-            logger.debug(f"shred_form: skipping section '{key}' — no data")
+            logger.warning(f"shred_form: skipping section '{key}' — no data in submitted form")
             continue
 
         # Handle both list and object inputs (some sections are single objects)
@@ -231,7 +231,14 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         total_added += section_count
         logger.info(f"shred_form: section '{key}' → {section_count} row(s) queued")
 
-    logger.info(f"shred_form: {total_added} total rows queued for {email}/{year}")
+    if total_added == 0:
+        non_empty_keys = [k for k in mappings.keys() if form_data.get(k)]
+        logger.warning(
+            f"shred_form: 0 rows queued for {email}/{year}. "
+            f"Non-empty keys in payload: {non_empty_keys}"
+        )
+    else:
+        logger.info(f"shred_form: {total_added} total rows queued for {email}/{year}")
 
 @router.post("/submit")
 async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
@@ -263,6 +270,7 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
         
         # 1. Shred JSON into normalized tables
         await shred_form(db, current_user.email, academic_year, form, form_family)
+        await db.flush()  # surface any DB constraint violations before proceeding
 
         # 2. Update/Create Declaration
         from src.schema.core import DeclarationBase

@@ -1,5 +1,7 @@
 # Production Deployment Guide (Local Server)
 
+> **Note:** The primary production deployment is on **GCP Cloud Run** (auto-deployed via GitHub Actions on push to `main`). This guide is for IT teams deploying to an **internal on-premise server**. For GCP deployment, see `CICD_SETUP_GUIDE.txt`.
+
 This document provides instructions for the IT team to deploy the Faculty Appraisal System on an internal local server.
 
 ## 1. System Requirements
@@ -14,8 +16,8 @@ This document provides instructions for the IT team to deploy the Faculty Apprai
 
 1.  **Create Database:** Create a fresh database named `faculty_appraisal`.
 2.  **Schema Initialization:**
-    *   Since the system is currently being optimized on Supabase, the final table structure will be provided as a consolidated SQL dump once finalized.
-    *   **Note:** Ensure you run the specific updates for Authentication and Non-Teaching staff provided in the `sql_scripts/` folder of this package.
+    *   Use the SQL dump in `project_complete_schema.sql` at the project root to initialise the full schema. Run it against your local `faculty_appraisal` database.
+    *   If applying incremental migrations, check the `migrations/` folder and `db_migration_may_2026.sql` for the latest changes.
 
 ---
 
@@ -63,7 +65,7 @@ The easiest way to run the system is using the provided Docker configuration.
 
 1.  **Build and Start:**
     ```bash
-    docker-compose up --build -d
+    docker compose up --build -d
     ```
 2.  **Verify Status:**
     ```bash

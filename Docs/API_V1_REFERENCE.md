@@ -1,135 +1,276 @@
 # Faculty Appraisal System - API V1 Reference
 
-This document provides a comprehensive guide to all endpoints in the Faculty Appraisal System.
-
-## 1. Core Principles
-- **Asynchronous Engine**: The backend uses an asynchronous non-blocking architecture (`asyncpg`) for ultra-low latency.
-- **Base URL**: `https://[your-app-url]/api/v1`
-- **Auth**: Bearer Token in `Authorization` header (Supabase or Local Auth).
-- **Monitoring**: Every response includes an `X-Process-Time` header showing backend execution time in seconds.
-- **Data Types**: All IDs (`id`, `faculty_id`) are UUID strings.
-- **File Uploads**: Use `multipart/form-data` for endpoints accepting a `file`.
+## Core Info
+- **Base URL:** `https://<cloud-run-url>/api/v1`
+- **Auth:** `Authorization: Bearer <jwt>` on all 🔒 routes
+- **Content-Type:** `application/json` unless noted otherwise
+- **Response header:** `X-Process-Time` — backend execution time in seconds on every response
+- **Identifiers:** faculty are identified by **email**, not UUID, throughout the API
 
 ---
 
-## 2. Authentication & Session Management
-These endpoints are used for user lifecycle and managing the active session. For a detailed guide, see [Auth_Session_Flow.md](../api_docs/Auth_Session_Flow.md).
+## Authentication — `/auth`
 
-### 2.1. Registration & Verification
-- `POST /api/v1/auth/register`: Create a new account.
-- `GET /api/v1/auth/verify-email`: Activate account via email token.
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/auth/login` | ❌ | Returns `{token, profile}` |
+| POST | `/auth/register` | ❌ | Creates account, sends verification email |
+| GET | `/auth/verify-email?token=` | ❌ | Redirects to `{FRONTEND_URL}/login?verified=true` |
+| GET | `/auth/me` | 🔒 | Current user profile |
+| PUT | `/auth/me` | 🔒 | Update profile fields |
+| POST | `/auth/change-password` | 🔒 | Change password |
+| POST | `/auth/forgot-password` | ❌ | Stub — not implemented |
+| POST | `/auth/reset-password` | ❌ | Stub — not implemented |
 
-### 2.2. Login & Session
-- `POST /api/v1/auth/login`: Authenticate and receive a JWT.
-- `GET /api/v1/auth/session`: Retrieve current user metadata (roles, dept).
-- `GET /protected`: Test endpoint to verify token claims and jurisdiction.
+**POST `/auth/login` body:**
+```json
+{ "email": "user@example.com", "password": "secret" }
+```
 
----
-
-## 3. Standard Appraisal Categories
-Every category (e.g., `/part-a/teaching-process`, `/part-b/journal-publications`) follows a standard **6-endpoint pattern**.
-
-### The 6 Standard Endpoints
-| Method | Path | Description |
-| :--- | :--- | :--- |
-| `POST` | `/` | **Create**: Adds a new entry. Accepts form fields + optional PDF `file`. |
-| `GET` | `/` | **List All**: Returns all entries in the category (Admin/Higher Roles only). |
-| `GET` | `/faculty/{faculty_id}` | **List Faculty**: Returns all entries for a specific faculty member. |
-| `PUT` | `/{id}` | **Update**: Modifies an entry. Field permissions depend on user role. |
-| `DELETE` | `/{id}` | **Delete**: Removes an entry. |
-| `GET` | `/summary/{faculty_id}` | **Score**: Returns the calculated score for this category (e.g., `{ "totalScore": 25.0 }`). |
-
----
-
-## 3. Part A: Teaching & Activities
-
-### 3.1. Teaching Process (`/part-a/teaching-process`)
-- **Fields**: `semester`, `course_code_name`, `planned_classes`, `conducted_classes`, `department`, `file`.
-- **Logic**: Auto-calculates `api_score_faculty` based on (conducted/planned) ratio.
-
-### 3.2. Course File (`/part-a/course-files`)
-- **Fields**: `course_paper`, `title`, `details_proof` (boolean), `department`, `file`.
-
-### 3.3. Innovative Teaching (`/part-a/teaching-methods`)
-- **Fields**: `short_description`, `details_proof` (boolean), `department`, `file`.
-
-### 3.4. Student Feedback (`/part-a/student-feedback`)
-- **Fields**: `course_code_name`, `first_feedback` (0-5), `second_feedback` (0-5).
-- **Response**: Returns `average` (server-calculated).
-
-### 3.5. Other Categories
-The standard 6-endpoint pattern applies to:
-- `/part-a/projects`
-- `/part-a/qualification-enhancement`
-- `/part-a/department-activities`
-- `/part-a/university-activities`
-- `/part-a/social-contributions`
-- `/part-a/industry-connect`
-- `/part-a/acr` (Annual Confidential Report)
-
----
-
-## 4. Part B: Research & Academic Contributions
-
-### 4.1. Journal Publications (`/part-b/journal-publications`)
-- **Fields**: `title_with_page_nos`, `journal_details`, `issn_isbn_no`, `indexing` (Enum: SCOPUS, SCI, SCIE, UGC), `department`, `file`.
-
-### 4.2. Research Projects (`/part-b/research-projects`)
-- **Fields**: `project_name`, `funding_agency`, `date_of_sanction` (YYYY-MM-DD), `funding_amount`, `role`, `project_status`, `file`.
-
-### 4.3. Research Guidance (`/part-b/research-guidance`)
-- **Fields**: `degree` (ME/PHD), `student_name`, `submission_status`, `award_date` (YYYY-MM-DD).
-
-### 4.4. Other Categories
-The standard 6-endpoint pattern applies to:
-- `/part-b/book-publications`
-- `/part-b/pedagogy`
-- `/part-b/ipr`
-- `/part-b/research-awards`
-- `/part-b/conferences`
-- `/part-b/research-proposals`
-- `/part-b/products`
-- `/part-b/self-development`
-- `/part-b/industrial-training`
-
----
-
-## 5. Overall Appraisal Summary
-- **Endpoint**: `GET /api/v1/appraisal-summary/{faculty_id}`
-- **Response**: Aggregates all scores from Part A (out of 200) and Part B (out of 375).
-
+**Login / `/auth/me` response profile shape:**
 ```json
 {
-  "faculty_id": "uuid",
-  "part_a_summary": { "teaching_score": 25, "feedback_score": 10, ... },
-  "part_b_summary": { "journal_score": 30, "project_score": 10, ... },
-  "grand_total_score": 575.0
+  "email", "full_name", "role", "appraisal_role",
+  "department", "school", "employee_id",
+  "designation", "phone", "profile_picture_url"
+}
+```
+
+**POST `/auth/register` body** — `FacultyProfileCreate`:
+```json
+{
+  "email": "...", "password": "...", "full_name": "...",
+  "appraisal_role": "faculty",
+  "school": "SoCSEA", "department": "Computer Engineering",
+  "designation": "...", "employee_id": "...",
+  "phone": "...", "qualification": "...", "teaching_experience": "..."
+}
+```
+
+**PUT `/auth/me` body** — all fields optional:
+```json
+{ "full_name", "department", "school", "designation", "phone", "avatar" }
+```
+
+---
+
+## Appraisal (Faculty) — `/appraisal`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/appraisal/snapshot?academic_year=` | 🔒 | Returns current user's draft snapshot |
+| PUT | `/appraisal/snapshot` | 🔒 | Save / update draft |
+| POST | `/appraisal/submit` | 🔒 | Final submission |
+| GET | `/appraisal/status?academic_year=` | 🔒 | Submission status + reviewer scores |
+
+**PUT `/appraisal/snapshot` body:**
+```json
+{ "academic_year": "2025-26", "payload": { <any form data> } }
+```
+
+**POST `/appraisal/submit` body:**
+```json
+{
+  "academic_year": "2025-26",
+  "form": {
+    "lectures":         [{ "semester", "course_code", "planned_classes", "conducted_classes", "score" }],
+    "courseFile":       [{ "course", "title", "details", "score" }],
+    "innovDetails":     "string or { details: string }",
+    "innovScore":       0,
+    "projects":         [{ "label", "score" }],
+    "quals":            [{ "label", "score" }],
+    "feedback":         [{ "course_code", "feedback_1", "feedback_2", "score" }],
+    "deptActs":         [{ "activity", "nature", "score" }],
+    "uniActs":          [{ "activity", "nature", "score" }],
+    "society":          [{ "activity", "status", "details", "score" }],
+    "industry":         [{ "name", "details", "score" }],
+    "acr":              [{ "label", "score" }],
+    "journals":         [{ "title", "journal", "issn", "indexing", "score" }],
+    "books":            [{ "title", "book", "issn", "isbn", "publisher", "coauthor", "first_author", "score" }],
+    "ict":              [{ "title", "description", "type", "quadrant", "score" }],
+    "research":         [{ "degree", "student_name", "thesis", "score" }],
+    "projects2":        [{ "title", "agency", "sanction_date", "amount", "role", "project_status", "score" }],
+    "externalProjects": [{ "title", "agency", "sanction_date", "amount", "role", "project_status", "score" }],
+    "patents":          [{ "title", "type", "scope", "patent_date", "patent_status", "file_no", "score" }],
+    "awards":           [{ "title", "award_date", "agency", "level", "score" }],
+    "confs":            [{ "title", "type", "organization", "level", "score" }],
+    "proposals":        [{ "title", "duration", "agency", "amount", "score" }],
+    "products":         [{ "details", "usage", "score" }],
+    "fdps":             [{ "program", "duration", "organization", "score" }],
+    "training":         [{ "company", "duration", "nature", "score" }]
+  },
+  "totals": { "partATotal": 0, "partBTotal": 0, "grandTotal": 0 }
+}
+```
+
+> The `form` keys are exact string matches. A wrong key silently skips that section — nothing is written to the DB for it.
+
+**Field aliases** — the backend remaps these automatically if sent:
+
+| Frontend field | Stored as |
+|---|---|
+| `title_with_page_nos` | `title` |
+| `journal_details` | `journal` |
+| `issn_isbn_no` / `issn_isbn` | `issn` |
+| `course_code_name` | `course_code` |
+| `course_paper` | `course` |
+| `nature_of_activity` | `nature` |
+| `activity_type` | `activity` |
+| `details_of_activity` | `details` |
+| `project_type` / `qualification_type` | `label` |
+| `short_description` | `details` |
+| `title_and_pages` | `title` |
+| `book_title_editor` | `book` |
+| `event_title` | `title` |
+| `hosting_organization` | `organization` |
+| `event_level` | `level` |
+| `pedagogy_type` | `type` |
+| `company_industry` | `company` |
+| `duration_days` | `duration` |
+| `nature_of_training` | `nature` |
+| `maxMarks` | `max_marks` |
+| `hod` / `director` / `dean` / `vc` | `hod_score` / `director_score` / `dean_score` / `vc_score` |
+
+**GET `/appraisal/status` response:**
+```json
+{
+  "declaration": {
+    "id", "faculty_email", "academic_year",
+    "part_a_total", "part_b_total", "grand_total",
+    "status", "submitted_at"
+  },
+  "reviews": [
+    { "reviewer_role", "reviewer_email", "part_a_score", "part_b_score", "total_score", "remarks", "status", "reviewed_at" }
+  ]
 }
 ```
 
 ---
 
-## 6. Remarks & Approval Flow
-Authorities (HOD, Director, Dean, VC) use these to finalize the appraisal.
+## Dashboard (Reviewers) — `/dashboard`
 
-- **HOD**: `PUT /api/v1/appraisal-remarks/hod/{faculty_id}`
-- **Director**: `PUT /api/v1/appraisal-remarks/director/{faculty_id}`
-- **Dean**: `PUT /api/v1/appraisal-remarks/dean/{faculty_id}`
-- **Final (VC)**: `PUT /api/v1/appraisal-remarks/final/{faculty_id}`
+| Method | Path | Auth | Access |
+|--------|------|------|--------|
+| GET | `/dashboard/subordinates?academic_year=&schools=` | 🔒 | Role-filtered |
+| GET | `/dashboard/faculty/{email}?academic_year=` | 🔒 | Authority check |
+
+`GET /dashboard/subordinates` — returns list of faculty the caller has authority over, with declaration status and reviewer scores. `schools` param (comma-separated) is only respected for VC/Registrar.
+
+Response item shape:
+```json
+{
+  "email", "name", "department", "school", "appraisalRole",
+  "status", "submittedOn",
+  "selfPartA", "selfPartB", "selfTotal",
+  "hodPartA", "hodPartB", "hodTotal", "hodRemarks",
+  "directorPartA", ...
+}
+```
+
+`GET /dashboard/faculty/{email}` — returns the full `AppraisalSnapshot` record (the JSONB payload the reviewer UI renders). Returns `null` if no snapshot exists yet.
 
 ---
 
-## 7. Finalization (Faculty)
-- **Enclosures**: `POST /api/v1/enclosures` (Multipart: `description`, `file`)
-- **Declaration**: `POST /api/v1/declaration` (JSON: `is_declared`, `place`, `designation`)
+## Remarks (Reviewers) — `/appraisal-remarks`
+
+All are `PUT`. Requires the matching role (or `admin`). Path parameter is the **faculty email**.
+
+| Path | Required role |
+|------|--------------|
+| `PUT /appraisal-remarks/hod/{email}` | `hod` |
+| `PUT /appraisal-remarks/center-head/{email}` | `center_head` |
+| `PUT /appraisal-remarks/director/{email}` | `director` |
+| `PUT /appraisal-remarks/dean/{email}` | `dean` |
+| `PUT /appraisal-remarks/final/{email}` | `vc` |
+
+**Request body:**
+```json
+{
+  "academic_year": "2025-26",
+  "part_a_score": 0,
+  "part_b_score": 0,
+  "total_score": 0,
+  "remarks": "...",
+  "section_scores": {
+    "lectures": 10, "journals": 5, "courseFile": 8
+  }
+}
+```
+
+`section_scores` keys must match the same form keys used in submit. The backend writes these into the corresponding `hod_score` / `director_score` / `dean_score` / `vc_score` columns in each section table.
+
+**Declaration status progression:**
+`Submitted` → *(HOD/center_head review)* → `pending_director` → `pending_dean` → `pending_vc` → `completed`
+
+**Response:**
+```json
+{ "message": "Review submitted", "status": "pending_director" }
+```
 
 ---
 
-## 8. Status Codes
-- `201 Created`: Successfully added.
-- `200 OK`: Successful retrieval/update.
-- `204 No Content`: Successful deletion.
-- `401 Unauthorized`: Token missing or invalid.
-- `403 Forbidden`: Insufficient role permissions.
-- `404 Not Found`: Item or Faculty does not exist.
-- `422 Unprocessable Entity`: Validation error (check request body).
+## Documents — `/appraisal-documents`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/appraisal-documents/?academic_year=` | 🔒 | List documents uploaded by current user |
+
+Response: list of `AppraisalDocument` records with `file_url`, `storage_path`, `section`, `file_name`, `file_type`.
+
+---
+
+## File Upload — `/upload`
+
+| Method | Path | Auth | Content-Type |
+|--------|------|------|-------------|
+| POST | `/upload` | 🔒 | `multipart/form-data` |
+
+Form field name: `file`
+
+**Response:**
+```json
+{ "url": "https://storage.googleapis.com/...", "publicId": "faculty/email/uuid_filename.pdf", "name": "filename.pdf", "type": "application/pdf" }
+```
+
+---
+
+## Non-Teaching Staff — `/non-teaching`
+
+| Method | Path | Auth | Access |
+|--------|------|------|--------|
+| GET | `/non-teaching/appraisal?academic_year=` | 🔒 | Own record |
+| PUT | `/non-teaching/appraisal` | 🔒 | Create / update own record |
+| GET | `/non-teaching/subordinates?academic_year=` | 🔒 | Reporting Officer / Registrar / VC |
+| PUT | `/non-teaching/review/{email}` | 🔒 | RO / Registrar / VC |
+
+**PUT `/non-teaching/appraisal` body:**
+```json
+{
+  "academic_year": "2025-26",
+  "payload": { <full form JSON> },
+  "self_total": 0,
+  "status": "Draft"
+}
+```
+`staff_email` is set automatically from the token — do not send it.
+
+**PUT `/non-teaching/review/{email}` body:**
+```json
+{ "academic_year": "2025-26", "total_score": 85, "payload": { <optional updated payload> } }
+```
+
+Non-teaching status flow: `Draft` → `pending_registrar` → `pending_vc` → `completed`
+
+---
+
+## Status Codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | Success |
+| 400 | Bad request / missing required field |
+| 401 | Missing or invalid token |
+| 403 | Insufficient role |
+| 404 | Faculty / record not found |
+| 422 | Validation error — check request body shape |
+| 500 | Server error — check Cloud Run logs |
