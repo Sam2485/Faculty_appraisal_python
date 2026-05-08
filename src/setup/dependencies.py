@@ -54,16 +54,10 @@ class User:
 
         # Hierarchy check
         if user_weight > sub_weight:
-            # VC or Registrar Access (University-wide)
             if "vc" in self.roles or "registrar" in self.roles:
                 return True
             
-            # Dean, Director, Section Head, Reporting Officer, HOD Access
-            # Basic validation: must be in the same school (if applicable) or same department
             if "dean" in self.roles:
-                # Dean usually oversees multiple schools, but without division column, 
-                # we'll assume they can see subordinates if they are designated as Dean.
-                # In a real scenario, we might need a mapping table.
                 return True
 
             if any(r in self.roles for r in ["director", "section_head", "reporting_officer", "center_head"]):
@@ -73,6 +67,18 @@ class User:
                 return self.school == subordinate_school and self.department == subordinate_dept
                 
         return False
+
+def get_form_family(school: str) -> str:
+    """
+    Maps a school code to a form family (standard, media, design).
+    """
+    school_map = {
+        "SoCSEA": "standard", "SoBB": "standard", "SoCE": "standard", 
+        "SoEMR": "standard", "SoC": "standard", "CISR": "standard",
+        "SoMCS": "media",
+        "CioD": "design", "SoAA": "design"
+    }
+    return school_map.get(school, "standard")
 
 async def get_current_user(authorization: Annotated[Optional[str], Header()] = None) -> User:
     """

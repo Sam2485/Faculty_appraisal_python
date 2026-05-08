@@ -11,8 +11,6 @@ class FacultyProfileBase(BaseModel):
     designation: Optional[str] = None
     department: Optional[str] = None
     school: Optional[str] = None
-    division: Optional[str] = None
-    form_family: Optional[str] = None
     teaching_experience: Optional[str] = None
     phone: Optional[str] = None
     academic_year: Optional[str] = None
@@ -28,8 +26,6 @@ class FacultyProfileUpdate(BaseModel):
     designation: Optional[str] = None
     department: Optional[str] = None
     school: Optional[str] = None
-    division: Optional[str] = None
-    form_family: Optional[str] = None
     teaching_experience: Optional[str] = None
     phone: Optional[str] = None
     academic_year: Optional[str] = None

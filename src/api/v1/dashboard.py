@@ -27,9 +27,8 @@ async def get_subordinates(
             school_list = schools.split(",")
             query = query.where(FacultyProfile.school.in_(school_list))
     elif "dean" in current_user.roles:
-        # Dean: Sees all schools within their division (Engineering/Non-Engineering)
-        # We need the division from the school table or faculty profile
-        query = query.where(FacultyProfile.division == current_user.division)
+        # Dean: Sees all schools (Simplified since division column was removed)
+        pass 
     elif "center_head" in current_user.roles:
         # Center Head: specifically for CISR
         query = query.where(FacultyProfile.school == "CISR")
@@ -89,7 +88,7 @@ async def get_faculty_snapshot(email: str, academic_year: str, current_user: Cur
     if not target:
         raise HTTPException(status_code=404, detail="Faculty not found")
     
-    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school, target.division):
+    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school):
         raise HTTPException(status_code=403, detail="Not authorized to view this faculty's data")
     
     res = await db.execute(select(AppraisalSnapshot).where(

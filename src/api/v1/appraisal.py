@@ -119,8 +119,9 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
     
     # Identify user's form family
     from src.crud.core import get_faculty_by_email
+    from src.setup.dependencies import get_form_family
     user = await get_faculty_by_email(db, current_user.email)
-    form_family = user.form_family if user else "standard"
+    form_family = get_form_family(user.school) if user else "standard"
     
     # 1. Shred JSON into normalized tables
     try:

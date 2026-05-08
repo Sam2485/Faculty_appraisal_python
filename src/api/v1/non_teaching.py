@@ -65,8 +65,8 @@ async def review_non_teaching(email: str, data: Dict[str, Any], current_user: Cu
     if not target:
         raise HTTPException(status_code=404, detail="Staff profile not found")
     
-    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school, target.division):
-        raise HTTPException(status_code=403, detail="Not authorized to review this staff")
+    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school):
+        raise HTTPException(status_code=403, detail="Not authorized to view this staff's data")
 
     # 1. Update totals based on role
     # Logic: If RO reviews, they update ro_total. If Registrar reviews, registrar_total.

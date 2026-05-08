@@ -74,8 +74,8 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
     if not target:
         raise HTTPException(status_code=404, detail="Faculty not found")
     
-    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school, target.division):
-        raise HTTPException(status_code=403, detail="Not authorized to review this faculty")
+    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school):
+        raise HTTPException(status_code=403, detail="Not authorized to update remarks for this faculty")
 
     # 1. Update Review Table
     review_in = AppraisalReviewBase(
