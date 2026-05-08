@@ -220,6 +220,10 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
             for field_name, value in item.items():
                 target_field = field_aliases.get(field_name, field_name)
                 if not hasattr(db_item, target_field):
+                    logger.warning(
+                        f"shred_form: field '{field_name}'→'{target_field}' not found in "
+                        f"{type(db_item).__name__}, skipping"
+                    )
                     continue
                 coerced = _coerce_for_column(db_item, target_field, value)
                 if coerced is not None:
