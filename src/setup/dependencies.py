@@ -52,7 +52,7 @@ class User:
             return True
 
         user_weight = max([role_weights.get(r, 0) for r in self.roles])
-        sub_weight = role_weights.get(subordinate_role.lower(), 0)
+        sub_weight = role_weights.get((subordinate_role or "faculty").lower(), 0)
 
         # Self-access
         if str(self.id) == str(subordinate_id) or self.email == subordinate_id:

@@ -83,10 +83,10 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
         academic_year=data['academic_year'],
         reviewer_email=current_user.email,
         reviewer_role=role,
-        part_a_score=data['part_a_score'],
-        part_b_score=data['part_b_score'],
-        total_score=data['total_score'],
-        remarks=data['remarks'],
+        part_a_score=data.get('part_a_score', 0),
+        part_b_score=data.get('part_b_score', 0),
+        total_score=data.get('total_score', 0),
+        remarks=data.get('remarks'),
         status='Reviewed'
     )
     await create_or_update_review(db, review_in)
