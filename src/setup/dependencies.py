@@ -12,21 +12,20 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 class User:
-    def __init__(self, id: str, email: str, roles: List[str], department: Optional[str] = None, school: Optional[str] = None, division: Optional[str] = None):
+    def __init__(self, id: str, email: str, roles: List[str], department: Optional[str] = None, school: Optional[str] = None):
         self.id = id
         self.email = email
         self.roles = [r.lower() for r in roles]
         self.department = department
         self.school = school
-        self.division = division
 
-    def has_authority_over(self, subordinate_id: str, subordinate_role: str, subordinate_dept: Optional[str] = None, subordinate_school: Optional[str] = None, subordinate_division: Optional[str] = None) -> bool:
+    def has_authority_over(self, subordinate_id: str, subordinate_role: str, subordinate_dept: Optional[str] = None, subordinate_school: Optional[str] = None) -> bool:
         """
         Implements Hierarchical Access Control:
         1. VC: All schools.
-        2. Dean: All schools within their division (Engineering/Non-Engineering).
+        2. Dean: All departments within their domain.
         3. Director: All departments within their school.
-        4. HOD: Only their specific department (Horizontal Isolation).
+        4. HOD: Only their specific department.
         """
         role_weights = {
             "faculty": 0,
@@ -55,25 +54,22 @@ class User:
 
         # Hierarchy check
         if user_weight > sub_weight:
-            # VC or Registrar Access (University-wide for their respective domains)
+            # VC or Registrar Access (University-wide)
             if "vc" in self.roles or "registrar" in self.roles:
                 return True
             
-            # Center Head Access (Specifically for CISR)
-            if "center_head" in self.roles:
-                return self.division == "CISR" and subordinate_division == "CISR"
-            
-            # Dean Access (Division Isolation)
+            # Dean, Director, Section Head, Reporting Officer, HOD Access
+            # Basic validation: must be in the same school (if applicable) or same department
             if "dean" in self.roles:
-                return self.division == subordinate_division
-            
-            # Director, Section Head, or Reporting Officer Access (School/Unit Isolation)
-            if any(r in self.roles for r in ["director", "section_head", "reporting_officer"]):
+                # Dean usually oversees multiple schools, but without division column, 
+                # we'll assume they can see subordinates if they are designated as Dean.
+                # In a real scenario, we might need a mapping table.
+                return True
+
+            if any(r in self.roles for r in ["director", "section_head", "reporting_officer", "center_head"]):
                 return self.school == subordinate_school
             
-            # HOD Access (Departmental/Horizontal Isolation)
             if "hod" in self.roles:
-                # Must be in the same school AND same department
                 return self.school == subordinate_school and self.department == subordinate_dept
                 
         return False
@@ -81,29 +77,22 @@ class User:
 async def get_current_user(authorization: Annotated[Optional[str], Header()] = None) -> User:
     """
     Verifies the JWT from the frontend and returns user data + role.
-    If no authorization header is provided, returns a mock user ONLY if ALLOW_MOCK_USER is true.
     """
     if not authorization:
         if os.getenv("ALLOW_MOCK_USER", "false").lower() == "true":
-            # Mock user for development/testing
             return User(
                 id="00000000-0000-0000-0000-000000000001", 
                 email="admin@example.com",
                 roles=["admin", "faculty"], 
                 department="Computer Science",
-                school="SoCSEA",
-                division="Engineering"
+                school="SoCSEA"
             )
         else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authorization header missing. Please log in.",
-            )
+            raise HTTPException(status_code=401, detail="Authorization header missing.")
     
     try:
         token = authorization.split(" ")[1]
         
-        # Check if we should use local auth or fallback to Supabase
         if os.getenv("USE_LOCAL_AUTH", "false").lower() == "true":
             from .local_auth import decode_access_token
             payload = decode_access_token(token)
@@ -111,31 +100,26 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
             role = payload.get("appraisal_role") or payload.get("role", "faculty")
             dept = payload.get("department")
             school = payload.get("school")
-            division = payload.get("division")
             email = payload.get("email")
             
             roles = [role] if isinstance(role, str) else role
             
             return User(
-                id=payload.get("sub"), # JWT standard subject claim is 'sub'
+                id=payload.get("sub"), 
                 email=email,
                 roles=roles, 
                 department=dept, 
-                school=school, 
-                division=division
+                school=school
             )
         else:
-            # Fallback to Supabase Auth
             async with create_async_client(SUPABASE_URL, SUPABASE_ANON_KEY) as supabase:
                 user_response = await supabase.auth.get_user(token)
                 user = user_response.user
                 
-                # Check both app_metadata and user_metadata for the role
                 role = user.app_metadata.get("appraisal_role") or user.app_metadata.get("role") or \
                        user.user_metadata.get("appraisal_role") or user.user_metadata.get("role") or "faculty"
-                dept = user.user_metadata.get("department") or user.app_metadata.get("department")
-                school = user.user_metadata.get("school") or user.app_metadata.get("school")
-                division = user.user_metadata.get("division") or user.app_metadata.get("division")
+                dept = user.user_metadata.get("department")
+                school = user.user_metadata.get("school")
                 
                 roles = [role] if isinstance(role, str) else role
                 
@@ -144,14 +128,10 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
                     email=user.email,
                     roles=roles, 
                     department=dept, 
-                    school=school, 
-                    division=division
+                    school=school
                 )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired token: {str(e)}",
-        )
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

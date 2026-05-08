@@ -4,9 +4,9 @@ git pull
 
 export PROJECT_ID=facultyappraisal-495011
 
-gcloud builds submit --tag us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend .
+gcloud builds submit --tag asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend .
 
 gcloud run deploy fastapi-backend \
-    --image us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend \
-    --region us-central1 \
+    --image asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend \
+    --region asia-south1 \
     --allow-unauthenticated

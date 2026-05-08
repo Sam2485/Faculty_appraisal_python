@@ -30,9 +30,7 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
         "email": user.email,
         "appraisal_role": user.appraisal_role,
         "department": user.department,
-        "school": user.school,
-        "division": user.division,
-        "form_family": user.form_family
+        "school": user.school
     })
     
     return {
@@ -44,8 +42,6 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
             "appraisal_role": user.appraisal_role,
             "department": user.department,
             "school": user.school,
-            "division": user.division,
-            "form_family": user.form_family,
             "employee_id": user.employee_id,
             "designation": user.designation,
             "phone": user.phone,
@@ -59,15 +55,6 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Map school to form_family
-    school_map = {
-        "SoCSEA": "standard", "SoBB": "standard", "SoCE": "standard", 
-        "SoEMR": "standard", "SoC": "standard", "CISR": "standard",
-        "SoMCS": "media",
-        "CioD": "design", "SoAA": "design"
-    }
-    assigned_family = school_map.get(data.school, "standard")
-    
     new_user = FacultyProfile(
         email=data.email,
         password_hash=get_password_hash(data.password),
@@ -75,8 +62,6 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
         appraisal_role=data.appraisal_role,
         school=data.school,
         department=data.department,
-        division=data.division,
-        form_family=assigned_family,
         designation=data.designation,
         employee_id=data.employee_id,
         phone=data.phone,
@@ -94,8 +79,6 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
         "appraisal_role": new_user.appraisal_role,
         "department": new_user.department,
         "school": new_user.school,
-        "division": new_user.division,
-        "form_family": new_user.form_family,
         "employee_id": new_user.employee_id,
         "designation": new_user.designation,
         "phone": new_user.phone,
@@ -112,8 +95,6 @@ async def get_me(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
         "appraisal_role": user.appraisal_role,
         "department": user.department,
         "school": user.school,
-        "division": user.division,
-        "form_family": user.form_family,
         "employee_id": user.employee_id,
         "designation": user.designation,
         "phone": user.phone,
@@ -126,8 +107,6 @@ async def update_me(data: FacultyProfileUpdate, current_user: CurrentUser, db: A
     if data.full_name: user.full_name = data.full_name
     if data.department: user.department = data.department
     if data.school: user.school = data.school
-    if data.division: user.division = data.division
-    if data.form_family: user.form_family = data.form_family
     if data.designation: user.designation = data.designation
     if data.phone: user.phone = data.phone
     if data.avatar: user.avatar = data.avatar 
@@ -141,8 +120,6 @@ async def update_me(data: FacultyProfileUpdate, current_user: CurrentUser, db: A
         "appraisal_role": user.appraisal_role,
         "department": user.department,
         "school": user.school,
-        "division": user.division,
-        "form_family": user.form_family,
         "employee_id": user.employee_id,
         "designation": user.designation,
         "phone": user.phone,

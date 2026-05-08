@@ -15,7 +15,7 @@ The pipeline is already code-complete, but it requires sensitive credentials sto
 | Secret Name | Value Example / Description |
 | :--- | :--- |
 | `GCP_PROJECT_ID` | `your-project-id-123` |
-| `GCP_REGION` | `us-central1` (or your preferred region) |
+| `GCP_REGION`     | `asia-south1` (e.g., Mumbai)                      |
 | `GCP_SA_KEY` | Paste the ENTIRE JSON content of your GCP Service Account Key file. |
 | `DATABASE_URL` | `postgresql://postgres.[ID]:[PWD]@aws-0...` |
 | `SUPABASE_URL` | `https://[ID].supabase.co` |

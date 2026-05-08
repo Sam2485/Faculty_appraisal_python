@@ -1,0 +1,4 @@
+{
+  "detail": "Database error occurred",
+  "error": "(sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedColumnError'>: column faculty_profiles.division does not exist\n[SQL: SELECT faculty_profiles.id, faculty_profiles.email, faculty_profiles.password_hash, faculty_profiles.employee_id, faculty_profiles.full_name, faculty_profiles.qualification, faculty_profiles.designation, faculty_profiles.department, faculty_profiles.school, faculty_profiles.division, faculty_profiles.form_family, faculty_profiles.teaching_experience, faculty_profiles.phone, faculty_profiles.academic_year, faculty_profiles.appraisal_role, faculty_profiles.avatar, faculty_profiles.created_at, faculty_profiles.updated_at \nFROM faculty_profiles \nWHERE faculty_profiles.email = $1::VARCHAR]\n[parameters: ('user@example.com',)]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+}

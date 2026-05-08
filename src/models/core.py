@@ -16,8 +16,6 @@ class FacultyProfile(Base):
     designation = Column(String)
     department = Column(String)
     school = Column(String)
-    division = Column(String)
-    form_family = Column(String) # standard, media, design
     teaching_experience = Column(String)
     phone = Column(String)
     academic_year = Column(String)
