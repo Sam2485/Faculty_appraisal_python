@@ -12,7 +12,38 @@ from src.models import part_b as models_b
 
 router = APIRouter(prefix="/appraisal-remarks", tags=["Appraisal Remarks"])
 
-async def update_item_scores(db: AsyncSession, email: str, year: str, role: str, section_scores: Dict[str, float]):
+def _extract_numeric_score(raw: Any, role: str) -> float:
+    """
+    Normalize section score from the frontend.
+    Accepts a plain number, a numeric string, a list of row-dicts, or a single dict.
+    For list/dict forms the frontend sends {role: score_value} per row; we sum across rows.
+    """
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if isinstance(raw, str):
+        try:
+            return float(raw)
+        except (ValueError, TypeError):
+            return 0.0
+    if isinstance(raw, dict):
+        val = raw.get(role) or raw.get('score') or 0
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return 0.0
+    if isinstance(raw, list):
+        total = 0.0
+        for item in raw:
+            if isinstance(item, dict):
+                val = item.get(role) or item.get('score') or 0
+                try:
+                    total += float(val)
+                except (ValueError, TypeError):
+                    pass
+        return total
+    return 0.0
+
+async def update_item_scores(db: AsyncSession, email: str, year: str, role: str, section_scores: Dict[str, Any]):
     """
     Updates individual item scores in normalized tables based on authority review.
     Samarth's note: authority's per-section scores must be written into individual section tables.
@@ -56,16 +87,15 @@ async def update_item_scores(db: AsyncSession, email: str, year: str, role: str,
         "training": models_b.IndustrialTraining,
     }
 
-    for section_key, score in section_scores.items():
+    for section_key, raw_score in section_scores.items():
         model = section_map.get(section_key)
-        if model:
-            # Check if column exists (BasePartA/B models have these)
-            if hasattr(model, col):
-                await db.execute(
-                    update(model)
-                    .where(model.faculty_email == email, model.academic_year == year)
-                    .values({col: score})
-                )
+        if model and hasattr(model, col):
+            numeric_score = _extract_numeric_score(raw_score, role)
+            await db.execute(
+                update(model)
+                .where(model.faculty_email == email, model.academic_year == year)
+                .values({col: numeric_score})
+            )
 
 async def handle_review(role: str, email: str, data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession):
     # 0. Authorization check
