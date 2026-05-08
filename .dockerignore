@@ -1,5 +1,7 @@
-# .dockerignore - Files to exclude from GCP Production Deployment
+# .dockerignore - Files to exclude from Docker build context
 .git
+.github
+.claude
 .venv
 __pycache__
 *.pyc
@@ -9,16 +11,17 @@ __pycache__
 tests/
 migrations/
 scripts/
-Docs/*.docx
-Docs/*.pdf
-Docs/supabase_migration_plan.md
-Docs/testing_guide.md
+Docs/
+api_docs/
 references/
 .env
 .env.example
 .python-version
+cloudbuild.yaml
+CLAUDE.md
+gemini.md
+project_complete_schema.sql
 output.txt
-PART-A.pdf
 README.md
 README.Docker.md
 schema.txt

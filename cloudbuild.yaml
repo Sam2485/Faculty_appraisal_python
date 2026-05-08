@@ -1,0 +1,46 @@
+steps:
+  # Pull the previous image to use as a build cache (|| true so it doesn't fail on first build)
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: bash
+    args: ['-c', 'docker pull $_IMAGE:latest || true']
+
+  # Build — cache-from the pulled image so the deps layer is reused on code-only changes
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - --cache-from=$_IMAGE:latest
+      - --build-arg=BUILDKIT_INLINE_CACHE=1
+      - -t=$_IMAGE:latest
+      - -t=$_IMAGE:$COMMIT_SHA
+      - .
+    env:
+      - DOCKER_BUILDKIT=1
+
+  # Push both tags (latest for caching, commit SHA for rollback)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [push, '$_IMAGE:latest']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [push, '$_IMAGE:$COMMIT_SHA']
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - faculty-appraisal-git
+      - --image=$_IMAGE:latest
+      - --region=asia-south1
+      - --add-cloudsql-instances=facultyappraisal-495011:asia-south1:faculty-appraisal-db
+      - --allow-unauthenticated
+      - --quiet
+
+substitutions:
+  _IMAGE: asia-south1-docker.pkg.dev/facultyappraisal-495011/faculty-appraisal-repo/faculty-appraisal-git
+
+images:
+  - $_IMAGE:latest
+  - $_IMAGE:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
