@@ -1,21 +1,30 @@
-# Verify Email Address
+# Verify Email
 
-**URL Path:** `/api/v1/auth/verify-email`
+## Endpoint
+- **Method:** GET
+- **URL:** `/api/v1/auth/verify-email`
+- **Auth:** Not required (uses token query param)
 
-**Method:** `GET`
+## Query Parameters
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `token` | string | Yes | JWT sent in the registration verification email |
 
-**Description:** Activates a user account. This endpoint is called when a user clicks the "Verify Email Address" link sent to their inbox after registration.
+## Response
+Always redirects (302) — never returns JSON.
 
-## Request Data
-- **Query Parameters:**
-    - `token` (str): The unique verification token generated during registration.
+| Redirect destination | Condition |
+|---|---|
+| `{FRONTEND_URL}/login?verified=true` | Success |
+| `{FRONTEND_URL}/login?error=invalid_token` | Token malformed or expired |
+| `{FRONTEND_URL}/login?error=user_not_found` | Token valid but user deleted |
+| `{FRONTEND_URL}/login?error=verification_failed` | Any other exception |
 
-## Response Data
-- **Success (200 OK):**
-    - `message`: "Email verified successfully. You can now log in."
+## Database
+- Reads `faculty_profiles` WHERE `email` from token
+- Updates `is_verified = true` on success
+- No-op if already verified (idempotent)
 
-## Error Responses
-- **400 Bad Request:** Invalid or expired verification token.
-
-## Integration Note
-- Once verification is successful, the frontend should redirect the user to the Login page with a success message.
+## Notes
+- The link is embedded in the verification email sent during registration.
+- The frontend should read the `verified` or `error` query param on the `/login` page and show the appropriate message.

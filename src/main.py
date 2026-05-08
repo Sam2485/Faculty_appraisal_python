@@ -28,7 +28,7 @@ elif os.getenv("USE_LOCAL_STORAGE", "false").lower() == "true":
     app.mount("/uploads", StaticFiles(directory="./uploads"), name="uploads")
 
 # CORS Configuration
-origins = [
+ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:8000",
@@ -41,12 +41,19 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Process-Time"],
 )
+
+def _cors_headers(request: Request) -> dict:
+    """Return CORS headers for the request's origin, if it is allowed."""
+    origin = request.headers.get("origin", "")
+    if origin in ALLOWED_ORIGINS:
+        return {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true"}
+    return {}
 
 # Logging & Latency Middleware
 @app.middleware("http")
@@ -61,8 +68,15 @@ async def log_requests(request: Request, call_next):
         response.headers["X-Process-Time"] = str(process_time)
         return response
     except Exception as e:
+        # Return JSONResponse instead of re-raising — re-raising inside BaseHTTPMiddleware
+        # bypasses CORSMiddleware's response wrapper, making 500 errors appear as CORS errors.
         logger.error(f"Request failed: {request.method} {request.url.path} - Error: {str(e)}")
-        raise e
+        logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(e), "type": type(e).__name__, "path": request.url.path},
+            headers=_cors_headers(request),
+        )
 
 # Exception Handlers
 @app.exception_handler(SQLAlchemyError)
@@ -71,7 +85,8 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": "Database error occurred", "error": str(exc), "type": "SQLAlchemyError"}
+        content={"detail": "Database error occurred", "error": str(exc), "type": "SQLAlchemyError"},
+        headers=_cors_headers(request),
     )
 
 @app.exception_handler(Exception)
@@ -82,11 +97,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={
-            "detail": error_msg,
-            "type": error_type,
-            "path": request.url.path
-        }
+        content={"detail": error_msg, "type": error_type, "path": request.url.path},
+        headers=_cors_headers(request),
     )
 
 # Include Versioned API

@@ -83,11 +83,8 @@ async def create_or_update_review(db: AsyncSession, data: AppraisalReviewBase) -
         else:
             db_review = AppraisalReview(**data.model_dump())
             db.add(db_review)
-        await db.commit()
-        await db.refresh(db_review)
         return db_review
     except Exception as e:
-        await db.rollback()
         logger.error(f"Error in create_or_update_review for {data.faculty_email}: {str(e)}")
         logger.error(traceback.format_exc())
         raise

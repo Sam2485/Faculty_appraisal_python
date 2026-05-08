@@ -4,10 +4,10 @@
 Async FastAPI backend for a multi-school faculty appraisal system at DYP University. Supports 8 schools, 5-level role hierarchy, two appraisal form types (teaching + non-teaching), and dual cloud/on-premise deployment.
 
 - **Frontend**: React/Vite on Netlify (`https://dypfacultyappraisal.netlify.app`)
-- **Backend**: FastAPI on GCP Cloud Run (`asia-south1`, project `facultyappraisal-495011`)
-- **Database**: PostgreSQL via Supabase (pooled, port 6543)
-- **Storage**: Google Cloud Storage (`GCP_STORAGE_BUCKET`)
-- **Auth**: Local JWT (default) or Supabase Auth (`USE_LOCAL_AUTH` toggle)
+- **Backend**: FastAPI on GCP Cloud Run (`asia-south1`, project `facultyappraisal-495011`, service `faculty-appraisal-git`)
+- **Database**: GCP Cloud SQL PostgreSQL (`faculty-appraisal-db`). Originally Supabase but migrated due to auth limits. `supabase_client.py` is dead code pending removal.
+- **Storage**: Google Cloud Storage (`GCP_STORAGE_BUCKET`) with local `./uploads` fallback
+- **Auth**: Local JWT + bcrypt (`USE_LOCAL_AUTH=true` in prod). Supabase Auth path exists in code but is not used.
 
 ---
 
@@ -21,11 +21,11 @@ src/
 ├── models/              # SQLAlchemy ORM models (core, part_a, part_b, non_teaching)
 ├── schema/              # Pydantic v2 schemas (core, part_a, part_b, non_teaching)
 └── setup/
-    ├── database.py      # Async engine, connection pool (size=10, overflow=20)
+    ├── database.py      # Async engine, connection pool (size=5, overflow=10)
     ├── dependencies.py  # JWT auth, role hierarchy, CurrentUser dependency
     ├── local_auth.py    # Local bcrypt auth
     ├── storage_utils.py # GCS + local storage abstraction
-    ├── supabase_client.py
+    ├── supabase_client.py  # dead code — scheduled for removal
     └── email_utils.py
 main.py                  # Gunicorn entrypoint (proxies src/main.py)
 ```
@@ -33,15 +33,15 @@ main.py                  # Gunicorn entrypoint (proxies src/main.py)
 ---
 
 ## Role Hierarchy
-`Faculty(0) < HOD(1) < Section Head / Director(2) < Registrar(3.5) < Dean(3) < VC(4) < Admin(5)`
+`Faculty(0) < HOD(1) < Director(2) < Dean(3) < Registrar(3.5) < VC(4) < Admin(5)`
 
 Implemented in `src/setup/dependencies.py` via `has_authority_over()`. Use `CurrentUser` dependency on all protected routes.
 
 ## Form Types
-- **Type 1**: Schools 1 (SOCSEA), 3 (SOBB), 7 (SOCE), 8 (SOEMR), 2 (SOC) — standard engineering/science
-- **Type 2**: School 4 (SOMCS) — media/communication
-- **Type 3**: Schools 5 (SOD), 6 (SOAA) — design/applied arts
-- School 8 (SOEMR) is unique: has HOD layer reporting to Director
+- **Standard**: SoCSEA, SoBB, SoCE, SoEMR, SoC, CISR
+- **Media**: SoMCS
+- **Design**: CioD, SoAA
+- **SoEMR special case**: Uses the standard form, but the HOD score is visible alongside Director/Dean/VC scores in the review dashboard. All other standard schools do not show a HOD score column.
 - Mapped in `get_form_family()` in `src/setup/dependencies.py`
 
 ---
@@ -49,8 +49,8 @@ Implemented in `src/setup/dependencies.py` via `has_authority_over()`. Use `Curr
 ## Environment Variables (see `.env.example`)
 | Variable | Notes |
 |---|---|
-| `DATABASE_URL` | Must use `postgresql+asyncpg://` + Supabase port 6543 |
-| `USE_LOCAL_AUTH` | `true` = local JWT, `false` = Supabase Auth |
+| `DATABASE_URL` | Must use `postgresql+asyncpg://` scheme. GCP Cloud SQL uses Unix socket path in Cloud Run. |
+| `USE_LOCAL_AUTH` | Always `true` in production. `false` routes through Supabase Auth (unused). |
 | `JWT_SECRET_KEY` | Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `APP_URL` | Backend public URL, no trailing slash |
 | `FRONTEND_URL` | Frontend public URL, no trailing slash |
@@ -78,19 +78,25 @@ docker compose up --build
 ---
 
 ## GCP Deployment
+
+**CI/CD**: GCP Cloud Build triggers automatically on push to `main`, builds the Docker image, and deploys to Cloud Run. This is the live pipeline.
+
+> `.github/workflows/deploy.yml` exists in the repo but is **not active** — it was an earlier attempt at GitHub Actions CI/CD that never worked. Ignore it.
+
+**Manual deploy** (if needed):
 ```bash
 export PROJECT_ID=facultyappraisal-495011
 
 # Build and push image
-gcloud builds submit --tag asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend .
+gcloud builds submit --tag asia-south1-docker.pkg.dev/$PROJECT_ID/faculty-appraisal-repo/faculty-appraisal-git:latest .
 
 # Deploy to Cloud Run
-gcloud run deploy fastapi-backend \
-    --image asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend \
+gcloud run deploy faculty-appraisal-git \
+    --image asia-south1-docker.pkg.dev/$PROJECT_ID/faculty-appraisal-repo/faculty-appraisal-git:latest \
     --region asia-south1 \
+    --add-cloudsql-instances=$PROJECT_ID:asia-south1:faculty-appraisal-db \
     --allow-unauthenticated
 ```
-CI/CD via GitHub Actions — push to `main` triggers automatic deploy. Required secrets: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_SA_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
 
 ---
 
@@ -141,6 +147,8 @@ Current allowed: `localhost:5173/3000/8000`, `https://dypfacultyappraisal.netlif
 
 ## Known Issues / Gotchas
 - `--timeout 0` in Gunicorn CMD disables worker timeout — intentional for long async operations but watch for hung requests
-- `statement_cache_size: 0` in database engine is required for PgBouncer compatibility
-- Docker image runs as root (no non-root user configured) — acceptable for Cloud Run but worth fixing for stricter environments
-- `pool_size=10, max_overflow=20` — up to 30 DB connections per container instance; watch Supabase pooler limits if scaling Cloud Run instances
+- `statement_cache_size: 0` in database engine was originally required for Supabase/PgBouncer. Cloud SQL does not use PgBouncer so this is no longer strictly needed, but it is harmless to keep.
+- Docker image runs as root (no non-root user configured) — acceptable for Cloud Run but worth fixing before on-premise deployment
+- `pool_size=5, max_overflow=10` — up to 15 DB connections per container instance. Cloud SQL default max connections is ~100; keep this in mind when scaling Cloud Run instances.
+- On-premise deployment is the long-term target. GCP is temporary for client testing. Remove `supabase_client.py` and all Supabase env var references before packaging for on-premise.
+- Schema migrations are manual SQL files in `migrations/`. There is no Alembic. Run them in order against the DB when deploying.

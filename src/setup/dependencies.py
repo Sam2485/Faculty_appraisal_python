@@ -11,6 +11,12 @@ load_dotenv(override=True)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
+# Dean division membership — used by has_authority_over and dashboard filtering.
+# A dean's `school` field must be set to "engineering" or "non_engineering" on registration.
+# CISR is outside both divisions; only VC/Admin can review CISR faculty.
+ENGINEERING_SCHOOLS = frozenset({"SoCSEA", "SoBB", "SoCE", "SoEMR"})
+NON_ENGINEERING_SCHOOLS = frozenset({"SoC", "SoMCS", "CioD", "SoAA"})
+
 class User:
     def __init__(self, id: str, email: str, roles: List[str], department: Optional[str] = None, school: Optional[str] = None):
         self.id = id
@@ -58,7 +64,11 @@ class User:
                 return True
             
             if "dean" in self.roles:
-                return True
+                if subordinate_school in ENGINEERING_SCHOOLS:
+                    return self.school == "engineering"
+                if subordinate_school in NON_ENGINEERING_SCHOOLS:
+                    return self.school == "non_engineering"
+                return False  # CISR and unknown — only VC/Admin
 
             if any(r in self.roles for r in ["director", "section_head", "reporting_officer", "center_head"]):
                 return self.school == subordinate_school

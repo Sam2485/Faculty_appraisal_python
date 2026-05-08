@@ -79,9 +79,9 @@ async def review_non_teaching(email: str, data: Dict[str, Any], current_user: Cu
 
     # Mapping roles to database fields and next status
     role_config = {
-        "reporting_officer": ("ro_total", "pending_registrar", "ro_reviewed_at"),
-        "registrar": ("registrar_total", "pending_vc", "registrar_reviewed_at"),
-        "vc": ("vc_total", "completed", "vc_reviewed_at")
+        "reporting_officer": ("ro_total", "Reporting Officer Reviewed", "ro_reviewed_at"),
+        "registrar": ("registrar_total", "Registrar Reviewed", "registrar_reviewed_at"),
+        "vc": ("vc_total", "VC Approved", "vc_reviewed_at")
     }
 
     # Identify primary reviewer role

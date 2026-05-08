@@ -8,13 +8,30 @@ def test_vc_authority():
     assert vc.has_authority_over("dir_id", "director") is True
     assert vc.has_authority_over("dean_id", "dean") is True
 
-def test_dean_authority():
-    """Dean has blanket authority over all lower roles (division filtering removed)"""
-    dean = User(id="dean_id", email="dean@test.com", roles=["dean"])
-    assert dean.has_authority_over("faculty_id", "faculty") is True
-    assert dean.has_authority_over("hod_id", "hod") is True
-    # Dean cannot oversee VC
+def test_dean_engineering_authority():
+    """Dean of Engineering sees only engineering schools, not non-engineering or CISR"""
+    dean = User(id="dean_id", email="dean@test.com", roles=["dean"], school="engineering")
+    assert dean.has_authority_over("fac1", "faculty", subordinate_school="SoCSEA") is True
+    assert dean.has_authority_over("fac2", "faculty", subordinate_school="SoEMR") is True
+    # Cannot see non-engineering schools
+    assert dean.has_authority_over("fac3", "faculty", subordinate_school="SoMCS") is False
+    assert dean.has_authority_over("fac4", "faculty", subordinate_school="CioD") is False
+    # Cannot see CISR
+    assert dean.has_authority_over("fac5", "faculty", subordinate_school="CISR") is False
+    # Cannot oversee VC
     assert dean.has_authority_over("vc_id", "vc") is False
+
+def test_dean_non_engineering_authority():
+    """Dean of Non-Engineering sees only non-engineering schools, not engineering or CISR"""
+    dean = User(id="dean2_id", email="dean2@test.com", roles=["dean"], school="non_engineering")
+    assert dean.has_authority_over("fac1", "faculty", subordinate_school="SoMCS") is True
+    assert dean.has_authority_over("fac2", "faculty", subordinate_school="CioD") is True
+    assert dean.has_authority_over("fac3", "faculty", subordinate_school="SoAA") is True
+    # Cannot see engineering schools
+    assert dean.has_authority_over("fac4", "faculty", subordinate_school="SoCSEA") is False
+    assert dean.has_authority_over("fac5", "faculty", subordinate_school="SoEMR") is False
+    # Cannot see CISR
+    assert dean.has_authority_over("fac6", "faculty", subordinate_school="CISR") is False
 
 def test_director_authority():
     """Director only has authority over faculty within their own school"""
