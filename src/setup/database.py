@@ -12,10 +12,10 @@ elif SQLALCHEMY_DATABASE_URL and SQLALCHEMY_DATABASE_URL.startswith("postgres://
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
 engine = create_async_engine(
-    SQLALCHEMY_DATABASE_URL, 
-    pool_pre_ping=True, 
-    pool_size=10, 
-    max_overflow=20,
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
     connect_args={"statement_cache_size": 0}
 )
 AsyncSessionLocal = async_sessionmaker(

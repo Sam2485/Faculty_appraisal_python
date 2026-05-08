@@ -9,6 +9,7 @@ env:
   REGION: ${{ secrets.GCP_REGION }}
   SERVICE_NAME: faculty-appraisal-backend
   ARTIFACT_REPO: faculty-appraisal-repo
+  CLOUD_SQL_INSTANCE: ${{ secrets.GCP_PROJECT_ID }}:${{ secrets.GCP_REGION }}:faculty-appraisal-db
 
 jobs:
   deploy:
@@ -46,8 +47,18 @@ jobs:
         service: '${{ env.SERVICE_NAME }}'
         region: '${{ env.REGION }}'
         image: '${{ env.IMAGE_URL }}'
-        # Optional: inject secrets directly
+        flags: '--add-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }}'
         env_vars: |
           DATABASE_URL=${{ secrets.DATABASE_URL }}
-          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          USE_LOCAL_AUTH=true
+          ALLOW_MOCK_USER=false
+          APP_URL=${{ secrets.APP_URL }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          GCP_STORAGE_BUCKET=${{ secrets.GCP_STORAGE_BUCKET }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+          MAIL_FROM=${{ secrets.SMTP_USER }}

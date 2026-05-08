@@ -4,6 +4,7 @@ from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
 from src.models.core import FacultyProfile, Declaration, AppraisalSnapshot, AppraisalReview
 from sqlalchemy import select
+from collections import defaultdict
 from typing import List, Optional
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -44,17 +45,22 @@ async def get_subordinates(
 
     result = await db.execute(query)
     rows = result.all()
-    
+
+    # Batch-fetch all reviews for the academic year in one query, then index by email
+    faculty_emails = [faculty.email for faculty, _ in rows]
+    reviews_by_email: dict[str, list] = defaultdict(list)
+    if faculty_emails:
+        rev_res = await db.execute(
+            select(AppraisalReview).where(
+                AppraisalReview.faculty_email.in_(faculty_emails),
+                AppraisalReview.academic_year == academic_year
+            )
+        )
+        for rev in rev_res.scalars().all():
+            reviews_by_email[rev.faculty_email].append(rev)
+
     subordinates = []
     for faculty, decl in rows:
-        # Get reviews to fill the scores
-        rev_res = await db.execute(select(AppraisalReview).where(
-            AppraisalReview.faculty_email == faculty.email,
-            AppraisalReview.academic_year == academic_year
-        ))
-        reviews = rev_res.scalars().all()
-        
-        # Simplified mapping for dashboard
         sub = {
             "email": faculty.email,
             "name": faculty.full_name,
@@ -62,22 +68,21 @@ async def get_subordinates(
             "school": faculty.school,
             "appraisalRole": faculty.appraisal_role,
             "status": decl.status if decl else "pending",
-            "submittedOn": decl.submitted_at.date() if decl else None,
+            "submittedOn": decl.submitted_at.date() if decl and decl.submitted_at else None,
             "selfPartA": decl.part_a_total if decl else 0,
             "selfPartB": decl.part_b_total if decl else 0,
             "selfTotal": decl.grand_total if decl else 0
         }
-        
-        # Add authority scores from reviews
-        for rev in reviews:
+
+        for rev in reviews_by_email[faculty.email]:
             role = rev.reviewer_role
             sub[f"{role}PartA"] = rev.part_a_score
             sub[f"{role}PartB"] = rev.part_b_score
             sub[f"{role}Total"] = rev.total_score
             sub[f"{role}Remarks"] = rev.remarks
-            
+
         subordinates.append(sub)
-        
+
     return subordinates
 
 @router.get("/faculty/{email}")
