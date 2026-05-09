@@ -4,7 +4,7 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from sqlalchemy import select
 from src.setup.database import engine, AsyncSessionLocal
-from src.models.core import FacultyProfile, Declaration, AppraisalReview, AppraisalDocument, Feedback
+from src.models.core import FacultyProfile, Declaration, AppraisalReview, AppraisalDocument, Feedback, AppraisalConfig, Announcement
 from src.models.non_teaching import NonTeachingAppraisal
 from src.setup.local_auth import verify_password
 import os
@@ -106,6 +106,25 @@ class AppraisalDocumentAdmin(ModelView, model=AppraisalDocument):
     can_edit = False
 
 
+class AppraisalConfigAdmin(ModelView, model=AppraisalConfig):
+    name = "Appraisal Config"
+    name_plural = "Appraisal Configs"
+    icon = "fa-solid fa-calendar-check"
+    column_list = ["academic_year", "is_open", "submission_start", "submission_end", "updated_at"]
+    column_sortable_list = ["academic_year", "is_open"]
+    column_filters = ["is_open"]
+
+
+class AnnouncementAdmin(ModelView, model=Announcement):
+    name = "Announcement"
+    name_plural = "Announcements"
+    icon = "fa-solid fa-bullhorn"
+    column_list = ["created_at", "is_active", "title", "created_by"]
+    column_searchable_list = ["title", "created_by"]
+    column_sortable_list = ["created_at", "is_active"]
+    column_filters = ["is_active"]
+
+
 def create_admin(app) -> Admin:
     auth_backend = AdminAuth(secret_key=os.getenv("JWT_SECRET_KEY", "fallback-secret"))
     admin = Admin(
@@ -121,4 +140,6 @@ def create_admin(app) -> Admin:
     admin.add_view(NonTeachingAppraisalAdmin)
     admin.add_view(FeedbackAdmin)
     admin.add_view(AppraisalDocumentAdmin)
+    admin.add_view(AppraisalConfigAdmin)
+    admin.add_view(AnnouncementAdmin)
     return admin

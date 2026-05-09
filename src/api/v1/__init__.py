@@ -8,6 +8,7 @@ from .non_teaching import router as non_teaching_router
 from .upload import router as upload_router
 from .admin import router as admin_router
 from .feedback import router as feedback_router
+from .announcements import router as announcements_router
 
 router = APIRouter()
 
@@ -20,3 +21,4 @@ router.include_router(non_teaching_router)
 router.include_router(upload_router)
 router.include_router(admin_router)
 router.include_router(feedback_router)
+router.include_router(announcements_router)

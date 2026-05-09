@@ -108,3 +108,25 @@ class Feedback(Base):
     user_agent = Column(String(512))
     submitted_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class AppraisalConfig(Base):
+    __tablename__ = "appraisal_config"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    academic_year = Column(String, nullable=False, unique=True)
+    is_open = Column(Boolean, nullable=False, default=False)
+    submission_start = Column(DateTime(timezone=True))
+    submission_end = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(200), nullable=False)
+    body = Column(String(5000), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_by = Column(String)  # admin email
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

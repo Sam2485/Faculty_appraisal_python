@@ -3,13 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.models.core import FacultyProfile, Declaration, AppraisalReview
+from src.models.core import FacultyProfile, Declaration, AppraisalReview, AppraisalConfig
 from src.models.non_teaching import NonTeachingAppraisal
 from src.setup.local_auth import get_password_hash
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from pathlib import Path
 from dotenv import dotenv_values, set_key
+from datetime import datetime
 import os
 import logging
 
@@ -79,6 +80,7 @@ async def get_stats(
 
     teaching_pipeline: dict = {}
     by_school_submitted: dict = {}
+    by_department_submitted: dict = {}
     non_teaching_pipeline: dict = {}
 
     if academic_year:
@@ -100,6 +102,16 @@ async def get_stats(
         for school, status, count in school_sub_res.all():
             by_school_submitted.setdefault(school, {})[status] = count
 
+        # Department breakdown for the selected year
+        dept_sub_res = await db.execute(
+            select(FacultyProfile.department, Declaration.status, func.count(Declaration.id))
+            .join(Declaration, FacultyProfile.email == Declaration.faculty_email)
+            .where(Declaration.academic_year == academic_year)
+            .group_by(FacultyProfile.department, Declaration.status)
+        )
+        for dept, status, count in dept_sub_res.all():
+            by_department_submitted.setdefault(dept or "Unknown", {})[status] = count
+
         # Non-teaching pipeline for the selected year
         nt_pipe_res = await db.execute(
             select(NonTeachingAppraisal.status, func.count(NonTeachingAppraisal.id))
@@ -116,6 +128,7 @@ async def get_stats(
         "by_school_registered": by_school_registered,
         "teaching_submission_pipeline": teaching_pipeline,
         "by_school_submitted": by_school_submitted,
+        "by_department_submitted": by_department_submitted,
         "non_teaching_pipeline": non_teaching_pipeline,
     }
 
@@ -317,3 +330,149 @@ async def delete_user(
     await db.delete(user)
     await db.commit()
     return {"message": f"User {email} deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Pending faculty (have not submitted for a given year)
+# ---------------------------------------------------------------------------
+
+@router.get("/pending-faculty")
+async def get_pending_faculty(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    academic_year: str = Query(..., description="e.g. 2025-26"),
+    school: Optional[str] = None,
+):
+    _check_admin(current_user)
+
+    submitted_emails_res = await db.execute(
+        select(Declaration.faculty_email)
+        .where(Declaration.academic_year == academic_year)
+    )
+    submitted_emails = {row[0] for row in submitted_emails_res.all()}
+
+    query = (
+        select(FacultyProfile)
+        .where(
+            FacultyProfile.appraisal_role.in_(["faculty", "hod", "director", "dean"]),
+            FacultyProfile.email.notin_(submitted_emails),
+        )
+        .order_by(FacultyProfile.school, FacultyProfile.full_name)
+    )
+    if school:
+        query = query.where(FacultyProfile.school == school)
+
+    result = await db.execute(query)
+    users = result.scalars().all()
+    return [
+        {
+            "email": u.email,
+            "full_name": u.full_name,
+            "appraisal_role": u.appraisal_role,
+            "school": u.school,
+            "department": u.department,
+        }
+        for u in users
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Appraisal cycle / config
+# ---------------------------------------------------------------------------
+
+class AppraisalConfigCreate(BaseModel):
+    academic_year: str
+    is_open: bool = False
+    submission_start: Optional[datetime] = None
+    submission_end: Optional[datetime] = None
+
+
+class AppraisalConfigUpdate(BaseModel):
+    is_open: Optional[bool] = None
+    submission_start: Optional[datetime] = None
+    submission_end: Optional[datetime] = None
+
+
+@router.get("/appraisal-config")
+async def list_appraisal_configs(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(AppraisalConfig).order_by(AppraisalConfig.academic_year.desc())
+    )
+    configs = result.scalars().all()
+    return [
+        {
+            "id": c.id,
+            "academic_year": c.academic_year,
+            "is_open": c.is_open,
+            "submission_start": c.submission_start,
+            "submission_end": c.submission_end,
+            "updated_at": c.updated_at,
+        }
+        for c in configs
+    ]
+
+
+@router.post("/appraisal-config", status_code=201)
+async def create_appraisal_config(
+    current_user: CurrentUser,
+    data: AppraisalConfigCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    existing = await db.execute(
+        select(AppraisalConfig).where(AppraisalConfig.academic_year == data.academic_year)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail=f"Config for '{data.academic_year}' already exists")
+
+    config = AppraisalConfig(**data.model_dump())
+    db.add(config)
+    await db.commit()
+    await db.refresh(config)
+    return {"message": "Appraisal config created", "academic_year": config.academic_year, "is_open": config.is_open}
+
+
+@router.put("/appraisal-config/{academic_year}")
+async def update_appraisal_config(
+    academic_year: str,
+    current_user: CurrentUser,
+    data: AppraisalConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(AppraisalConfig).where(AppraisalConfig.academic_year == academic_year)
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=404, detail=f"No config found for '{academic_year}'")
+
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(config, field, value)
+
+    await db.commit()
+    await db.refresh(config)
+    return {"message": "Config updated", "academic_year": config.academic_year, "is_open": config.is_open}
+
+
+@router.delete("/appraisal-config/{academic_year}")
+async def delete_appraisal_config(
+    academic_year: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(AppraisalConfig).where(AppraisalConfig.academic_year == academic_year)
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=404, detail=f"No config found for '{academic_year}'")
+
+    await db.delete(config)
+    await db.commit()
+    return {"message": f"Config for '{academic_year}' deleted"}

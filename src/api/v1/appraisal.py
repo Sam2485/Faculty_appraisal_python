@@ -3,7 +3,7 @@ from src.setup.errors import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, AppraisalReview, FormSectionDefinition
+from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, AppraisalReview, FormSectionDefinition, AppraisalConfig
 from src.crud.core import create_or_update_declaration
 from src.models import part_a as models_a
 from src.models import part_b as models_b
@@ -274,8 +274,20 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
     if not academic_year:
         raise HTTPException(status_code=422, detail="academic_year is required")
 
+    # Cycle gate: if a config exists for this year and is_open=False, block submission.
+    # No config row = unrestricted (backwards compatible with years before this feature existed).
+    config_res = await db.execute(
+        select(AppraisalConfig).where(AppraisalConfig.academic_year == academic_year)
+    )
+    cycle_config = config_res.scalar_one_or_none()
+    if cycle_config is not None and not cycle_config.is_open:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Appraisal submissions for {academic_year} are currently closed.",
+        )
+
     totals = totals or {}
-    
+
     try:
         from src.setup.dependencies import get_form_family
         form_family = get_form_family(current_user.school) if current_user.school else "standard"

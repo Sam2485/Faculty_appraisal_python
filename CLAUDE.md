@@ -11,6 +11,20 @@ Async FastAPI backend for a multi-school faculty appraisal system at DYP Univers
 
 ---
 
+## Boundaries — what not to touch
+
+`admin_ui/` is owned by the frontend teammate. **Do not read, edit, or suggest
+changes to any file inside `admin_ui/`.** If a task seems to require a change
+there (e.g. the React app needs a new API endpoint, a CORS origin, or a new
+field in an API response), stop and tell the user what the frontend team needs
+so they can coordinate with the teammate directly.
+
+The only file in the repo root that belongs to both sides is `Dockerfile` —
+edit it only for backend reasons (Python deps, build steps) and flag any
+Node/Vite build changes to the frontend teammate before committing.
+
+---
+
 ## Source Layout
 
 ```

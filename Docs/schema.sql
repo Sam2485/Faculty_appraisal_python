@@ -839,6 +839,32 @@ create index idx_feedback_category on public.feedback (category);
 create index idx_feedback_status on public.feedback (status);
 create index idx_feedback_submitted on public.feedback (submitted_at desc);
 
+-- appraisal_config: one row per academic year, controls submission window open/close
+create table if not exists public.appraisal_config (
+    id               serial primary key,
+    academic_year    varchar not null unique,
+    is_open          boolean not null default false,
+    submission_start timestamptz,
+    submission_end   timestamptz,
+    created_at       timestamptz not null default now(),
+    updated_at       timestamptz not null default now()
+);
+
+create index if not exists idx_appraisal_config_academic_year on public.appraisal_config (academic_year);
+
+-- announcements: admin-managed notices shown to all users
+create table if not exists public.announcements (
+    id          serial primary key,
+    title       varchar(200) not null,
+    body        varchar(5000) not null,
+    is_active   boolean not null default true,
+    created_by  varchar,
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz not null default now()
+);
+
+create index if not exists idx_announcements_is_active on public.announcements (is_active);
+
 do $$
 declare
   table_record record;
