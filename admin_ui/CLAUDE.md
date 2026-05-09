@@ -5,9 +5,9 @@
 You are working on the **React admin dashboard only**.
 Your entire working directory is `admin_ui/`. 
 
-**Do not read, edit, or suggest changes to any file outside `admin_ui/`.
-No exceptions. If a task seems to require a backend change, stop and tell
-the user to contact the backend developer. Do not attempt the change yourself.**
+**Do not edit or suggest changes to any file outside `admin_ui/` (except creating new files in `Docs/`).
+You may read files outside `admin_ui/` for reference — e.g. to check what an API endpoint returns or how a model is structured.
+If a task seems to require a backend change, stop and tell the user to contact the backend developer. Do not attempt the change yourself.**
 
 ---
 
@@ -61,6 +61,9 @@ The backend is a FastAPI application. Files like `src/main.py`, `src/api/`,
 `src/models/`, `Dockerfile`, `pyproject.toml`, etc. are off-limits.
 If you identify something that needs to change on the backend side, tell the user
 what is needed and why — do not touch the files.
+
+**One exception:** you may create new documentation files inside `Docs/` (e.g. `Docs/admin_ui_notes.md`).
+Do not edit any existing files in `Docs/` — they are maintained by the backend developer.
 
 ---
 
