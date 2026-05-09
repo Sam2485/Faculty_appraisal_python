@@ -1,48 +1,80 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { api } from './api/client'
+import MainLayout from './layout/MainLayout'
+import RequireAuth from './components/RequireAuth'
+import Login from './pages/Login'
 
-// ---------------------------------------------------------------------------
-// Add your page imports here as you build them, e.g.:
-//   import Login from './pages/Login'
-//   import Dashboard from './pages/Dashboard'
-// ---------------------------------------------------------------------------
+import OverviewPage        from './pages/dashboard/OverviewPage'
+import AppraisalCyclePage  from './pages/dashboard/AppraisalCyclePage'
 
-function ProtectedRoute({ children }) {
-  const token = localStorage.getItem('admin_token')
-  const profile = api.getProfile()
-  if (!token || profile?.appraisal_role !== 'admin') {
-    return <Navigate to="/login" replace />
-  }
-  return children
-}
+import FacultyListPage     from './pages/faculty/FacultyListPage'
+import AddFacultyPage      from './pages/faculty/AddFacultyPage'
+import FacultyStatusPage   from './pages/faculty/FacultyStatusPage'
 
-// Temporary placeholder — replace with real pages as they are built
-function Placeholder({ name }) {
-  return (
-    <div style={{ padding: '2rem' }}>
-      <h2>{name}</h2>
-      <p style={{ color: '#64748b' }}>Page not yet implemented.</p>
-    </div>
-  )
-}
+import SectionControlsPage   from './pages/appraisal/SectionControlsPage'
+import SubmissionWindowPage   from './pages/appraisal/SubmissionWindowPage'
+import SubmissionStatusPage   from './pages/appraisal/SubmissionStatusPage'
+
+import SubmittedFacultyPage  from './pages/tracking/SubmittedFacultyPage'
+import PendingFacultyPage    from './pages/tracking/PendingFacultyPage'
+import SchoolStatisticsPage  from './pages/tracking/SchoolStatisticsPage'
+
+import CredentialsPage       from './pages/credentials/CredentialsPage'
+import CredentialDetailsPage from './pages/credentials/CredentialDetailsPage'
+
+import AnalyticsPage     from './pages/analytics/AnalyticsPage'
+import FeedbackPage      from './pages/feedback/FeedbackPage'
+import AnnouncementsPage from './pages/announcements/AnnouncementsPage'
+import SettingsPage      from './pages/settings/SettingsPage'
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Placeholder name="Login" />} />
+      <Route path="/login" element={<Login />} />
 
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Placeholder name="Dashboard" />
-          </ProtectedRoute>
-        }
-      />
+      <Route element={<RequireAuth />}>
+        <Route path="/" element={<MainLayout />}>
+        {/* Dashboard */}
+        <Route index                  element={<OverviewPage />}        />
+        <Route path="cycle"           element={<AppraisalCyclePage />}  />
 
-      {/* Add nested routes here as pages are built */}
+        {/* Faculty */}
+        <Route path="faculty"         element={<FacultyListPage />}     />
+        <Route path="faculty/add"     element={<AddFacultyPage />}      />
+        <Route path="faculty/status"  element={<FacultyStatusPage />}   />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Appraisal */}
+        <Route path="appraisal/sections" element={<SectionControlsPage />}  />
+        <Route path="appraisal/window"   element={<SubmissionWindowPage />} />
+        <Route path="appraisal/status"   element={<SubmissionStatusPage />} />
+
+        {/* Tracking */}
+        <Route path="tracking/submitted" element={<SubmittedFacultyPage />}  />
+        <Route path="tracking/pending"   element={<PendingFacultyPage />}    />
+        <Route path="tracking/schools"   element={<SchoolStatisticsPage />}  />
+
+        {/* Credentials */}
+        <Route path="credentials"       element={<CredentialsPage />}       />
+        <Route path="credentials/reset" element={<CredentialDetailsPage />} />
+
+        {/* Analytics */}
+        <Route path="analytics"          element={<AnalyticsPage />}     />
+        <Route path="analytics/schools"  element={<AnalyticsPage />}     />
+        <Route path="analytics/export"   element={<AnalyticsPage />}     />
+
+        {/* Feedback */}
+        <Route path="feedback" element={<FeedbackPage />} />
+
+        {/* Announcements */}
+        <Route path="announcements" element={<AnnouncementsPage />} />
+
+        {/* Settings */}
+        <Route path="settings"          element={<SettingsPage />} />
+        <Route path="settings/roles"    element={<SettingsPage />} />
+        <Route path="settings/security" element={<SettingsPage />} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Route>
     </Routes>
   )
 }
