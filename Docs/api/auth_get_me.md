@@ -14,14 +14,15 @@ No body. No query params.
 {
   "email": "string",
   "full_name": "string",
-  "role": "string",
   "appraisal_role": "string",
   "department": "string",
   "school": "string",
   "employee_id": "string",
   "designation": "string",
+  "qualification": "string",
+  "teaching_experience": "string",
   "phone": "string",
-  "profile_picture_url": "string"
+  "avatar": "string | null"
 }
 ```
 

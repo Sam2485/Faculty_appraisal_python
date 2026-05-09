@@ -9,45 +9,63 @@
 ## Request Body (JSON)
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `academic_year` | string | Yes | e.g. `2024-25` |
+| `academic_year` | string | Yes | e.g. `2025-2026` |
 | `form` | object | Yes | All form sections (see structure below) |
 | `totals` | object | No | Calculated score totals |
+| `docs` | object | No | Uploaded file map — `doc_key → [file objects]` |
+| `submitter_profile` | object | No | Profile snapshot at time of submit |
+| `status` | string | No | Initial declaration status e.g. `"Pending HOD Review"` |
+| `workflow_status` | string | No | Same as `status` — used if `status` is absent |
+| `next_reviewer` | string | No | e.g. `"hod"` or `"director"` |
+| `next_reviewer_role` | string | No | Same as `next_reviewer` |
+| `review_chain` | array | No | Ordered list of reviewer roles e.g. `["hod","director","dean"]` |
+
+The frontend first submits with all workflow fields. If the backend returns 400 or 422 (older version), it retries with only `academic_year`, `form`, and `totals`.
 
 ```json
 {
-  "academic_year": "2024-25",
+  "academic_year": "2025-2026",
   "form": {
-    "lectures": [ { "semester": "string", "course_code": "string", "planned_classes": 0, "conducted_classes": 0 } ],
-    "courseFile": [ { "course": "string", "title": "string", "details": "string" } ],
-    "innovDetails": "string",
-    "innovScore": 0,
-    "projects": [ { "label": "string" } ],
-    "quals": [ { "label": "string" } ],
-    "feedback": [ { "course_code": "string", "feedback_1": 0, "feedback_2": 0 } ],
-    "deptActs": [ { "activity_type": "string", "nature_of_activity": "string" } ],
-    "uniActs": [ { "activity_type": "string", "nature_of_activity": "string" } ],
-    "society": [ { "activity_type": "string", "status": "string", "short_description": "string" } ],
-    "industry": [ { "name": "string", "details": "string" } ],
-    "acr": { "hod": 0, "director": 0, "dean": 0, "vc": 0 },
-    "journals": [ { "title_with_page_nos": "string", "journal_details": "string", "issn_isbn_no": "string", "indexing": "string" } ],
-    "books": [ { "title_and_pages": "string", "book_title_editor": "string", "issn_isbn": "string", "publisher": "string", "coauthor": "string", "first_author": "string" } ],
-    "ict": [ { "title": "string", "description": "string", "pedagogy_type": "string", "quadrant": "string" } ],
-    "research": [ { "degree": "string", "student_name": "string", "thesis": "string" } ],
-    "projects2": [ { "title": "string", "agency": "string", "sanction_date": "DD/MM/YYYY", "amount": 0, "role": "string", "project_status": "string" } ],
-    "externalProjects": [ { "title": "string", "agency": "string", "sanction_date": "DD/MM/YYYY", "amount": 0, "role": "string", "project_status": "string" } ],
-    "patents": [ { "title": "string", "type": "string", "scope": "string", "patent_date": "DD/MM/YYYY", "patent_status": "string", "file_no": "string" } ],
-    "awards": [ { "title": "string", "award_date": "DD/MM/YYYY", "agency": "string", "event_level": "string" } ],
-    "confs": [ { "event_title": "string", "type": "string", "hosting_organization": "string", "event_level": "string" } ],
-    "proposals": [ { "title": "string", "duration": "string", "agency": "string", "amount": 0 } ],
-    "products": [ { "details": "string", "usage": "string" } ],
-    "fdps": [ { "program": "string", "duration_days": "string", "organization": "string" } ],
-    "training": [ { "company_industry": "string", "duration_days": "string", "nature_of_training": "string" } ]
+    "lectures":    [ { "semester": "Odd", "course_code": "CS101", "planned_classes": 40, "conducted_classes": 40, "score": 18 } ],
+    "courseFile":  [ { "course": "CS101", "title": "Course Plan", "details": "Uploaded", "score": 18 } ],
+    "innovativeTeaching": { "details": "Used flipped classroom", "score": 8 },
+    "projects":    [ { "label": "UG Projects", "score": 5 } ],
+    "quals":       [ { "label": "PhD Pursuing", "score": 10 } ],
+    "feedback":    [ { "course_code": "CS101", "feedback_1": 4.2, "feedback_2": 4.5, "score": 9 } ],
+    "deptActs":    [ { "activity": "Time Table Committee", "nature": "Member", "score": 5 } ],
+    "uniActs":     [ { "activity": "Cultural Fest", "nature": "Coordinator", "score": 10 } ],
+    "society":     [ { "activity": "Blood Donation", "status": "Completed", "details": "Organized", "score": 5 } ],
+    "industry":    [ { "name": "TCS", "details": "Guest Lecture", "score": 5 } ],
+    "acr":         [ { "label": "Self-motivation", "score": 4 } ],
+    "journals":    [ { "title": "...", "journal": "...", "issn": "...", "indexing": "Scopus", "score": 10 } ],
+    "books":       [ { "title": "...", "book": "...", "isbn": "...", "publisher": "...", "first_author": "Yes", "score": 5 } ],
+    "ict":         [ { "title": "...", "description": "...", "type": "Video", "quadrant": "Q1", "score": 10 } ],
+    "research":    [ { "degree": "PhD", "student_name": "John", "thesis": "ML in Healthcare", "score": 15 } ],
+    "projects2":   [ { "title": "...", "agency": "DST", "sanction_date": "2024-01-15", "amount": 500000, "role": "PI", "project_status": "Ongoing", "score": 10 } ],
+    "externalProjects": [ { "title": "...", "agency": "SERB", "sanction_date": "2024-03-01", "amount": 1000000, "role": "PI", "project_status": "Ongoing", "score": 15 } ],
+    "patents":     [ { "title": "...", "type": "Utility", "scope": "International", "patent_date": "2024-06-01", "patent_status": "Granted", "file_no": "PAT/2024/001", "score": 10 } ],
+    "awards":      [ { "title": "Best Teacher", "award_date": "2024-12-01", "agency": "University", "level": "University", "score": 5 } ],
+    "confs":       [ { "title": "Paper title", "type": "Presentation", "organization": "IEEE", "level": "International", "score": 5 } ],
+    "proposals":   [ { "title": "...", "duration": "3 years", "agency": "DST", "amount": 2000000, "score": 5 } ],
+    "products":    [ { "details": "Lab kit", "usage": "Used in practicals", "score": 5 } ],
+    "fdps":        [ { "program": "AI/ML Workshop", "duration": "5 days", "organization": "IIT Bombay", "score": 5 } ],
+    "training":    [ { "company": "Infosys", "duration": "2 weeks", "nature": "Industrial Visit", "score": 5 } ]
   },
-  "totals": {
-    "partATotal": 0,
-    "partBTotal": 0,
-    "grandTotal": 0
-  }
+  "totals": { "partATotal": 45.5, "partBTotal": 30.0, "grandTotal": 75.5 },
+  "docs": {
+    "journals0": [ { "name": "paper.pdf", "type": "application/pdf", "url": "https://storage.googleapis.com/...", "publicId": "faculty/uploads/uuid_paper.pdf" } ]
+  },
+  "submitter_profile": {
+    "email": "faculty@example.com",
+    "appraisal_role": "faculty",
+    "school": "SoCSEA",
+    "department": "Computer Science"
+  },
+  "status": "Pending HOD Review",
+  "workflow_status": "Pending HOD Review",
+  "next_reviewer": "hod",
+  "next_reviewer_role": "hod",
+  "review_chain": ["hod", "director", "dean"]
 }
 ```
 
@@ -55,8 +73,6 @@
 All date fields accept `DD/MM/YYYY`, `YYYY-MM-DD`, or `DD-MM-YYYY`. The backend normalises them before storage.
 
 ### Frontend → Backend field aliases
-Some frontend field names differ from DB column names. The backend maps them automatically:
-
 | Frontend key | DB column |
 |---|---|
 | `title_with_page_nos` | `title` |
@@ -82,7 +98,7 @@ Some frontend field names differ from DB column names. The backend maps them aut
 ```json
 {
   "message": "Submitted successfully",
-  "submitted_at": "2024-01-01T00:00:00"
+  "submitted_at": "2025-06-01T10:00:00"
 }
 ```
 
@@ -90,17 +106,20 @@ Some frontend field names differ from DB column names. The backend maps them aut
 | Status | Condition |
 |---|---|
 | 400 | `form` key missing from request |
+| 403 | Appraisal cycle is closed (`appraisal_config.is_open = false` for this year) |
 | 422 | `academic_year` missing |
 | 500 | DB constraint violation or unexpected error |
 
 ## Database
-This endpoint performs multiple writes in a single transaction:
+All writes happen in a single transaction:
 
-1. **Deletes** all existing rows for `(faculty_email, academic_year)` in every Part A and Part B table
-2. **Inserts** fresh rows from the submitted form into the normalized tables
-3. **Flushes** to surface any constraint violations early
-4. **Upserts** `declarations` with `status = 'Submitted'` and the provided totals
-5. **Upserts** `appraisal_snapshots` with the full request payload
-6. Commits everything atomically — all steps succeed or none do
+1. **Cycle gate** — reads `appraisal_config`; if `is_open = false` for this year, returns 403
+2. **Deletes** all existing rows for `(faculty_email, academic_year)` in every Part A and Part B table
+3. **Inserts** fresh rows from the submitted form into the normalized tables
+4. **Flushes** to surface any constraint violations early
+5. **Upserts** `declarations` — status is taken from the `status` or `workflow_status` field in the payload (e.g. `"Pending HOD Review"`); defaults to `"Submitted"` if absent
+6. **Deletes** existing `appraisal_documents` rows for this user/year, then **inserts** fresh rows from the `docs` map
+7. **Upserts** `appraisal_snapshots` with the full request payload
+8. Commits atomically
 
-**Tables written:** `teaching_process`, `course_files`, `innovative_teaching`, `projects_guided`, `qualification_enhancement`, `student_feedback`, `department_activities`, `university_activities`, `social_contributions`, `industry_connect`, `acr_scores`, `journal_publications`, `book_publications`, `ict_pedagogy`, `research_guidance`, `research_projects`, `external_research_projects`, `ipr_records`, `patents`, `awards`, `conferences`, `research_proposals`, `products_developed`, `self_development`, `industrial_training`, `declarations`, `appraisal_snapshots`
+**Tables written:** `teaching_process`, `course_files`, `innovative_teaching`, `projects_guided`, `qualification_enhancement`, `student_feedback`, `department_activities`, `university_activities`, `social_contributions`, `industry_connect`, `acr_scores`, `journal_publications`, `book_publications`, `ict_pedagogy`, `research_guidance`, `research_projects`, `external_research_projects`, `patents`, `awards`, `conferences`, `research_proposals`, `products_developed`, `self_development`, `industrial_training`, `declarations`, `appraisal_documents`, `appraisal_snapshots`

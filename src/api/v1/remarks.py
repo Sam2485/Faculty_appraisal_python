@@ -119,19 +119,24 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
         remarks=data.get('remarks'),
         status='Reviewed'
     )
-    await create_or_update_review(db, review_in)
-    
+    db_review = await create_or_update_review(db, review_in)
+
+    if data.get('section_scores'):
+        db_review.section_scores = data['section_scores']
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(db_review, 'section_scores')
+
     # 2. Shred Section Scores into normalized tables
     if 'section_scores' in data:
         await update_item_scores(db, email, data['academic_year'], role, data['section_scores'])
 
     # 3. Update Declaration Status
     status_map = {
-        "hod": "pending_director",
-        "center_head": "pending_director",
-        "director": "pending_dean",
-        "dean": "pending_vc",
-        "vc": "completed" # VC is final
+        "hod": "Pending Director Review",
+        "center_head": "Pending VC Review",
+        "director": "Pending Dean Review",
+        "dean": "Pending VC Review",
+        "vc": "Reviewed"
     }
     
     res = await db.execute(select(Declaration).where(

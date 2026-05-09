@@ -17,6 +17,34 @@ conf = ConnectionConfig(
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
+async def send_reset_email(email: str, reset_url: str):
+    """
+    Sends a password-reset email containing a one-time reset link.
+    """
+    html = f"""
+    <h3>Faculty Appraisal System — Password Reset</h3>
+    <p>You requested a password reset. Click the link below to set a new password:</p>
+    <a href="{reset_url}">Reset Password</a>
+    <br><br>
+    <p>This link expires in 1 hour. If you did not request a reset, please ignore this email.</p>
+    """
+
+    message = MessageSchema(
+        subject="Password Reset — Faculty Appraisal System",
+        recipients=[email],
+        body=html,
+        subtype=MessageType.html
+    )
+
+    fm = FastMail(conf)
+    try:
+        await fm.send_message(message)
+        return True
+    except Exception as e:
+        print(f"Failed to send reset email: {str(e)}")
+        return False
+
+
 async def send_verification_email(email: EmailStr, token: str):
     """
     Sends a verification email with a link to the verify endpoint.

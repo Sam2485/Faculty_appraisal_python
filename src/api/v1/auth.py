@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
 from src.setup.local_auth import create_access_token, verify_password, get_password_hash, decode_access_token
-from src.models.core import FacultyProfile
+from src.models.core import FacultyProfile, PasswordResetToken
 from src.schema.core import FacultyProfileCreate, FacultyProfileUpdate
 from src.crud.core import get_faculty_by_email
-from src.setup.email_utils import send_verification_email
+from src.setup.email_utils import send_verification_email, send_reset_email
+from datetime import datetime, timedelta
+import hashlib
+import secrets
 import os
 import logging
 
@@ -24,15 +28,30 @@ class LoginResponse(BaseModel):
     token: str
     profile: dict
 
+def _profile_dict(user: FacultyProfile) -> dict:
+    return {
+        "email": user.email,
+        "full_name": user.full_name,
+        "appraisal_role": user.appraisal_role,
+        "department": user.department,
+        "school": user.school,
+        "employee_id": user.employee_id,
+        "designation": user.designation,
+        "qualification": user.qualification,
+        "teaching_experience": user.teaching_experience,
+        "phone": user.phone,
+        "avatar": user.avatar,
+    }
+
 @router.post("/login", response_model=LoginResponse)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = await get_faculty_by_email(db, data.email)
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
+
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
-    
+
     token = create_access_token({
         "sub": str(user.id),
         "email": user.email,
@@ -40,29 +59,15 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
         "department": user.department,
         "school": user.school
     })
-    
-    return {
-        "token": token,
-        "profile": {
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.appraisal_role, 
-            "appraisal_role": user.appraisal_role,
-            "department": user.department,
-            "school": user.school,
-            "employee_id": user.employee_id,
-            "designation": user.designation,
-            "phone": user.phone,
-            "profile_picture_url": user.avatar
-        }
-    }
+
+    return {"token": token, "profile": _profile_dict(user)}
 
 @router.post("/register")
 async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db)):
     existing = await get_faculty_by_email(db, data.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-    
+
     new_user = FacultyProfile(
         email=data.email,
         password_hash=get_password_hash(data.password),
@@ -80,11 +85,10 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
-    
-    # Send verification email
+
     verify_token = create_access_token({"sub": str(new_user.id), "email": new_user.email})
     await send_verification_email(new_user.email, verify_token)
-    
+
     return {
         "message": "Registration successful. Please check your email to verify your account.",
         "email": new_user.email
@@ -100,19 +104,19 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
         if not email:
             logger.warning("Email verification failed: No email in token.")
             return RedirectResponse(url=f"{frontend_login_url}?error=invalid_token")
-        
+
         user = await get_faculty_by_email(db, email)
         if not user:
             logger.warning(f"Email verification failed: User {email} not found.")
             return RedirectResponse(url=f"{frontend_login_url}?error=user_not_found")
-        
+
         if not user.is_verified:
             user.is_verified = True
             await db.commit()
             logger.info(f"Email verification successful for {email}.")
         else:
             logger.info(f"Email already verified for {email}.")
-            
+
         return RedirectResponse(url=f"{frontend_login_url}?verified=true")
     except Exception as e:
         logger.error(f"Email verification exception: {str(e)}")
@@ -121,43 +125,24 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def get_me(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     user = await get_faculty_by_email(db, current_user.email)
-    return {
-        "email": user.email,
-        "full_name": user.full_name,
-        "role": user.appraisal_role,
-        "appraisal_role": user.appraisal_role,
-        "department": user.department,
-        "school": user.school,
-        "employee_id": user.employee_id,
-        "designation": user.designation,
-        "phone": user.phone,
-        "profile_picture_url": user.avatar
-    }
+    return _profile_dict(user)
 
 @router.put("/me")
 async def update_me(data: FacultyProfileUpdate, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     user = await get_faculty_by_email(db, current_user.email)
-    if data.full_name: user.full_name = data.full_name
-    if data.department: user.department = data.department
-    if data.school: user.school = data.school
-    if data.designation: user.designation = data.designation
-    if data.phone: user.phone = data.phone
-    if data.avatar: user.avatar = data.avatar 
-    
+    if data.full_name is not None: user.full_name = data.full_name
+    if data.employee_id is not None: user.employee_id = data.employee_id
+    if data.qualification is not None: user.qualification = data.qualification
+    if data.teaching_experience is not None: user.teaching_experience = data.teaching_experience
+    if data.department is not None: user.department = data.department
+    if data.school is not None: user.school = data.school
+    if data.designation is not None: user.designation = data.designation
+    if data.phone is not None: user.phone = data.phone
+    if data.avatar is not None: user.avatar = data.avatar
+
     await db.commit()
     await db.refresh(user)
-    return {
-        "email": user.email,
-        "full_name": user.full_name,
-        "role": user.appraisal_role,
-        "appraisal_role": user.appraisal_role,
-        "department": user.department,
-        "school": user.school,
-        "employee_id": user.employee_id,
-        "designation": user.designation,
-        "phone": user.phone,
-        "profile_picture_url": user.avatar
-    }
+    return _profile_dict(user)
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
@@ -168,15 +153,63 @@ async def change_password(data: ChangePasswordRequest, current_user: CurrentUser
     user = await get_faculty_by_email(db, current_user.email)
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Incorrect current password")
-    
+
     user.password_hash = get_password_hash(data.new_password)
     await db.commit()
     return {"message": "Password changed successfully"}
 
 @router.post("/forgot-password")
-async def forgot_password(data: dict):
-    return {"message": "Reset link sent"}
+async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
+    email = data.get("email", "").strip().lower()
+    # Always return 200 — no email enumeration
+    if not email:
+        return {"message": "If that email is registered, a reset link has been sent."}
+
+    user = await get_faculty_by_email(db, email)
+    if user:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+
+        db.add(PasswordResetToken(email=email, token_hash=token_hash, expires_at=expires_at))
+        await db.commit()
+
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+        reset_url = f"{frontend_url}/reset-password?token={raw_token}"
+        try:
+            await send_reset_email(email, reset_url)
+        except Exception as e:
+            logger.error(f"Failed to send reset email to {email}: {e}")
+
+    return {"message": "If that email is registered, a reset link has been sent."}
 
 @router.post("/reset-password")
-async def reset_password(data: dict):
-    return {"message": "Password reset successful"}
+async def reset_password(data: dict, db: AsyncSession = Depends(get_db)):
+    raw_token = data.get("token", "")
+    new_password = data.get("new_password", "")
+
+    if not raw_token or not new_password:
+        raise HTTPException(status_code=400, detail="Token and new_password are required")
+
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used == False,
+            PasswordResetToken.expires_at > datetime.utcnow()
+        )
+    )
+    reset_token = result.scalar_one_or_none()
+
+    if not reset_token:
+        raise HTTPException(status_code=400, detail="Invalid, expired, or already used reset token")
+
+    user = await get_faculty_by_email(db, reset_token.email)
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+
+    user.password_hash = get_password_hash(new_password)
+    reset_token.used = True
+    await db.commit()
+    return {"message": "Password reset successfully."}

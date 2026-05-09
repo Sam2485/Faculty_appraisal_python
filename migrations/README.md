@@ -28,6 +28,7 @@ These have already been applied to the live database. Editing them will not chan
 | 004 | `004_add_indexes.sql` | Performance indexes on all Part A/B tables, faculty_profiles, declarations |
 | 005 | `005_add_is_verified_column.sql` | Added `is_verified boolean` column to `faculty_profiles` |
 | 006 | `006_appraisal_config_and_announcements.sql` | Created `appraisal_config` table (cycle open/close) and `announcements` table |
+| 007 | `007_section_scores_and_password_reset.sql` | Added `section_scores jsonb` to `appraisal_reviews`; created `password_reset_tokens` table |
 
 `seed_admin_user.sql` is a one-time setup file, not a schema migration. Run it once on a fresh install to create the first admin account.
 
@@ -60,4 +61,4 @@ psql -U postgres -f Docs/schema.sql
 psql -U postgres -f migrations/seed_admin_user.sql
 ```
 
-Do NOT run migrations 001–006 after a fresh install — `Docs/schema.sql` already includes all of them.
+Do NOT run migrations 001–007 after a fresh install — `Docs/schema.sql` already includes all of them.

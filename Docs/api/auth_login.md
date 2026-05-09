@@ -18,14 +18,15 @@
   "profile": {
     "email": "string",
     "full_name": "string",
-    "role": "string",
     "appraisal_role": "string",
     "department": "string",
     "school": "string",
     "employee_id": "string",
     "designation": "string",
+    "qualification": "string",
+    "teaching_experience": "string",
     "phone": "string",
-    "profile_picture_url": "string"
+    "avatar": "string | null"
   }
 }
 ```
@@ -34,7 +35,7 @@
 | Status | Condition |
 |---|---|
 | 401 | Email not found or wrong password |
-| 403 | Account exists but email not verified yet |
+| 403 | Account exists but email not yet verified |
 
 ## Database
 - Reads `faculty_profiles` WHERE `email = ?`
@@ -43,5 +44,5 @@
 - No writes
 
 ## Notes
-- The returned `token` is a JWT. Store it and send it as `Authorization: Bearer <token>` on all protected requests.
-- `role` and `appraisal_role` are the same field — both are returned for compatibility.
+- Store the returned `token` in `sessionStorage` (key: `accessToken`) and send it as `Authorization: Bearer <token>` on all protected requests.
+- The token does not expire on the server — it is valid until a new one is issued.

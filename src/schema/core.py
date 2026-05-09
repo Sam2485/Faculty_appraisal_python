@@ -22,6 +22,7 @@ class FacultyProfileCreate(FacultyProfileBase):
 
 class FacultyProfileUpdate(BaseModel):
     full_name: Optional[str] = None
+    employee_id: Optional[str] = None
     qualification: Optional[str] = None
     designation: Optional[str] = None
     department: Optional[str] = None

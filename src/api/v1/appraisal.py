@@ -298,24 +298,55 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
 
         # 2. Update/Create Declaration
         from src.schema.core import DeclarationBase
+        # Use status from payload if provided (frontend computes review chain); default to 'Submitted'
+        initial_status = data.get('status') or data.get('workflow_status') or 'Submitted'
         decl_data = DeclarationBase(
             faculty_email=current_user.email,
             academic_year=academic_year,
             part_a_total=_safe_num(totals.get('partATotal')),
             part_b_total=_safe_num(totals.get('partBTotal')),
             grand_total=_safe_num(totals.get('grandTotal')),
-            status='Submitted'
+            status=initial_status
         )
         await create_or_update_declaration(db, decl_data)
-        
-        # 3. Update Snapshot (Draft -> Latest)
+
+        # 3. Save uploaded documents from docs map
+        docs = data.get('docs', {})
+        if docs and isinstance(docs, dict):
+            await db.execute(
+                delete(AppraisalDocument).where(
+                    AppraisalDocument.faculty_email == current_user.email,
+                    AppraisalDocument.academic_year == academic_year
+                ),
+                execution_options={"synchronize_session": False}
+            )
+            for doc_key, file_list in docs.items():
+                if not isinstance(file_list, list):
+                    continue
+                section = doc_key.rstrip('0123456789') or doc_key
+                for row_no, file_obj in enumerate(file_list, 1):
+                    if not isinstance(file_obj, dict) or not file_obj.get('name'):
+                        continue
+                    db.add(AppraisalDocument(
+                        faculty_email=current_user.email,
+                        academic_year=academic_year,
+                        section=section,
+                        doc_key=doc_key,
+                        row_no=row_no,
+                        file_name=file_obj.get('name', ''),
+                        file_type=file_obj.get('type'),
+                        file_url=file_obj.get('url'),
+                        storage_path=file_obj.get('publicId')
+                    ))
+
+        # 4. Update Snapshot (Draft -> Latest)
         result = await db.execute(select(AppraisalSnapshot).where(
             AppraisalSnapshot.faculty_email == current_user.email,
             AppraisalSnapshot.academic_year == academic_year
         ))
         db_snapshot = result.scalar_one_or_none()
         if db_snapshot:
-            db_snapshot.payload = data # Save the full submit payload
+            db_snapshot.payload = data
             flag_modified(db_snapshot, "payload")
         else:
             db.add(AppraisalSnapshot(
@@ -323,7 +354,7 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
                 academic_year=academic_year,
                 payload=data
             ))
-        
+
         await db.commit()
         return {"message": "Submitted successfully", "submitted_at": datetime.utcnow().isoformat()}
     except HTTPException:
@@ -352,10 +383,25 @@ async def get_appraisal_status(academic_year: str, current_user: CurrentUser, db
             AppraisalReview.academic_year == academic_year
         ))
         reviews = rev_res.scalars().all()
-        
+
+        reviews_data = [
+            {
+                "reviewer_role": r.reviewer_role,
+                "reviewer_email": r.reviewer_email,
+                "part_a_score": float(r.part_a_score) if r.part_a_score is not None else 0,
+                "part_b_score": float(r.part_b_score) if r.part_b_score is not None else 0,
+                "total_score": float(r.total_score) if r.total_score is not None else 0,
+                "section_scores": r.section_scores or {},
+                "remarks": r.remarks,
+                "status": r.status,
+                "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
+            }
+            for r in reviews
+        ]
+
         return {
             "declaration": declaration,
-            "reviews": reviews
+            "reviews": reviews_data
         }
     except Exception as e:
         logger.error(f"Error fetching status: {str(e)}")

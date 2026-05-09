@@ -12,6 +12,9 @@ All fields are optional. Only provided fields are updated.
 | Field | Type | Notes |
 |---|---|---|
 | `full_name` | string | |
+| `employee_id` | string | |
+| `qualification` | string | |
+| `teaching_experience` | string | |
 | `department` | string | |
 | `school` | string | |
 | `designation` | string | |
@@ -24,18 +27,19 @@ Same shape as GET `/auth/me`:
 {
   "email": "string",
   "full_name": "string",
-  "role": "string",
   "appraisal_role": "string",
   "department": "string",
   "school": "string",
   "employee_id": "string",
   "designation": "string",
+  "qualification": "string",
+  "teaching_experience": "string",
   "phone": "string",
-  "profile_picture_url": "string"
+  "avatar": "string | null"
 }
 ```
 
 ## Database
 - Reads `faculty_profiles` WHERE `email = current_user.email`
-- Updates changed fields
+- Updates any provided fields (uses `is not None` check — sending `null` does not clear a field)
 - Commits and refreshes

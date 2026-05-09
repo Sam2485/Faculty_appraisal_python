@@ -9,8 +9,14 @@
 ## Query Parameters
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `academic_year` | string | Yes | e.g. `2024-25` |
-| `schools` | string | No | Comma-separated school codes. Only used by VC/Registrar to filter. e.g. `SoCSEA,SoBB` |
+| `academic_year` | string | Yes | e.g. `2025-2026` |
+| `reviewer_role` | string | Yes | Role the caller is acting as e.g. `hod`, `director` |
+| `pending_status` | string | Yes | Status string the reviewer is looking for e.g. `"Pending HOD Review"` |
+| `reviewer_school` | string | No | School of the reviewer — used as fallback if not in JWT |
+| `reviewer_department` | string | No | Department of the reviewer — used as fallback if not in JWT |
+| `schools` | string | No | Comma-separated school codes — VC/Registrar filter only e.g. `SoCSEA,SoBB` |
+
+`reviewer_role`, `pending_status`, `reviewer_school`, `reviewer_department` are sent by the frontend but authority filtering is always enforced server-side via the JWT.
 
 ## Visibility rules by role
 | Role | Sees |
@@ -24,7 +30,8 @@
 | Faculty | Empty array |
 
 ## Response (200)
-Array of subordinate objects:
+Array of subordinate objects. All reviewer score fields are present on every row, defaulting to `0` / `""` until that reviewer has submitted:
+
 ```json
 [
   {
@@ -32,26 +39,34 @@ Array of subordinate objects:
     "name": "string",
     "department": "string",
     "school": "string",
-    "appraisalRole": "string",
+    "appraisal_role": "string",
+    "designation": "string",
     "status": "string",
-    "submittedOn": "date | null",
-    "selfPartA": 0,
-    "selfPartB": 0,
-    "selfTotal": 0,
-    "hodPartA": 0,
-    "hodPartB": 0,
-    "hodTotal": 0,
-    "hodRemarks": "string",
-    "directorPartA": 0,
-    "directorTotal": 0,
-    "deanTotal": 0,
-    "vcTotal": 0
+    "submitted_at": "timestamp | null",
+    "part_a_total": 0,
+    "part_b_total": 0,
+    "grand_total": 0,
+    "hod_total": 0,
+    "hod_part_a": 0,
+    "hod_part_b": 0,
+    "hod_remarks": "",
+    "director_total": 0,
+    "director_part_a": 0,
+    "director_part_b": 0,
+    "director_remarks": "",
+    "dean_total": 0,
+    "dean_part_a": 0,
+    "dean_part_b": 0,
+    "dean_remarks": "",
+    "vc_total": 0,
+    "vc_part_a": 0,
+    "vc_part_b": 0,
+    "vc_remarks": ""
   }
 ]
 ```
-Score fields (e.g. `hodPartA`, `directorTotal`) are only present if that authority has submitted a review. Not all fields appear for every row.
 
 ## Database
-1. Joins `faculty_profiles` with `declarations` (LEFT JOIN on email) — filtered by role visibility rules above
+1. LEFT JOINs `faculty_profiles` with `declarations` (filtered to `academic_year`) — scoped by role visibility rules
 2. Fetches ALL `appraisal_reviews` for the academic year in a **single batched query** (`WHERE faculty_email IN (...)`)
 3. Groups reviews by email in Python — no N+1 queries

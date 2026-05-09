@@ -81,6 +81,7 @@ class AppraisalReview(Base):
     part_b_score = Column(Numeric, nullable=False, default=0)
     total_score = Column(Numeric, nullable=False, default=0)
     remarks = Column(String)
+    section_scores = Column(JSONB, nullable=False, default={})
     status = Column(String, nullable=False)
     reviewed_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -127,6 +128,16 @@ class Announcement(Base):
     title = Column(String(200), nullable=False)
     body = Column(String(5000), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
-    created_by = Column(String)  # admin email
+    created_by = Column(String)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String, nullable=False)
+    token_hash = Column(String, nullable=False, unique=True)
+    used = Column(Boolean, nullable=False, default=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

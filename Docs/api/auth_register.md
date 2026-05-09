@@ -48,4 +48,3 @@
 
 ## Notes
 - Account cannot log in until the email verification link is clicked.
-- `forgot_password` and `reset_password` endpoints exist but are stubs — they return success without doing anything.
