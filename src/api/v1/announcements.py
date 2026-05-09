@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.models.core import Announcement
-from pydantic import BaseModel
+from src.models.core import Announcement, VALID_ANNOUNCEMENT_AUDIENCES
+from pydantic import BaseModel, field_validator
 from typing import Optional
 
 router = APIRouter(tags=["Announcements"])
@@ -32,6 +32,7 @@ async def list_announcements(db: AsyncSession = Depends(get_db)):
             "id": a.id,
             "title": a.title,
             "body": a.body,
+            "audience": a.audience,
             "created_at": a.created_at,
         }
         for a in items
@@ -45,13 +46,29 @@ async def list_announcements(db: AsyncSession = Depends(get_db)):
 class AnnouncementCreate(BaseModel):
     title: str
     body: str
+    audience: str = "all"
     is_active: bool = True
+
+    @field_validator("audience")
+    @classmethod
+    def validate_audience(cls, v: str) -> str:
+        if v not in VALID_ANNOUNCEMENT_AUDIENCES:
+            raise ValueError(f"audience must be one of: {', '.join(sorted(VALID_ANNOUNCEMENT_AUDIENCES))}")
+        return v
 
 
 class AnnouncementUpdate(BaseModel):
     title: Optional[str] = None
     body: Optional[str] = None
+    audience: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("audience")
+    @classmethod
+    def validate_audience(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_ANNOUNCEMENT_AUDIENCES:
+            raise ValueError(f"audience must be one of: {', '.join(sorted(VALID_ANNOUNCEMENT_AUDIENCES))}")
+        return v
 
 
 @router.get("/admin/announcements")
@@ -69,6 +86,7 @@ async def list_all_announcements(
             "id": a.id,
             "title": a.title,
             "body": a.body,
+            "audience": a.audience,
             "is_active": a.is_active,
             "created_by": a.created_by,
             "created_at": a.created_at,
@@ -88,6 +106,7 @@ async def create_announcement(
     announcement = Announcement(
         title=data.title,
         body=data.body,
+        audience=data.audience,
         is_active=data.is_active,
         created_by=current_user.email,
     )

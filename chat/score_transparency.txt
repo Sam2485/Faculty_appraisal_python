@@ -1,0 +1,89 @@
+Score Transparency & Form Routing — Architecture Decision
+==========================================================
+
+Reference: Docs/flow and transparency.txt
+
+## What the spec requires
+
+The appraisal flow has role-based score visibility rules:
+
+- Director reviewing a Faculty form    → should NOT see HOD score (sees self-score only)
+- Dean reviewing a Faculty form        → should NOT see HOD or Director scores (sees self-score only)
+- VC reviewing a Faculty form          → sees ALL scores
+- Registrar reviewing a Staff form     → should NOT see Reporting Officer score (sees self-score only)
+- VC reviewing a Staff form            → sees ALL scores
+- SoEMR special case                   → HOD score IS visible to Director/Dean/VC (unlike other schools)
+
+Full school-by-school breakdown is in Docs/flow and transparency.txt.
+
+
+## Current implementation
+
+Form routing and the review queue:
+- Implemented on the FRONTEND.
+- Backend correctly enforces authority (has_authority_over() in src/setup/dependencies.py) and
+  auto-advances Declaration.status via status_map in src/api/v1/remarks.py.
+- The backend does not compute who reviews next — the frontend drives the workflow and sets the
+  initial status on submission. This is intentional and acceptable.
+
+Score transparency (masking):
+- Implemented on the FRONTEND only.
+- The backend sends all reviewer scores to anyone with authority over a form, with no filtering.
+- Affected endpoints:
+    - GET /dashboard/subordinates        (src/api/v1/dashboard.py)
+    - GET /dashboard/faculty/{email}     (src/api/v1/dashboard.py)
+    - GET /appraisal/status              (src/api/v1/appraisal.py)
+    - GET /non-teaching/subordinates     (src/api/v1/non_teaching.py)
+
+
+## Why we left it frontend-only (for now)
+
+- This is an internal university system with trusted staff users and a single frontend client.
+- The frontend already handles it correctly, so the user experience is correct.
+- Adding backend filtering is straightforward but adds code for no immediate gain.
+
+
+## Risk of frontend-only
+
+- Any reviewer with basic technical skill can call the API directly (curl, devtools, Postman)
+  and see scores that should be hidden from their role.
+- If a second client is ever added (mobile app, admin tool, report generator), it would get
+  unfiltered scores and would need to re-implement the masking itself.
+- There is no server-side audit trail proving that score masking was enforced.
+
+
+## What backend implementation would look like (if needed later)
+
+Add a helper that, given (current_user.role, subject_role), returns which score fields to
+expose. Then apply it in each of the four endpoints listed above before returning the response.
+
+Rough visibility matrix for teaching staff:
+
+  Requester role  |  Can see scores from
+  ----------------+------------------------------------
+  HOD             |  self only
+  Director        |  self only  (NOT hod)
+  Dean            |  self only  (NOT hod, NOT director)
+  VC              |  self + hod + director + dean
+  Admin           |  all
+
+  Exception: SoEMR — Director, Dean, VC can also see the HOD score.
+
+For non-teaching staff:
+
+  Requester role      |  Can see scores from
+  --------------------+------------------------------------
+  Reporting Officer   |  self only
+  Registrar           |  self only  (NOT reporting_officer)
+  VC                  |  self + reporting_officer + registrar
+  Admin               |  all
+
+The school check for the SoEMR exception can use get_form_family() already in
+src/setup/dependencies.py.
+
+
+## Decision log
+
+2026-05-10: Decided to keep score masking frontend-only. Backend enforces authority (who can
+access whose form) but does not filter which scores are visible within an accessible form.
+Revisit if a second API client is added or if policy requires server-side enforcement.

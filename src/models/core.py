@@ -122,11 +122,16 @@ class AppraisalConfig(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+VALID_ANNOUNCEMENT_AUDIENCES = frozenset({
+    "all", "faculty", "hod", "dean", "non_teaching_staff"
+})
+
 class Announcement(Base):
     __tablename__ = "announcements"
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(200), nullable=False)
     body = Column(String(5000), nullable=False)
+    audience = Column(String(50), nullable=False, default="all")
     is_active = Column(Boolean, nullable=False, default=True)
     created_by = Column(String)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
