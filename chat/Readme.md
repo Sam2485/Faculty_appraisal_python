@@ -1,0 +1,1 @@
+This is a folder of text to share with the frontend dev, or message received from them

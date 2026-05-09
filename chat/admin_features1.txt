@@ -1,0 +1,42 @@
+Dashboard
+
+Faculty Management
+ ├── Faculty List
+ ├── Add Faculty
+ ├── Update Faculty
+ └── Remove Access
+
+Appraisal Management
+ ├── Enable/Disable Appraisal
+ ├── Submission Window
+ └── Current Cycle
+
+Submission Tracking
+ ├── Submitted Faculty
+ ├── Pending Faculty
+ ├── School-wise Stats
+ └── Department Stats
+
+Credential Management
+ ├── Generate Credentials
+ ├── Signup Requests
+ ├── Reset Passwords
+ └── Resend Credentials
+
+Analytics & Reports
+ ├── Timeline Graphs
+ ├── Reports
+ └── Export Data
+
+Feedback & Support
+ ├── Queries
+ ├── Bug Reports
+ └── Feature Requests
+
+Announcements
+ └── Important Notes
+
+Settings
+ ├── Roles & Permissions
+ ├── Security
+ └── Session Settings

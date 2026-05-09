@@ -70,16 +70,11 @@ def _safe_num(value, default=0):
 
 @router.get("/snapshot")
 async def get_snapshot(academic_year: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    try:
-        result = await db.execute(select(AppraisalSnapshot).where(
-            AppraisalSnapshot.faculty_email == current_user.email,
-            AppraisalSnapshot.academic_year == academic_year
-        ))
-        snapshot = result.scalar_one_or_none()
-        return snapshot
-    except Exception as e:
-        logger.error(f"Error fetching snapshot: {str(e)}")
-        return None
+    result = await db.execute(select(AppraisalSnapshot).where(
+        AppraisalSnapshot.faculty_email == current_user.email,
+        AppraisalSnapshot.academic_year == academic_year
+    ))
+    return result.scalar_one_or_none()
 
 @router.put("/snapshot")
 async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
@@ -106,11 +101,17 @@ async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: A
         
         await db.commit()
         return {"message": "Saved"}
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Error saving snapshot for {current_user.email}: {str(e)}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Failed to save draft snapshot")
+        raise AppError(
+            "Your draft could not be saved. Please try again.",
+            detail=f"Snapshot upsert failed: {type(e).__name__}: {e}",
+            status_code=500,
+        )
 
 async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[str, Any], form_family: str):
     """
@@ -371,38 +372,34 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
 
 @router.get("/status")
 async def get_appraisal_status(academic_year: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    try:
-        decl_res = await db.execute(select(Declaration).where(
-            Declaration.faculty_email == current_user.email,
-            Declaration.academic_year == academic_year
-        ))
-        declaration = decl_res.scalar_one_or_none()
-        
-        rev_res = await db.execute(select(AppraisalReview).where(
-            AppraisalReview.faculty_email == current_user.email,
-            AppraisalReview.academic_year == academic_year
-        ))
-        reviews = rev_res.scalars().all()
+    decl_res = await db.execute(select(Declaration).where(
+        Declaration.faculty_email == current_user.email,
+        Declaration.academic_year == academic_year
+    ))
+    declaration = decl_res.scalar_one_or_none()
 
-        reviews_data = [
-            {
-                "reviewer_role": r.reviewer_role,
-                "reviewer_email": r.reviewer_email,
-                "part_a_score": float(r.part_a_score) if r.part_a_score is not None else 0,
-                "part_b_score": float(r.part_b_score) if r.part_b_score is not None else 0,
-                "total_score": float(r.total_score) if r.total_score is not None else 0,
-                "section_scores": r.section_scores or {},
-                "remarks": r.remarks,
-                "status": r.status,
-                "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
-            }
-            for r in reviews
-        ]
+    rev_res = await db.execute(select(AppraisalReview).where(
+        AppraisalReview.faculty_email == current_user.email,
+        AppraisalReview.academic_year == academic_year
+    ))
+    reviews = rev_res.scalars().all()
 
-        return {
-            "declaration": declaration,
-            "reviews": reviews_data
+    reviews_data = [
+        {
+            "reviewer_role": r.reviewer_role,
+            "reviewer_email": r.reviewer_email,
+            "part_a_score": float(r.part_a_score) if r.part_a_score is not None else 0,
+            "part_b_score": float(r.part_b_score) if r.part_b_score is not None else 0,
+            "total_score": float(r.total_score) if r.total_score is not None else 0,
+            "section_scores": r.section_scores or {},
+            "remarks": r.remarks,
+            "status": r.status,
+            "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
         }
-    except Exception as e:
-        logger.error(f"Error fetching status: {str(e)}")
-        return {"declaration": None, "reviews": []}
+        for r in reviews
+    ]
+
+    return {
+        "declaration": declaration,
+        "reviews": reviews_data
+    }

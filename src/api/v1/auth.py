@@ -87,7 +87,10 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
     await db.refresh(new_user)
 
     verify_token = create_access_token({"sub": str(new_user.id), "email": new_user.email})
-    await send_verification_email(new_user.email, verify_token)
+    try:
+        await send_verification_email(new_user.email, verify_token)
+    except Exception as e:
+        logger.error(f"Failed to send verification email to {new_user.email}: {e}")
 
     return {
         "message": "Registration successful. Please check your email to verify your account.",

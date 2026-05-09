@@ -108,9 +108,13 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
         raise HTTPException(status_code=403, detail="Not authorized to update remarks for this faculty")
 
     # 1. Update Review Table
+    academic_year = data.get('academic_year')
+    if not academic_year:
+        raise HTTPException(status_code=422, detail="academic_year is required")
+
     review_in = AppraisalReviewBase(
         faculty_email=email,
-        academic_year=data['academic_year'],
+        academic_year=academic_year,
         reviewer_email=current_user.email,
         reviewer_role=role,
         part_a_score=data.get('part_a_score', 0),
@@ -128,7 +132,7 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
 
     # 2. Shred Section Scores into normalized tables
     if 'section_scores' in data:
-        await update_item_scores(db, email, data['academic_year'], role, data['section_scores'])
+        await update_item_scores(db, email, academic_year, role, data['section_scores'])
 
     # 3. Update Declaration Status
     status_map = {
@@ -138,10 +142,10 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
         "dean": "Pending VC Review",
         "vc": "Reviewed"
     }
-    
+
     res = await db.execute(select(Declaration).where(
         Declaration.faculty_email == email,
-        Declaration.academic_year == data['academic_year']
+        Declaration.academic_year == academic_year
     ))
     decl = res.scalar_one_or_none()
     if decl:

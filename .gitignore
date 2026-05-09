@@ -3,7 +3,6 @@ __pycache__/
 .venv/
 skills/
 .claude/
-chat/
 
 .env
 api_docs.zip

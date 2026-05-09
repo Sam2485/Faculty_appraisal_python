@@ -1,0 +1,85 @@
+HEY — READ THIS BEFORE IMPLEMENTING ERROR HANDLING
+=====================================================
+
+We've updated the backend error response format. All API errors now
+return a consistent JSON shape. Here's everything you need to know.
+
+
+THE SHAPE
+---------
+Every error response (4xx and 5xx) now includes these two fields:
+
+  {
+    "user_message": "...",   <-- show this in the UI (toast, banner, etc.)
+    "detail": "..."          <-- ignore this in the UI; it's for you/devs in the network tab
+  }
+
+Some 500 errors also include "type" and "path" for extra debugging context,
+but you don't need to render those.
+
+
+SIMPLE RULE
+-----------
+Always read "user_message" to display to the user.
+Never display "detail" — it may contain internal error info.
+
+  // Example (pseudocode, adapt to your framework)
+  try {
+    const res = await api.post('/appraisal/submit', payload)
+  } catch (err) {
+    const msg = err.response?.data?.user_message
+               ?? "Something went wrong. Please try again."
+    showToast(msg, 'error')
+  }
+
+
+WHAT EACH ERROR LOOKS LIKE
+---------------------------
+
+401 — Not logged in:
+  { "user_message": "Authorization header missing.", "detail": "..." }
+
+403 — Wrong role / not authorized:
+  { "user_message": "Admin role required.", "detail": "..." }
+  { "user_message": "Not authorized to update remarks for this faculty", "detail": "..." }
+
+400 — Bad request (e.g. duplicate email, invalid input):
+  { "user_message": "Email already registered", "detail": "..." }
+
+422 — Request body failed validation (malformed JSON, missing required field):
+  {
+    "user_message": "The request data is invalid. Please check the highlighted fields and try again.",
+    "detail": [ ...pydantic error list... ]
+  }
+  Note: the feedback form (/feedback POST) has its own validation and returns:
+  { "success": false, "errors": { "email": "Enter a valid email address.", ... } }
+  That one is already field-level and you can map it directly to form errors.
+
+500 — Unexpected server error:
+  {
+    "user_message": "An unexpected error occurred. Please try again or contact support.",
+    "detail": "...(technical, do not show)...",
+    "type": "KeyError",
+    "path": "/api/v1/appraisal/submit"
+  }
+
+500 — File upload failed:
+  { "user_message": "Your file could not be uploaded. Please try again.", "detail": "..." }
+
+500 — Appraisal submit failed:
+  { "user_message": "Your appraisal could not be submitted. Please try again.", "detail": "..." }
+
+500 — Database error:
+  { "user_message": "A database error occurred. Please try again or contact support.", "detail": "..." }
+
+
+BACKWARD COMPATIBILITY
+----------------------
+If for any reason you get a response that only has "detail" and no
+"user_message" (older endpoint, edge case), fall back to "detail".
+The pseudocode above already handles this with the ?? fallback.
+
+
+QUESTIONS
+---------
+Ping Ruhan if anything is unclear.
