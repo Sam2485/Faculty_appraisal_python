@@ -9,7 +9,7 @@ create schema public;
 -- Change the password before deploying to production.
 do $$ begin
   if not exists (select from pg_catalog.pg_roles where rolname = 'app_user') then
-    create role app_user login password 'Dypiu#2020$';
+    create role app_user login password 'CHANGE_ME_BEFORE_DEPLOY';
   end if;
 end $$;
 
