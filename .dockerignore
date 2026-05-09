@@ -14,6 +14,9 @@ __pycache__
 *.pyd
 .pytest_cache
 
+# Admin UI — node_modules are rebuilt inside Docker; dist/ is produced by the build stage
+admin_ui/node_modules/
+
 # Infra / config not needed in image
 tests/
 migrations/

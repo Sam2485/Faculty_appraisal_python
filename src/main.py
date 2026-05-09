@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -10,6 +10,7 @@ import logging
 import time
 import os
 import traceback
+import pathlib
 from .api.v1 import router as api_v1_router
 from .setup.admin_views import create_admin
 from .setup.errors import AppError
@@ -190,6 +191,20 @@ app.include_router(api_v1_router, prefix="/api/v1")
 
 # Mount sqladmin at /admin (login-protected, admin role only)
 create_admin(app)
+
+_ADMIN_DIST = pathlib.Path("admin_ui/dist")
+
+if _ADMIN_DIST.exists():
+    @app.get("/panel", include_in_schema=False)
+    @app.get("/panel/{path:path}", include_in_schema=False)
+    async def serve_admin_panel(path: str = ""):
+        # Serve real files (assets, favicon, etc.) directly;
+        # everything else returns index.html so React Router handles the path.
+        candidate = _ADMIN_DIST / path
+        if candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_ADMIN_DIST / "index.html")
+
 
 @app.get("/")
 def read_root():

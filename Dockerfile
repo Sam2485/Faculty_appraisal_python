@@ -1,28 +1,38 @@
-# Use a slim, stable Python image
+# =============================================================================
+# Stage 1 — Build the React admin UI
+# =============================================================================
+FROM node:20-alpine AS admin-build
+WORKDIR /admin_ui
+
+# Install deps first (cached unless package.json changes)
+COPY admin_ui/package*.json ./
+RUN npm ci --ignore-scripts
+
+# Build
+COPY admin_ui/ .
+RUN npm run build
+
+# =============================================================================
+# Stage 2 — Python / FastAPI backend
+# =============================================================================
 FROM python:3.12-slim-bookworm
 
-# 1. Install uv directly from the official image
+# Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# 2. Set the working directory
 WORKDIR /app
 
-# 3. Prevent uv from creating a virtualenv (we'll install to the system)
-# and tell it where to store the cache in a writable location
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_CACHE_DIR=/tmp/uv_cache
 
-# 4. Copy only dependency files first to leverage Docker caching
+# Install Python deps (cached unless pyproject.toml / uv.lock changes)
 COPY pyproject.toml uv.lock ./
-
-# 5. Install dependencies
-# We use --no-cache to keep the image small
 RUN uv pip install --no-cache -r pyproject.toml
 
-# 6. Copy the rest of your app code
+# Copy backend source
 COPY . .
 
-# 7. Use Gunicorn with Uvicorn workers for production-grade performance
-# Parameterize workers (default to 4, but Cloud Run may override this)
-# Bind to the PORT environment variable provided by Cloud Run
+# Overlay the compiled React bundle from stage 1
+COPY --from=admin-build /admin_ui/dist ./admin_ui/dist
+
 CMD ["sh", "-c", "gunicorn -w ${WORKERS:-1} -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT:-8080} --timeout 0"]
