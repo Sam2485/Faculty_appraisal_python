@@ -9,7 +9,7 @@ create schema public;
 -- Change the password before deploying to production.
 do $$ begin
   if not exists (select from pg_catalog.pg_roles where rolname = 'app_user') then
-    create role app_user login password 'change_me';
+    create role app_user login password 'Dypiu#2020$';
   end if;
 end $$;
 
@@ -51,7 +51,10 @@ create table public.faculty_profiles (
       'vc',
       'non_teaching_staff',
       'reporting_officer',
-      'registrar'
+      'section_head',
+      'registrar',
+      'staff',
+      'admin'
     )
   ),
   is_verified boolean not null default false,
@@ -708,6 +711,20 @@ create table public.non_teaching_part_a_items (
   constraint non_teaching_part_a_items_key unique (staff_email, academic_year, item_key)
 );
 
+create table public.feedback (
+  id          uuid primary key default gen_random_uuid(),
+  name        varchar(80),
+  email       varchar(254) not null,
+  category    varchar      not null check (category in ('query', 'feedback', 'bug', 'suggestion', 'other')),
+  subject     varchar(120) not null,
+  message     varchar(5000) not null,
+  status      varchar      not null default 'new',
+  ip_address  varchar,
+  user_agent  varchar(512),
+  submitted_at timestamptz not null default now(),
+  created_at   timestamptz not null default now()
+);
+
 create table public.non_teaching_part_b_ratings (
   id uuid primary key default gen_random_uuid(),
   staff_email text not null,
@@ -814,6 +831,13 @@ create index non_teaching_appraisals_staff_year_idx on public.non_teaching_appra
 create index non_teaching_appraisals_status_idx on public.non_teaching_appraisals (status, academic_year);
 create index non_teaching_part_a_items_staff_year_idx on public.non_teaching_part_a_items (staff_email, academic_year);
 create index non_teaching_part_b_ratings_staff_year_idx on public.non_teaching_part_b_ratings (staff_email, academic_year);
+create index idx_faculty_profiles_school on public.faculty_profiles (school);
+create index idx_declarations_academic_year on public.declarations (academic_year);
+create index idx_declarations_status on public.declarations (status);
+create index idx_appraisal_reviews_year on public.appraisal_reviews (academic_year);
+create index idx_feedback_category on public.feedback (category);
+create index idx_feedback_status on public.feedback (status);
+create index idx_feedback_submitted on public.feedback (submitted_at desc);
 
 do $$
 declare

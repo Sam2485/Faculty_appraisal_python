@@ -145,6 +145,35 @@ Current allowed: `localhost:5173/3000/8000`, `https://dypfacultyappraisal.netlif
 
 ---
 
+## Commit Messages
+
+After completing any task, suggest a commit message following the Conventional Commits standard.
+
+**Format:** `type(scope): short description` — imperative mood, lowercase, no period, ≤72 chars.
+
+Common types: `feat` · `fix` · `docs` · `refactor` · `test` · `chore` · `perf`
+
+**Short (one-liner) — just show the message:**
+```
+feat(auth): add two-tier user_message/detail error format
+```
+
+**Long (multi-line body) — give the full command so it can be pasted directly:**
+```bash
+git commit -m "$(cat <<'EOF'
+feat(errors): add two-tier error response format
+
+- Add AppError class with user_message/detail split
+- Override HTTPException, RequestValidationError, SQLAlchemyError handlers
+- Fix raw exception leaks in appraisal.py and upload.py
+EOF
+)"
+```
+
+Use the long form when the change touches multiple files or needs context that won't fit in 72 chars.
+
+---
+
 ## Known Issues / Gotchas
 - `--timeout 0` in Gunicorn CMD disables worker timeout — intentional for long async operations but watch for hung requests
 - `statement_cache_size: 0` in database engine was originally required for Supabase/PgBouncer. Cloud SQL does not use PgBouncer so this is no longer strictly needed, but it is harmless to keep.

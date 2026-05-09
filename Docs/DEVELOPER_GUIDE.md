@@ -49,15 +49,17 @@ src/
 │   ├── dashboard.py     — subordinate list + faculty snapshot viewer (reviewer UI)
 │   ├── remarks.py       — HOD/Director/Dean/VC review endpoints
 │   ├── documents.py     — uploaded document listing
-│   ├── upload.py        — file upload to GCS
-│   └── non_teaching.py  — non-teaching appraisal workflow
+│   ├── upload.py        — file upload to GCS or local storage
+│   ├── non_teaching.py  — non-teaching appraisal workflow
+│   ├── admin.py         — REST admin API: stats, config, user management
+│   └── feedback.py      — public feedback form submission + admin retrieval
 ├── crud/
 │   ├── core.py          — faculty profile, declaration, review CRUD
 │   ├── part_a.py        — Part A section CRUD
 │   ├── part_b.py        — Part B section CRUD
 │   └── non_teaching.py  — non-teaching appraisal CRUD
 ├── models/
-│   ├── core.py          — FacultyProfile, Declaration, AppraisalSnapshot, AppraisalReview, AppraisalDocument
+│   ├── core.py          — FacultyProfile, Declaration, AppraisalSnapshot, AppraisalReview, AppraisalDocument, Feedback
 │   ├── part_a.py        — BasePartAModel + 11 concrete models
 │   ├── part_b.py        — BasePartBModel + 15 concrete models
 │   └── non_teaching.py  — NonTeachingAppraisal, Part A items, Part B ratings
@@ -65,11 +67,12 @@ src/
 │   ├── core.py          — Pydantic v2 schemas
 │   ├── part_a.py / part_b.py / non_teaching.py
 └── setup/
-    ├── database.py      — async engine, pool (size=10, overflow=20), PgBouncer-compatible
+    ├── database.py      — async engine, pool (size=5, overflow=10)
     ├── dependencies.py  — JWT validation, User class, has_authority_over(), CurrentUser
     ├── local_auth.py    — bcrypt hashing, JWT sign/verify
     ├── storage_utils.py — GCS + local storage abstraction
-    ├── supabase_client.py
+    ├── admin_views.py   — SQLAdmin UI mounted at /admin (sqladmin)
+    ├── supabase_client.py  — dead code, remove before on-premise packaging
     └── email_utils.py
 ```
 
@@ -114,7 +117,7 @@ from sqlalchemy.orm import flag_modified
 CRUD helper functions must **not** own the transaction when called from within an endpoint's try/except block. The endpoint is responsible for the single `await db.commit()` and `await db.rollback()`.
 
 ### PgBouncer compatibility
-`statement_cache_size: 0` is set in `database.py`. Do not remove it — it is required for Supabase's PgBouncer Transaction Mode (port 6543).
+`statement_cache_size: 0` is set in `database.py`. Originally required for Supabase's PgBouncer. Cloud SQL does not use PgBouncer so it is no longer strictly needed, but harmless to keep.
 
 ### JSONB mutation tracking
 When mutating a JSONB column in-place (e.g., updating `AppraisalSnapshot.payload`), always call `flag_modified(instance, "field_name")` before committing, or SQLAlchemy won't detect the change.
@@ -124,7 +127,70 @@ Allowed origins are hardcoded in `src/main.py`. Add new frontend URLs to the `or
 
 ---
 
-## 6. Testing
+## 6. Error Handling
+
+Every error response (4xx and 5xx) returns the same two-field JSON shape:
+
+```json
+{
+  "user_message": "Plain-English sentence — safe to display directly in the UI.",
+  "detail":       "Technical description — visible in the network tab and GCP logs only."
+}
+```
+
+500 responses also include `"type"` (exception class name) and `"path"` (endpoint URL).
+
+### Exception handlers registered in `src/main.py`
+
+| Handler | When it fires | `user_message` | `detail` |
+|---|---|---|---|
+| `HTTPException` | `raise HTTPException(...)` in any endpoint | same as `exc.detail` | same as `exc.detail` |
+| `RequestValidationError` | Pydantic fails to parse the request body | generic "check highlighted fields" | Pydantic error list |
+| `AppError` | `raise AppError(...)` in any endpoint | caller-supplied | caller-supplied |
+| `SQLAlchemyError` | uncaught DB driver error | "A database error occurred…" | raw SQL exception string |
+| `Exception` | anything else that escapes all handlers | "An unexpected error occurred…" | `str(exc)` |
+
+The HTTP middleware has a matching catch-all as a safety net for exceptions that escape FastAPI's handler stack entirely.
+
+### Raising errors in endpoints — two patterns
+
+**Pattern 1 — `HTTPException`**: use for expected client errors (auth failures, 404s, role checks). The `detail` string is user-facing, so keep it plain English.
+
+```python
+raise HTTPException(status_code=403, detail="Admin role required")
+raise HTTPException(status_code=404, detail="Faculty not found")
+raise HTTPException(status_code=401, detail="Invalid credentials. Please check your email and password.")
+```
+
+**Pattern 2 — `AppError`**: use when the message shown in the UI needs to be different from the technical cause logged for debugging. Import from `src.setup.errors`.
+
+```python
+from src.setup.errors import AppError
+
+raise AppError(
+    "Your appraisal could not be submitted. Please try again.",
+    detail=f"shred_form KeyError on section key 'lectures_v2': {e}",
+    status_code=500,
+)
+```
+
+### Rule: never leak raw exceptions into a user-visible field
+
+```python
+# WRONG — exposes internal implementation details to the client
+raise HTTPException(status_code=500, detail=f"Submission failed: {str(e)}")
+
+# CORRECT — generic user message, technical info tucked into detail via AppError
+raise AppError(
+    "Your appraisal could not be submitted. Please try again.",
+    detail=f"Submission failed: {type(e).__name__}: {e}",
+    status_code=500,
+)
+```
+
+---
+
+## 7. Testing
 
 ```bash
 # Windows
@@ -135,12 +201,21 @@ uv run pytest
 PYTHONPATH=. uv run pytest
 ```
 
-- `tests/test_hierarchy_unit.py` — role weight and authority checks
-- `tests/test_endpoints.py` — endpoint smoke tests
+| File | What it tests |
+|---|---|
+| `test_hierarchy_unit.py` | `has_authority_over()` role-weight logic (pure unit, no DB) |
+| `test_score_normalizer.py` | `_extract_numeric_score()` normaliser (pure unit, no DB) |
+| `test_v1_auth.py` | register, login, `/me`, profile update |
+| `test_v1_workflow.py` | snapshot save/retrieve, appraisal submit, status check |
+| `test_v1_authority.py` | HOD dashboard visibility, faculty-side status view |
+| `test_review_chain.py` | Full HOD → Director → Dean → VC approval chain + cross-role attacks |
+| `test_feedback.py` | Public POST /feedback, admin-only GET /feedback |
+| `test_admin.py` | Admin user CRUD, stats endpoint, role enforcement |
+| `test_non_teaching_workflow.py` | Non-teaching staff → Section Head → Registrar → VC chain |
 
 ---
 
-## 7. Running Locally
+## 8. Running Locally
 
 ```bash
 uv pip install -r pyproject.toml
@@ -151,22 +226,108 @@ API docs: `http://localhost:8000/docs`
 
 ---
 
-## 8. GCP Deployment
+## 9. GCP Deployment
 
-Primary deployment is GCP Cloud Run (`asia-south1`, project `facultyappraisal-495011`). See `gcp_deploy_codes.txt` for manual deploy commands and `Docs/CICD_SETUP_GUIDE.txt` for the automated GitHub Actions pipeline.
+Primary deployment is GCP Cloud Run (`asia-south1`, project `facultyappraisal-495011`, service `faculty-appraisal-git`).
 
+**CI/CD**: Cloud Build triggers automatically on push to `main` via `cloudbuild.yaml`. It pulls the previous image for layer caching, builds with `BUILDKIT_INLINE_CACHE=1`, pushes both `:latest` and `:<commit_sha>` tags, then deploys to Cloud Run. No manual action needed for normal deploys.
+
+> `.github/workflows/deploy.yml` exists in the repo but is **not active** — it was an earlier GitHub Actions attempt. Ignore it.
+
+**Manual deploy** (if Cloud Build is unavailable):
 ```bash
 export PROJECT_ID=facultyappraisal-495011
-gcloud builds submit --tag asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend .
-gcloud run deploy fastapi-backend \
-    --image asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/fastapi-backend \
+export IMAGE=asia-south1-docker.pkg.dev/$PROJECT_ID/faculty-appraisal-repo/faculty-appraisal-git
+
+gcloud builds submit --tag $IMAGE:latest .
+
+gcloud run deploy faculty-appraisal-git \
+    --image $IMAGE:latest \
     --region asia-south1 \
+    --add-cloudsql-instances=$PROJECT_ID:asia-south1:faculty-appraisal-db \
     --allow-unauthenticated
 ```
 
 ---
 
-## 9. Development Tools
+## 10. Database Migrations
+
+### Two files, two purposes
+
+| File | When to use |
+|---|---|
+| `Docs/schema.sql` | **Fresh install only** — drops everything and recreates. Use this on a new server. Do NOT run on a live DB with data. |
+| `migrations/NNN_*.sql` | **Live DB upgrades** — incremental ALTER/CREATE statements that modify an existing schema without touching data. |
+
+They must stay in sync. Every change applied via a migration file must also be reflected in `Docs/schema.sql`.
+
+### Setting up a brand new database
+
+```bash
+# 1. Run the full schema (creates all tables, indexes, triggers, app_user role)
+psql -U postgres -f Docs/schema.sql
+
+# 2. Create the first admin account
+psql -U postgres -f migrations/seed_admin_user.sql
+```
+
+You do **not** need to run migrations 001–005 after this — `schema.sql` already includes all of them.
+
+### Upgrading an existing database (live DB with data)
+
+Run only the migration files that haven't been applied yet, in order:
+
+```bash
+psql -U postgres -f migrations/006_your_new_change.sql
+```
+
+Never run `schema.sql` on a live database — it will wipe all faculty data.
+
+### Applied migrations (do not modify or re-run)
+
+| File | What it does |
+|---|---|
+| `001_unique_constraints.sql` | Composite UNIQUE constraints on declarations, snapshots, reviews, non-teaching |
+| `002_fix_appraisal_role_constraint.sql` | Expanded `appraisal_role` CHECK to include `admin`, `staff`, `section_head` |
+| `003_create_feedback_table.sql` | Created `feedback` table with category CHECK + indexes |
+| `004_add_indexes.sql` | Performance indexes on all Part A/B tables, faculty_profiles, declarations |
+| `005_add_is_verified_column.sql` | Added `is_verified boolean` to `faculty_profiles` |
+| `seed_admin_user.sql` | One-time seed — creates the first admin account (not a schema change) |
+
+> **Rule: never edit a migration file that has already been applied to any database.**
+> Past migrations are a permanent record of what changed and when. If you need to undo or extend a past change, write a new numbered file.
+
+### Adding a new migration
+
+1. Create `migrations/006_describe_your_change.sql` using `IF NOT EXISTS` / `IF EXISTS` guards so it is safe to re-run.
+2. Apply it to the live DB via Cloud SQL Studio or `psql`.
+3. Update `Docs/schema.sql` to reflect the same change (so new installs stay in sync).
+4. Update the applied migrations table above.
+
+---
+
+## 11. Admin Backdoor
+
+Two access methods for managing data:
+
+### SQLAdmin UI (`/admin`)
+Browser-based table viewer and editor. Mounted at `/admin` by `src/setup/admin_views.py` using `sqladmin`. Login requires a user with `appraisal_role = 'admin'` in `faculty_profiles`.
+
+### REST Admin API (`/api/v1/admin`)
+All endpoints require a valid JWT for a user with `appraisal_role = 'admin'`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/admin/stats` | Submission counts by school/year |
+| `GET` / `PUT` | `/api/v1/admin/config` | Read/write env vars (on-premise only — does not persist on Cloud Run) |
+| `GET` / `POST` | `/api/v1/admin/users` | List all users / create a new user |
+| `PUT` / `DELETE` | `/api/v1/admin/users/{email}` | Update or delete a user |
+
+> Creating the first admin: manually `INSERT` a row into `faculty_profiles` with `appraisal_role = 'admin'` and a bcrypt-hashed password (use `python -c "from passlib.context import CryptContext; print(CryptContext(['bcrypt']).hash('yourpassword'))"`).
+
+---
+
+## 12. Development Tools
 
 | Tool | Purpose |
 |------|---------|

@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,6 +12,7 @@ import os
 import traceback
 from .api.v1 import router as api_v1_router
 from .setup.admin_views import create_admin
+from .setup.errors import AppError
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -87,30 +89,99 @@ async def log_requests(request: Request, call_next):
         logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=500,
-            content={"detail": str(e), "type": type(e).__name__, "path": request.url.path},
+            content={
+                "user_message": "An unexpected error occurred. Please try again or contact support.",
+                "detail": str(e),
+                "type": type(e).__name__,
+                "path": request.url.path,
+            },
             headers=_cors_headers(request),
         )
 
-# Exception Handlers
+# ---------------------------------------------------------------------------
+# Exception handlers
+#
+# Every handler emits the same two-field shape:
+#   user_message  — plain-English sentence safe to display in the UI
+#   detail        — technical description for the network tab / GCP logs
+#
+# 4xx errors (HTTPException): detail IS already user-friendly, so both fields
+# carry the same text.  500s use a generic user_message and put the raw
+# exception info only in detail so internal implementation details never leak.
+# ---------------------------------------------------------------------------
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "user_message": exc.detail,
+            "detail": exc.detail,
+        },
+        headers={**_cors_headers(request), **(exc.headers or {})},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "user_message": "The request data is invalid. Please check the highlighted fields and try again.",
+            "detail": exc.errors(),
+        },
+        headers=_cors_headers(request),
+    )
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    logger.error(
+        f"AppError [{exc.status_code}] on {request.method} {request.url.path}: {exc.detail}"
+    )
+    if exc.status_code >= 500:
+        logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "user_message": exc.user_message,
+            "detail": exc.detail,
+            "path": request.url.path,
+        },
+        headers=_cors_headers(request),
+    )
+
+
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     logger.error(f"Database error on {request.method} {request.url.path}: {str(exc)}")
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": "Database error occurred", "error": str(exc), "type": "SQLAlchemyError"},
+        content={
+            "user_message": "A database error occurred. Please try again or contact support.",
+            "detail": str(exc),
+            "type": "SQLAlchemyError",
+            "path": request.url.path,
+        },
         headers=_cors_headers(request),
     )
 
+
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    error_msg = str(exc)
-    error_type = type(exc).__name__
-    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {error_type}: {error_msg}")
+    logger.error(
+        f"Unhandled {type(exc).__name__} on {request.method} {request.url.path}: {exc}"
+    )
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": error_msg, "type": error_type, "path": request.url.path},
+        content={
+            "user_message": "An unexpected error occurred. Please try again or contact support.",
+            "detail": str(exc),
+            "type": type(exc).__name__,
+            "path": request.url.path,
+        },
         headers=_cors_headers(request),
     )
 

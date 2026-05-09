@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from src.setup.errors import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
@@ -319,7 +320,11 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
         await db.rollback()
         logger.error(f"Error during appraisal submission for {current_user.email}: {str(e)}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Submission failed: {str(e)}")
+        raise AppError(
+            "Your appraisal could not be submitted. Please try again.",
+            detail=f"Submission failed: {type(e).__name__}: {e}",
+            status_code=500,
+        )
 
 @router.get("/status")
 async def get_appraisal_status(academic_year: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from src.setup.errors import AppError
 from typing import Dict
 import os
 from google.cloud import storage
@@ -53,4 +54,8 @@ async def upload_file(current_user: CurrentUser, file: UploadFile = File(...)):
             "type": file.content_type
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+        raise AppError(
+            "Your file could not be uploaded. Please try again.",
+            detail=f"GCS upload failed: {type(e).__name__}: {e}",
+            status_code=500,
+        )
