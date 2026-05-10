@@ -11,15 +11,14 @@ export const NAV = [
   {
     label: "Faculty", icon: I.users,
     children: [
-      { label: "Faculty List",   icon: I.list,    path: "/faculty"        },
-      { label: "Add Faculty",    icon: I.addUser, path: "/faculty/add"    },
-      { label: "Faculty Status", icon: I.refresh, path: "/faculty/status" },
+      { label: "Faculty List",   icon: I.list,    path: "/faculty"           },
+      { label: "Add Faculty",    icon: I.addUser, path: "/faculty/add"       },
+      { label: "Reset Password", icon: I.lock,    path: "/credentials/reset" },
     ],
   },
   {
     label: "Appraisal", icon: I.star,
     children: [
-      { label: "Section Controls",  icon: I.gear,  path: "/appraisal/sections" },
       { label: "Submission Window", icon: I.doc,   path: "/appraisal/window"   },
       { label: "Submission Status", icon: I.check, path: "/appraisal/status"   },
     ],
@@ -33,18 +32,9 @@ export const NAV = [
     ],
   },
   {
-    label: "Credentials", icon: I.key,
-    children: [
-      { label: "Generate Credentials", icon: I.layers, path: "/credentials"       },
-      { label: "Reset Password",       icon: I.lock,   path: "/credentials/reset" },
-    ],
-  },
-  {
     label: "Analytics", icon: I.trend,
     children: [
-      { label: "Submission Trends",  icon: I.time, path: "/analytics"         },
-      { label: "School Performance", icon: I.star, path: "/analytics/schools" },
-      { label: "Export Reports",     icon: I.dl,   path: "/analytics/export"  },
+      { label: "Analytics & Reports", icon: I.trend, path: "/analytics" },
     ],
   },
   {

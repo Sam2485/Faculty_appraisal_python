@@ -8,9 +8,7 @@ import AppraisalCyclePage  from './pages/dashboard/AppraisalCyclePage'
 
 import FacultyListPage     from './pages/faculty/FacultyListPage'
 import AddFacultyPage      from './pages/faculty/AddFacultyPage'
-import FacultyStatusPage   from './pages/faculty/FacultyStatusPage'
 
-import SectionControlsPage   from './pages/appraisal/SectionControlsPage'
 import SubmissionWindowPage   from './pages/appraisal/SubmissionWindowPage'
 import SubmissionStatusPage   from './pages/appraisal/SubmissionStatusPage'
 
@@ -18,7 +16,6 @@ import SubmittedFacultyPage  from './pages/tracking/SubmittedFacultyPage'
 import PendingFacultyPage    from './pages/tracking/PendingFacultyPage'
 import SchoolStatisticsPage  from './pages/tracking/SchoolStatisticsPage'
 
-import CredentialsPage       from './pages/credentials/CredentialsPage'
 import CredentialDetailsPage from './pages/credentials/CredentialDetailsPage'
 
 import AnalyticsPage     from './pages/analytics/AnalyticsPage'
@@ -38,12 +35,10 @@ export default function App() {
         <Route path="cycle"           element={<AppraisalCyclePage />}  />
 
         {/* Faculty */}
-        <Route path="faculty"         element={<FacultyListPage />}     />
-        <Route path="faculty/add"     element={<AddFacultyPage />}      />
-        <Route path="faculty/status"  element={<FacultyStatusPage />}   />
+        <Route path="faculty"     element={<FacultyListPage />} />
+        <Route path="faculty/add" element={<AddFacultyPage />} />
 
         {/* Appraisal */}
-        <Route path="appraisal/sections" element={<SectionControlsPage />}  />
         <Route path="appraisal/window"   element={<SubmissionWindowPage />} />
         <Route path="appraisal/status"   element={<SubmissionStatusPage />} />
 
@@ -53,13 +48,10 @@ export default function App() {
         <Route path="tracking/schools"   element={<SchoolStatisticsPage />}  />
 
         {/* Credentials */}
-        <Route path="credentials"       element={<CredentialsPage />}       />
         <Route path="credentials/reset" element={<CredentialDetailsPage />} />
 
         {/* Analytics */}
-        <Route path="analytics"          element={<AnalyticsPage />}     />
-        <Route path="analytics/schools"  element={<AnalyticsPage />}     />
-        <Route path="analytics/export"   element={<AnalyticsPage />}     />
+        <Route path="analytics" element={<AnalyticsPage />} />
 
         {/* Feedback */}
         <Route path="feedback" element={<FeedbackPage />} />

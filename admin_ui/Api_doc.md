@@ -17,11 +17,13 @@
 5. [Admin — Pending Faculty](#5-admin--pending-faculty)
 6. [Admin — Env Config](#6-admin--env-config)
 7. [Feedback](#7-feedback)
-8. [Role & School Reference](#8-role--school-reference)
-9. [Error Response Format](#9-error-response-format)
-10. [Frontend API Client Reference](#10-frontend-api-client-reference)
-11. [Normalizer Mapping Tables](#11-normalizer-mapping-tables)
-12. [Endpoint Summary](#12-endpoint-summary)
+8. [Announcements](#8-announcements)
+9. [Analytics Export](#9-analytics-export)
+10. [Role & School Reference](#10-role--school-reference)
+11. [Error Response Format](#11-error-response-format)
+12. [Frontend API Client Reference](#12-frontend-api-client-reference)
+13. [Normalizer Mapping Tables](#13-normalizer-mapping-tables)
+14. [Endpoint Summary](#14-endpoint-summary)
 
 ---
 
@@ -54,7 +56,7 @@ Authenticates a user and returns a JWT. Admin UI only accepts `appraisal_role = 
 | `profile.full_name`       | `string`  | Display name                                   |
 | `profile.appraisal_role`  | `string`  | Must be `"admin"` for dashboard access         |
 | `profile.department`      | `string \| null` | Department name                        |
-| `profile.school`          | `string \| null` | School code (see §8)                   |
+| `profile.school`          | `string \| null` | School code (see §10)                  |
 | `profile.employee_id`     | `string \| null` | Staff ID                               |
 | `profile.designation`     | `string \| null` | Job title                              |
 | `profile.qualification`   | `string \| null` | Academic qualification                 |
@@ -165,8 +167,8 @@ Returns all registered users, ordered by school then name.
 |-----------------------|-------------------|----------------------------------------------------|
 | `email`               | `string`          | **Primary key.** Unique login email                |
 | `full_name`           | `string`          | Display name                                       |
-| `appraisal_role`      | `string`          | One of the roles in §8                             |
-| `school`              | `string \| null`  | School code from §8                                |
+| `appraisal_role`      | `string`          | One of the roles in §10                            |
+| `school`              | `string \| null`  | School code from §10                               |
 | `department`          | `string \| null`  | Department within the school                       |
 | `designation`         | `string \| null`  | Job title / designation                            |
 | `employee_id`         | `string \| null`  | Staff / employee ID                                |
@@ -210,8 +212,8 @@ Creates a new user. Admin-created accounts skip email verification (`is_verified
 | `email`               | `string`  | Yes      | Valid email; must be unique              |
 | `password`            | `string`  | Yes      | Plain text — hashed server-side (bcrypt) |
 | `full_name`           | `string`  | Yes      | Display name                             |
-| `appraisal_role`      | `string`  | No       | Default: `"faculty"`. See valid roles §8 |
-| `school`              | `string`  | No       | School code from §8                      |
+| `appraisal_role`      | `string`  | No       | Default: `"faculty"`. See valid roles §10 |
+| `school`              | `string`  | No       | School code from §10                     |
 | `department`          | `string`  | No       | Department name                          |
 | `designation`         | `string`  | No       | Job title                                |
 | `employee_id`         | `string`  | No       | Staff ID                                 |
@@ -264,7 +266,7 @@ Updates an existing user. Only supply fields you want to change.
 | Field                 | Type              | Description                                       |
 |-----------------------|-------------------|---------------------------------------------------|
 | `full_name`           | `string \| null`  | New display name                                  |
-| `appraisal_role`      | `string \| null`  | New role — must be a valid role from §8           |
+| `appraisal_role`      | `string \| null`  | New role — must be a valid role from §10          |
 | `school`              | `string \| null`  | New school assignment                             |
 | `department`          | `string \| null`  | New department                                    |
 | `designation`         | `string \| null`  | New job title                                     |
@@ -696,7 +698,240 @@ Returns a single feedback entry (admin only). Same shape as list item, plus `use
 
 ---
 
-## 8. Role & School Reference
+## 8. Announcements
+
+Admin-only. Stores broadcast notices displayed on faculty dashboards and the login page.
+
+---
+
+### `GET /api/v1/admin/announcements`
+
+Returns all announcements, newest first. Requires admin JWT.
+
+#### Query parameters
+
+| Param       | Type      | Description                                              |
+|-------------|-----------|----------------------------------------------------------|
+| `is_active` | `boolean` | If `true`, return only active notices. Omit for all.     |
+| `limit`     | `integer` | Max records returned. Default: `50`, max: `200`          |
+
+#### Response `200` — array
+
+| Field        | Type      | Description                                                        |
+|--------------|-----------|--------------------------------------------------------------------|
+| `id`         | `integer` | Primary key (auto-increment)                                       |
+| `title`      | `string`  | Short headline, max 200 chars                                      |
+| `body`       | `string`  | Full message text, max 5000 chars                                  |
+| `audience`   | `string`  | Target group — see valid values below                              |
+| `is_active`  | `boolean` | `true` = visible on faculty dashboards; `false` = archived         |
+| `created_by` | `string`  | Email of the admin who created the notice                          |
+| `created_at` | `string`  | ISO 8601 datetime                                                  |
+
+```json
+[
+  {
+    "id": 1,
+    "title": "Submission window extended",
+    "body": "The appraisal submission deadline has been extended to 30 June 2025.",
+    "audience": "all",
+    "is_active": true,
+    "created_by": "admin@dypiu.edu",
+    "created_at": "2025-05-01T09:00:00Z"
+  }
+]
+```
+
+**Valid `audience` values:**
+
+| Value                | Visible to                                    |
+|----------------------|-----------------------------------------------|
+| `all`                | Every logged-in user                          |
+| `faculty`            | Teaching faculty only                         |
+| `hod`                | Heads of Department only                      |
+| `dean`               | Deans only                                    |
+| `non_teaching_staff` | Non-teaching staff only                       |
+
+---
+
+### `POST /api/v1/admin/announcements`
+
+Creates and optionally publishes a new announcement. Requires admin JWT.
+
+#### Request body
+
+| Field       | Type      | Required | Constraints                                              |
+|-------------|-----------|----------|----------------------------------------------------------|
+| `title`     | `string`  | Yes      | Max 200 chars                                            |
+| `body`      | `string`  | Yes      | Max 5000 chars                                           |
+| `audience`  | `string`  | No       | Default: `"all"`. See valid values above                 |
+| `is_active` | `boolean` | No       | Default: `true`. Set `false` to save as a draft          |
+
+```json
+{
+  "title": "Submission window extended",
+  "body": "The appraisal submission deadline has been extended to 30 June 2025. Please submit your appraisal at the earliest.",
+  "audience": "all",
+  "is_active": true
+}
+```
+
+#### Response `201 Created`
+
+```json
+{
+  "message": "Announcement created",
+  "id": 1,
+  "title": "Submission window extended",
+  "is_active": true
+}
+```
+
+| Status | When                         |
+|--------|------------------------------|
+| `400`  | `title` or `body` missing    |
+| `400`  | Invalid `audience` value     |
+| `400`  | Invalid `channel` value      |
+
+---
+
+### `PUT /api/v1/admin/announcements/{id}`
+
+Updates an existing announcement. All fields optional. Requires admin JWT.
+
+**Path param:** `id` — integer primary key.
+
+#### Request body (all optional)
+
+| Field       | Type               | Description                                          |
+|-------------|--------------------|------------------------------------------------------|
+| `title`     | `string \| null`   | Updated headline                                     |
+| `body`      | `string \| null`   | Updated message text                                 |
+| `audience`  | `string \| null`   | Updated audience scope                               |
+| `is_active` | `boolean \| null`  | Set `false` to deactivate / archive the notice       |
+
+```json
+{ "is_active": false }
+```
+
+#### Response `200`
+
+```json
+{ "message": "Announcement updated", "id": 1 }
+```
+
+| Status | When                   |
+|--------|------------------------|
+| `404`  | Announcement not found |
+
+---
+
+### `DELETE /api/v1/admin/announcements/{id}`
+
+Permanently deletes an announcement. Requires admin JWT.
+
+**Path param:** `id` — integer primary key.
+
+#### Response `200`
+
+```json
+{ "message": "Announcement 1 deleted" }
+```
+
+| Status | When                   |
+|--------|------------------------|
+| `404`  | Announcement not found |
+
+---
+
+## 9. Analytics Export
+
+Download submission and faculty data for any cycle. Responses are binary file downloads.
+
+> **Frontend usage:** Trigger with `window.open('/api/v1/admin/export/...')` so the browser handles the file save, or fetch as a Blob and call `URL.createObjectURL`. The request must still include the `Authorization` header — use the Blob approach for authenticated downloads.
+
+---
+
+### `GET /api/v1/admin/export/submissions`
+
+Exports submission data for the given academic year. Requires admin JWT.
+
+#### Query parameters
+
+| Param           | Type     | Required | Description                                               |
+|-----------------|----------|----------|-----------------------------------------------------------|
+| `academic_year` | `string` | Yes      | e.g. `"2024-25"`                                          |
+| `format`        | `string` | No       | `"csv"` (default) or `"pdf"`                              |
+| `school`        | `string` | No       | Filter by school code — export one school only            |
+
+#### Response
+
+Binary file download.
+
+| Format | Content-Type      | Filename                             |
+|--------|-------------------|--------------------------------------|
+| `csv`  | `text/csv`        | `submissions_2024-25.csv`            |
+| `pdf`  | `application/pdf` | `submission_summary_2024-25.pdf`     |
+
+**CSV columns:**
+
+| Column              | Type             | Description                      |
+|---------------------|------------------|----------------------------------|
+| `email`             | `string`         | Faculty email                    |
+| `full_name`         | `string`         | Faculty display name             |
+| `school`            | `string`         | School code                      |
+| `department`        | `string`         | Department                       |
+| `designation`       | `string`         | Job title                        |
+| `submission_status` | `string`         | e.g. `"Approved"`, `"Pending Review"` |
+| `submitted_at`      | `string \| null` | ISO 8601 datetime or empty       |
+| `part_a_total`      | `number \| null` | Self-assessed Part A score       |
+| `part_b_total`      | `number \| null` | Self-assessed Part B score       |
+| `grand_total`       | `number \| null` | Combined self-assessed score     |
+
+| Status | When                            |
+|--------|---------------------------------|
+| `400`  | `academic_year` not provided    |
+| `404`  | No data found for the given year |
+
+---
+
+### `GET /api/v1/admin/export/faculty`
+
+Exports the complete faculty registry. Requires admin JWT.
+
+#### Query parameters
+
+| Param    | Type     | Required | Description                          |
+|----------|----------|----------|--------------------------------------|
+| `format` | `string` | No       | `"csv"` (default)                    |
+| `school` | `string` | No       | Filter by school code                |
+| `role`   | `string` | No       | Filter by `appraisal_role`           |
+
+#### Response
+
+Binary CSV download.
+
+**Filename:** `faculty_registry.csv`
+
+**CSV columns:**
+
+| Column                | Type      | Description                             |
+|-----------------------|-----------|-----------------------------------------|
+| `email`               | `string`  | Login email (primary key)               |
+| `full_name`           | `string`  | Display name                            |
+| `appraisal_role`      | `string`  | Role in the system                      |
+| `school`              | `string`  | School code                             |
+| `department`          | `string`  | Department                              |
+| `designation`         | `string`  | Job title                               |
+| `employee_id`         | `string`  | Staff ID                                |
+| `phone`               | `string`  | Contact number                          |
+| `qualification`       | `string`  | Highest qualification                   |
+| `teaching_experience` | `string`  | Experience description                  |
+| `is_verified`         | `boolean` | Account status                          |
+| `created_at`          | `string`  | ISO 8601 account creation datetime      |
+
+---
+
+## 10. Role & School Reference
 
 ### Valid `appraisal_role` values
 
@@ -735,7 +970,7 @@ Returns a single feedback entry (admin only). Same shape as list item, plus `use
 
 ---
 
-## 9. Error Response Format
+## 11. Error Response Format
 
 All API errors return a JSON body. Always display `user_message` in the UI — never `detail`.
 
@@ -767,7 +1002,7 @@ try {
 
 ---
 
-## 10. Frontend API Client Reference
+## 12. Frontend API Client Reference
 
 All calls go through `src/api/client.js`. Never write raw `fetch` in components.
 
@@ -803,16 +1038,30 @@ await api.pending.list({ academic_year, school })        // GET  /admin/pending-
 
 // ── Env config ───────────────────────────────────────────────────────────────
 await api.config.get()                                   // GET  /admin/config
-await api.config.update({ APP_URL, FRONTEND_URL, ... })  // PUT  /admin/config
+await api.config.update({ APP_URL, FRONTEND_URL, MAIL_SERVER, ... })
+                                                         // PUT  /admin/config
 
 // ── Feedback (admin read) ────────────────────────────────────────────────────
 await api.feedback.list({ category, status, limit })     // GET  /feedback
 await api.feedback.get(id)                               // GET  /feedback/{id}
+
+// ── Announcements ────────────────────────────────────────────────────────────
+await api.announcements.list({ is_active, limit })       // GET    /admin/announcements
+await api.announcements.create({ title, body, audience, is_active })
+                                                         // POST   /admin/announcements
+await api.announcements.update(id, { title, body, audience, is_active })
+                                                         // PUT    /admin/announcements/{id}
+await api.announcements.remove(id)                       // DELETE /admin/announcements/{id}
+
+// ── Analytics Export (file downloads) ───────────────────────────────────────
+await api.export.submissions({ academic_year, format, school })
+                                                         // GET  /admin/export/submissions
+await api.export.faculty({ format, school, role })       // GET  /admin/export/faculty
 ```
 
 ---
 
-## 11. Normalizer Mapping Tables
+## 13. Normalizer Mapping Tables
 
 Normalizers live in `src/api/normalizers.js`. They convert exact backend shapes into simpler frontend objects.
 
@@ -865,33 +1114,52 @@ Normalizers live in `src/api/normalizers.js`. They convert exact backend shapes 
 | `date`     | `submitted_at`                | `string` | Formatted as `"May 8"`                   |
 | `status`   | `status`                      | `string` | Title-cased, underscores → spaces        |
 
+### `normalizeAnnouncements(raw)` output
+
+| Output key   | Source field  | Type      | Notes                                          |
+|--------------|---------------|-----------|------------------------------------------------|
+| `id`         | `id`          | `number`  | Integer PK                                     |
+| `title`      | `title`       | `string`  |                                                |
+| `body`       | `body`        | `string`  |                                                |
+| `audience`   | `audience`    | `string`  | Raw value e.g. `"all"`, `"faculty"`            |
+| `isActive`   | `is_active`   | `boolean` |                                                |
+| `createdBy`  | `created_by`  | `string`  | Admin email                                    |
+| `date`       | `created_at`  | `string`  | Formatted as `"May 8"`                         |
+
 ---
 
-## 12. Endpoint Summary
+## 14. Endpoint Summary
 
 | Method     | Path                                        | Auth  | Used by page(s)                              |
 |------------|---------------------------------------------|-------|----------------------------------------------|
-| `POST`     | `/api/v1/auth/login`                        | No    | (login — currently bypassed in dev)          |
+| `POST`     | `/api/v1/auth/login`                        | No    | Login                                        |
 | `GET`      | `/api/v1/auth/me`                           | Yes   | Profile display in sidebar                   |
 | `PUT`      | `/api/v1/auth/me`                           | Yes   | Profile edit                                 |
 | `POST`     | `/api/v1/auth/forgot-password`              | No    | Reset password flow                          |
 | `POST`     | `/api/v1/auth/reset-password`               | No    | Reset password flow                          |
 | `GET`      | `/api/v1/admin/users`                       | Yes   | Faculty List, Faculty Status                 |
-| `POST`     | `/api/v1/admin/users`                       | Yes   | Credentials → Generate Credentials          |
-| `PUT`      | `/api/v1/admin/users/{email}`               | Yes   | Faculty List Edit, Activate/Deactivate       |
+| `POST`     | `/api/v1/admin/users`                       | Yes   | Add Faculty, Credentials → Generate          |
+| `PUT`      | `/api/v1/admin/users/{email}`               | Yes   | Faculty List Edit, Activate/Deactivate, Password Reset |
 | `DELETE`   | `/api/v1/admin/users/{email}`               | Yes   | Faculty List Remove                          |
 | `GET`      | `/api/v1/admin/stats`                       | Yes   | Overview, Appraisal Cycle, Submission Status, School Statistics, Analytics |
-| `GET`      | `/api/v1/admin/appraisal-config`            | Yes   | Appraisal Cycle, Submission Window           |
+| `GET`      | `/api/v1/admin/appraisal-config`            | Yes   | Section Controls, Submission Window          |
 | `POST`     | `/api/v1/admin/appraisal-config`            | Yes   | Submission Window → create cycle             |
-| `PUT`      | `/api/v1/admin/appraisal-config/{year}`     | Yes   | Submission Window → open/close window        |
+| `PUT`      | `/api/v1/admin/appraisal-config/{year}`     | Yes   | Section Controls → open/close, Submission Window |
 | `DELETE`   | `/api/v1/admin/appraisal-config/{year}`     | Yes   | Submission Window → delete cycle             |
-| `GET`      | `/api/v1/admin/pending-faculty`             | Yes   | Pending Faculty (dedicated endpoint)         |
+| `GET`      | `/api/v1/admin/pending-faculty`             | Yes   | Pending Faculty page                         |
 | `GET`      | `/api/v1/admin/config`                      | Yes   | Settings → System Configuration             |
 | `PUT`      | `/api/v1/admin/config`                      | Yes   | Settings → Save Changes                      |
 | `POST`     | `/api/v1/feedback`                          | No    | (submitted by faculty — not admin UI)        |
 | `GET`      | `/api/v1/feedback`                          | Yes   | Feedback & Support                           |
 | `GET`      | `/api/v1/feedback/{id}`                     | Yes   | Feedback detail view                         |
+| `GET`      | `/api/v1/admin/announcements`               | Yes   | Announcements → Past Notices list            |
+| `POST`     | `/api/v1/admin/announcements`               | Yes   | Announcements → Publish Notice               |
+| `PUT`      | `/api/v1/admin/announcements/{id}`          | Yes   | Announcements → Edit / Deactivate            |
+| `DELETE`   | `/api/v1/admin/announcements/{id}`          | Yes   | Announcements → Remove                       |
+| `GET`      | `/api/v1/admin/export/submissions`          | Yes   | Analytics → Download Submission Summary      |
+| `GET`      | `/api/v1/admin/export/faculty`              | Yes   | Analytics → Download Faculty Registry        |
 
 ---
 
-*Generated from live backend source — `src/api/v1/admin.py`, `src/api/v1/auth.py`, `src/api/v1/feedback.py`, `src/schema/core.py`*
+*Generated from live backend source — `src/api/v1/admin.py`, `src/api/v1/auth.py`, `src/api/v1/feedback.py`, `src/schema/core.py`*  
+*Sections §8 (Announcements) and §9 (Analytics Export) are planned endpoints — implement in `src/api/v1/admin.py`.*

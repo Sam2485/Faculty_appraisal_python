@@ -116,4 +116,34 @@ const pending = {
   list: (params = {}) => request('/admin/pending-faculty?' + new URLSearchParams(params)),
 }
 
-export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending }
+// ---------------------------------------------------------------------------
+// Announcements
+// ---------------------------------------------------------------------------
+const announcements = {
+  list:   (params = {}) => request('/admin/announcements?' + new URLSearchParams(params)),
+  create: (data)        => request('/admin/announcements', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data)    => request(`/admin/announcements/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id)          => request(`/admin/announcements/${id}`, { method: 'DELETE' }),
+}
+
+// ---------------------------------------------------------------------------
+// Analytics export (file downloads — returns a Blob, not JSON)
+// ---------------------------------------------------------------------------
+async function downloadFile(path) {
+  const token = getToken()
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.user_message || `Download failed (${res.status})`)
+  }
+  return res.blob()
+}
+
+const exportData = {
+  submissions: (params = {}) => downloadFile('/admin/export/submissions?' + new URLSearchParams(params)),
+  faculty:     (params = {}) => downloadFile('/admin/export/faculty?' + new URLSearchParams(params)),
+}
+
+export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, announcements, export: exportData }

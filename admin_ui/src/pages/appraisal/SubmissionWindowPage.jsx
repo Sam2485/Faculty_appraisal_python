@@ -20,8 +20,10 @@ function toDateInput(iso) {
 }
 
 export default function SubmissionWindowPage() {
-  const { data: configs, loading, error } = useFetch(() => api.cycle.list(), []);
-  const current = Array.isArray(configs) ? configs[0] : null;
+  const [tick, setTick] = useState(0);
+  const { data: configs, loading, error } = useFetch(() => api.cycle.list(), [tick]);
+  const allConfigs = Array.isArray(configs) ? configs : [];
+  const current    = allConfigs[0] ?? null;
 
   const [year,  setYear]  = useState('');
   const [start, setStart] = useState('');
@@ -40,6 +42,10 @@ export default function SubmissionWindowPage() {
   }, [current]);
 
   const handleSave = async () => {
+    if (!year.trim()) {
+      setMsg({ ok: false, msg: 'Academic year is required.' });
+      return;
+    }
     setSaving(true); setMsg(null);
     try {
       const payload = {
@@ -47,12 +53,14 @@ export default function SubmissionWindowPage() {
         submission_start: start ? new Date(start).toISOString() : null,
         submission_end:   end   ? new Date(end).toISOString()   : null,
       };
-      if (current) {
-        await api.cycle.update(year, payload);
+      const exists = allConfigs.find(c => c.academic_year === year.trim());
+      if (exists) {
+        await api.cycle.update(year.trim(), payload);
       } else {
-        await api.cycle.create({ academic_year: year, ...payload });
+        await api.cycle.create({ academic_year: year.trim(), ...payload });
       }
       setMsg({ ok: true, msg: 'Window configuration saved.' });
+      setTick(t => t + 1);
     } catch (e) {
       setMsg({ ok: false, msg: e.message });
     } finally {
@@ -61,12 +69,18 @@ export default function SubmissionWindowPage() {
   };
 
   const handleToggle = async (open) => {
-    if (!year) return;
+    if (!year.trim()) return;
+    const exists = allConfigs.find(c => c.academic_year === year.trim());
+    if (!exists) {
+      setMsg({ ok: false, msg: `No config found for "${year}". Save the window first.` });
+      return;
+    }
     setSaving(true); setMsg(null);
     try {
-      await api.cycle.update(year, { is_open: open });
+      await api.cycle.update(year.trim(), { is_open: open });
       setIsOpen(open);
       setMsg({ ok: true, msg: open ? 'Submission window opened.' : 'Submission window closed.' });
+      setTick(t => t + 1);
     } catch (e) {
       setMsg({ ok: false, msg: e.message });
     } finally {
