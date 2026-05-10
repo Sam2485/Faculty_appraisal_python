@@ -117,9 +117,41 @@ async def get_faculty_snapshot(email: str, academic_year: str, current_user: Cur
     if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school):
         raise HTTPException(status_code=403, detail="Not authorized to view this faculty's data")
 
-    res = await db.execute(select(AppraisalSnapshot).where(
+    snapshot_res = await db.execute(select(AppraisalSnapshot).where(
         AppraisalSnapshot.faculty_email == email,
         AppraisalSnapshot.academic_year == academic_year
     ))
-    snapshot = res.scalar_one_or_none()
-    return snapshot
+    snapshot = snapshot_res.scalar_one_or_none()
+
+    rev_res = await db.execute(select(AppraisalReview).where(
+        AppraisalReview.faculty_email == email,
+        AppraisalReview.academic_year == academic_year
+    ))
+    reviews = rev_res.scalars().all()
+    reviews_data = [
+        {
+            "reviewer_role": r.reviewer_role,
+            "reviewer_email": r.reviewer_email,
+            "part_a_score": float(r.part_a_score) if r.part_a_score is not None else 0,
+            "part_b_score": float(r.part_b_score) if r.part_b_score is not None else 0,
+            "total_score": float(r.total_score) if r.total_score is not None else 0,
+            "section_scores": r.section_scores or {},
+            "remarks": r.remarks,
+            "status": r.status,
+            "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
+        }
+        for r in reviews
+    ]
+
+    if snapshot is None:
+        return {"reviews": reviews_data}
+
+    return {
+        "id": str(snapshot.id),
+        "faculty_email": snapshot.faculty_email,
+        "academic_year": snapshot.academic_year,
+        "payload": snapshot.payload,
+        "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+        "updated_at": snapshot.updated_at.isoformat() if snapshot.updated_at else None,
+        "reviews": reviews_data,
+    }
