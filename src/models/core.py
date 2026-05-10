@@ -138,6 +138,15 @@ class Announcement(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ModuleConfig(Base):
+    __tablename__ = "module_config"
+    id = Column(Integer, primary_key=True, default=1)
+    appraisal_module_enabled = Column(Boolean, nullable=False, default=True)
+    self_appraisal_enabled = Column(Boolean, nullable=False, default=True)
+    peer_review_enabled = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

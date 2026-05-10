@@ -1,16 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.models.core import FacultyProfile, Declaration, AppraisalReview, AppraisalConfig
+from src.models.core import FacultyProfile, Declaration, AppraisalReview, AppraisalConfig, ModuleConfig
 from src.models.non_teaching import NonTeachingAppraisal
 from src.setup.local_auth import get_password_hash
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from pathlib import Path
 from dotenv import dotenv_values, set_key
-from datetime import datetime
+from datetime import datetime, timezone
+from collections import defaultdict
+import csv
+import io
 import os
 import logging
 
@@ -25,6 +29,9 @@ EDITABLE_ENV_KEYS = frozenset({
     "MAIL_SERVER", "MAIL_TLS", "MAIL_SSL",
     "APP_URL", "FRONTEND_URL", "ALLOW_MOCK_USER",
     "USE_LOCAL_STORAGE", "GCP_STORAGE_BUCKET",
+    # Feature flags
+    "MAINTENANCE_MODE", "ALLOW_REGISTRATIONS", "EMAIL_NOTIFICATIONS",
+    "DEBUG_LOGGING", "TWO_FACTOR_AUTH", "SESSION_TIMEOUT", "AUDIT_LOGGING",
 })
 
 VALID_ROLES = frozenset({
@@ -476,3 +483,231 @@ async def delete_appraisal_config(
     await db.delete(config)
     await db.commit()
     return {"message": f"Config for '{academic_year}' deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Analytics exports
+# ---------------------------------------------------------------------------
+
+TEACHING_ROLES = frozenset({"faculty", "hod", "director", "dean", "center_head"})
+
+
+def _csv_response(rows: list[dict], fieldnames: list[str], filename: str) -> StreamingResponse:
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/submissions")
+async def export_submissions(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    academic_year: Optional[str] = Query(None),
+    school: Optional[str] = Query(None),
+):
+    _check_admin(current_user)
+
+    if not academic_year:
+        years_res = await db.execute(
+            select(distinct(Declaration.academic_year)).order_by(Declaration.academic_year.desc())
+        )
+        years = [r[0] for r in years_res.all()]
+        academic_year = years[0] if years else None
+
+    if not academic_year:
+        raise HTTPException(status_code=404, detail="No submission data found")
+
+    query = (
+        select(FacultyProfile, Declaration)
+        .join(Declaration, FacultyProfile.email == Declaration.faculty_email)
+        .where(Declaration.academic_year == academic_year)
+        .order_by(FacultyProfile.school, FacultyProfile.full_name)
+    )
+    if school:
+        query = query.where(FacultyProfile.school == school)
+
+    result = await db.execute(query)
+    rows = [
+        {
+            "faculty_email": u.email,
+            "full_name": u.full_name,
+            "school": u.school or "",
+            "department": u.department or "",
+            "appraisal_role": u.appraisal_role,
+            "designation": u.designation or "",
+            "academic_year": d.academic_year,
+            "status": d.status,
+            "submitted_at": d.submitted_at.isoformat() if d.submitted_at else "",
+            "part_a_total": float(d.part_a_total),
+            "part_b_total": float(d.part_b_total),
+            "grand_total": float(d.grand_total),
+        }
+        for u, d in result.all()
+    ]
+
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No submissions found for {academic_year}")
+
+    filename = f"submissions-{academic_year}.csv"
+    fields = ["faculty_email", "full_name", "school", "department", "appraisal_role",
+              "designation", "academic_year", "status", "submitted_at",
+              "part_a_total", "part_b_total", "grand_total"]
+    return _csv_response(rows, fields, filename)
+
+
+@router.get("/export/faculty")
+async def export_faculty(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    school: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+):
+    _check_admin(current_user)
+
+    query = select(FacultyProfile).order_by(FacultyProfile.school, FacultyProfile.full_name)
+    if school:
+        query = query.where(FacultyProfile.school == school)
+    if role:
+        query = query.where(FacultyProfile.appraisal_role == role)
+
+    result = await db.execute(query)
+    rows = [
+        {
+            "email": u.email,
+            "full_name": u.full_name,
+            "appraisal_role": u.appraisal_role,
+            "school": u.school or "",
+            "department": u.department or "",
+            "designation": u.designation or "",
+            "phone": u.phone or "",
+            "qualification": u.qualification or "",
+            "teaching_experience": u.teaching_experience or "",
+            "employee_id": u.employee_id or "",
+            "is_verified": u.is_verified,
+            "created_at": u.created_at.isoformat() if u.created_at else "",
+        }
+        for u in result.scalars().all()
+    ]
+
+    fields = ["email", "full_name", "appraisal_role", "school", "department",
+              "designation", "phone", "qualification", "teaching_experience",
+              "employee_id", "is_verified", "created_at"]
+    return _csv_response(rows, fields, "faculty-export.csv")
+
+
+# ---------------------------------------------------------------------------
+# Submission trends
+# ---------------------------------------------------------------------------
+
+@router.get("/trends")
+async def get_trends(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    academic_year: Optional[str] = Query(None),
+):
+    _check_admin(current_user)
+
+    if not academic_year:
+        years_res = await db.execute(
+            select(distinct(Declaration.academic_year)).order_by(Declaration.academic_year.desc())
+        )
+        years = [r[0] for r in years_res.all()]
+        academic_year = years[0] if years else None
+
+    if not academic_year:
+        return {"academic_year": None, "monthly": []}
+
+    # Total teaching staff registered (the denominator for "pending")
+    total_res = await db.execute(
+        select(func.count(FacultyProfile.id))
+        .where(FacultyProfile.appraisal_role.in_(TEACHING_ROLES))
+    )
+    total_registered = total_res.scalar() or 0
+
+    # All submissions for the year, with their submitted_at timestamp
+    subs_res = await db.execute(
+        select(Declaration.submitted_at)
+        .where(Declaration.academic_year == academic_year)
+        .order_by(Declaration.submitted_at)
+    )
+    submitted_ats = [row[0] for row in subs_res.all() if row[0]]
+
+    # Group by "Mon YYYY" key, keep order
+    month_counts: dict = defaultdict(int)
+    month_order: list = []
+    for ts in submitted_ats:
+        key = ts.strftime("%b")
+        if key not in month_counts:
+            month_order.append(key)
+        month_counts[key] += 1
+
+    # Build cumulative monthly series
+    monthly = []
+    cumulative = 0
+    for month in month_order:
+        cumulative += month_counts[month]
+        monthly.append({
+            "month": month,
+            "submitted": cumulative,
+            "pending": max(total_registered - cumulative, 0),
+        })
+
+    return {"academic_year": academic_year, "monthly": monthly}
+
+
+# ---------------------------------------------------------------------------
+# Module config
+# ---------------------------------------------------------------------------
+
+class ModuleConfigUpdate(BaseModel):
+    appraisal_module_enabled: Optional[bool] = None
+    self_appraisal_enabled: Optional[bool] = None
+    peer_review_enabled: Optional[bool] = None
+
+
+@router.get("/module-config")
+async def get_module_config(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(ModuleConfig).where(ModuleConfig.id == 1))
+    config = result.scalar_one_or_none()
+    if not config:
+        # Create the default row on first access
+        config = ModuleConfig(id=1)
+        db.add(config)
+        await db.commit()
+        await db.refresh(config)
+    return {
+        "appraisal_module_enabled": config.appraisal_module_enabled,
+        "self_appraisal_enabled": config.self_appraisal_enabled,
+        "peer_review_enabled": config.peer_review_enabled,
+    }
+
+
+@router.put("/module-config")
+async def update_module_config(
+    current_user: CurrentUser,
+    data: ModuleConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(ModuleConfig).where(ModuleConfig.id == 1))
+    config = result.scalar_one_or_none()
+    if not config:
+        config = ModuleConfig(id=1)
+        db.add(config)
+
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(config, field, value)
+
+    await db.commit()
+    return {"message": "Updated"}

@@ -935,6 +935,163 @@ Binary CSV download.
 
 ---
 
+## 9b. Analytics Export
+
+Download submission and faculty data. Responses are binary CSV downloads.
+
+> **Frontend usage:** fetch as a Blob and call `URL.createObjectURL`, passing the `Authorization` header.
+
+---
+
+### `GET /api/v1/admin/export/submissions`
+
+Exports submission data for the given academic year. Requires admin JWT.
+
+#### Query parameters
+
+| Param           | Type     | Required | Description                                        |
+|-----------------|----------|----------|----------------------------------------------------|
+| `academic_year` | `string` | No       | Defaults to most recent year with data             |
+| `school`        | `string` | No       | Filter by school code                              |
+
+#### Response — CSV download
+
+**Filename:** `submissions-{academic_year}.csv`
+
+**Columns:** `faculty_email`, `full_name`, `school`, `department`, `appraisal_role`, `designation`, `academic_year`, `status`, `submitted_at`, `part_a_total`, `part_b_total`, `grand_total`
+
+| Status | When                               |
+|--------|------------------------------------|
+| `404`  | No data found for the given year   |
+
+---
+
+### `GET /api/v1/admin/export/faculty`
+
+Exports the complete faculty registry. Requires admin JWT.
+
+#### Query parameters
+
+| Param    | Type     | Required | Description                |
+|----------|----------|----------|----------------------------|
+| `school` | `string` | No       | Filter by school code      |
+| `role`   | `string` | No       | Filter by `appraisal_role` |
+
+#### Response — CSV download
+
+**Filename:** `faculty-export.csv`
+
+**Columns:** `email`, `full_name`, `appraisal_role`, `school`, `department`, `designation`, `phone`, `qualification`, `teaching_experience`, `employee_id`, `is_verified`, `created_at`
+
+---
+
+## 9c. Submission Trends
+
+### `GET /api/v1/admin/trends`
+
+Returns cumulative monthly submission counts for a given academic year. Powers the Submission Trend chart on the Overview and Analytics pages.
+
+#### Query parameters
+
+| Param           | Type     | Required | Description                          |
+|-----------------|----------|----------|--------------------------------------|
+| `academic_year` | `string` | No       | Defaults to most recent year         |
+
+#### Response `200`
+
+| Field            | Type       | Description                              |
+|------------------|------------|------------------------------------------|
+| `academic_year`  | `string`   | Year data is filtered to                 |
+| `monthly`        | `array`    | One entry per month that has submissions |
+| `monthly[].month`| `string`   | 3-letter month abbrev e.g. `"Jan"`       |
+| `monthly[].submitted` | `integer` | Cumulative submissions at end of month |
+| `monthly[].pending`   | `integer` | Total registered teaching staff minus cumulative submitted |
+
+```json
+{
+  "academic_year": "2025-26",
+  "monthly": [
+    { "month": "Jan", "submitted": 12, "pending": 88 },
+    { "month": "Feb", "submitted": 34, "pending": 66 },
+    { "month": "Mar", "submitted": 67, "pending": 33 }
+  ]
+}
+```
+
+> Returns `{ "academic_year": null, "monthly": [] }` if no data exists yet.
+
+---
+
+## 9d. Module Config
+
+Persists the three Section Controls toggles on the Appraisal page. Stored in the database (survives container restarts).
+
+---
+
+### `GET /api/v1/admin/module-config`
+
+Returns the current module settings. Requires admin JWT.
+
+#### Response `200`
+
+| Field                       | Type      | Description                            |
+|-----------------------------|-----------|----------------------------------------|
+| `appraisal_module_enabled`  | `boolean` | Master switch for the appraisal module |
+| `self_appraisal_enabled`    | `boolean` | Allows faculty to submit self-appraisal|
+| `peer_review_enabled`       | `boolean` | Enables peer review flow               |
+
+```json
+{
+  "appraisal_module_enabled": true,
+  "self_appraisal_enabled": true,
+  "peer_review_enabled": false
+}
+```
+
+---
+
+### `PUT /api/v1/admin/module-config`
+
+Updates module settings. All fields optional. Requires admin JWT.
+
+#### Request body
+
+| Field                       | Type               | Description               |
+|-----------------------------|--------------------|---------------------------|
+| `appraisal_module_enabled`  | `boolean \| null`  | Toggle appraisal module   |
+| `self_appraisal_enabled`    | `boolean \| null`  | Toggle self-appraisal     |
+| `peer_review_enabled`       | `boolean \| null`  | Toggle peer review        |
+
+```json
+{ "peer_review_enabled": true }
+```
+
+#### Response `200`
+
+```json
+{ "message": "Updated" }
+```
+
+---
+
+## 9e. Feature Flags (via `/admin/config`)
+
+The 7 feature flag keys are included in the standard `GET/PUT /api/v1/admin/config` endpoint (§6). No separate endpoint needed.
+
+| Key                    | Type     | Default   | Description                          |
+|------------------------|----------|-----------|--------------------------------------|
+| `MAINTENANCE_MODE`     | `string` | `"false"` | Put site in maintenance mode         |
+| `ALLOW_REGISTRATIONS`  | `string` | `"true"`  | Allow new faculty self-registration  |
+| `EMAIL_NOTIFICATIONS`  | `string` | `"false"` | Send email notifications             |
+| `DEBUG_LOGGING`        | `string` | `"false"` | Enable verbose debug logging         |
+| `TWO_FACTOR_AUTH`      | `string` | `"false"` | Require 2FA on login                 |
+| `SESSION_TIMEOUT`      | `string` | `"false"` | Enable session timeout               |
+| `AUDIT_LOGGING`        | `string` | `"false"` | Enable audit trail logging           |
+
+> All values are strings `"true"` / `"false"` (env var convention). Frontend should parse with `value === "true"`.
+
+---
+
 ## 10. Role & School Reference
 
 ### Valid `appraisal_role` values
@@ -1164,10 +1321,13 @@ Normalizers live in `src/api/normalizers.js`. They convert exact backend shapes 
 | `POST`     | `/api/v1/admin/announcements`               | Yes   | Announcements → Publish Notice               |
 | `PUT`      | `/api/v1/admin/announcements/{id}`          | Yes   | Announcements → Edit / Deactivate            |
 | `DELETE`   | `/api/v1/admin/announcements/{id}`          | Yes   | Announcements → Remove                       |
-| `GET`      | `/api/v1/admin/export/submissions`          | Yes   | Analytics → Download Submission Summary — **not yet implemented** |
-| `GET`      | `/api/v1/admin/export/faculty`              | Yes   | Analytics → Download Faculty Registry — **not yet implemented** |
+| `GET`      | `/api/v1/admin/export/submissions`          | Yes   | Analytics → Download Submission Summary      |
+| `GET`      | `/api/v1/admin/export/faculty`              | Yes   | Analytics → Download Faculty Registry        |
+| `GET`      | `/api/v1/admin/trends`                      | Yes   | Overview + Analytics → Submission Trend chart |
+| `GET`      | `/api/v1/admin/module-config`               | Yes   | Appraisal → Section Controls toggles         |
+| `PUT`      | `/api/v1/admin/module-config`               | Yes   | Appraisal → Section Controls toggles         |
 
 ---
 
 *Generated from live backend source — `src/api/v1/admin.py`, `src/api/v1/auth.py`, `src/api/v1/feedback.py`, `src/api/v1/announcements.py`, `src/schema/core.py`*  
-*§9 (Analytics Export) endpoints are planned — not yet implemented. §8 (Announcements) is implemented but `audience`/`channel` fields are pending a backend decision.*
+*§8 (Announcements): `channel` field is intentionally deferred — all announcements are in-app only until email broadcasting is built.*
