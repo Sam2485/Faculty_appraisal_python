@@ -3,16 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { C } from '../constants/colors';
 import { I } from '../components/icons';
 import { api } from '../api/client';
-
-const lbl = {
-  display: 'block', fontSize: 10, fontWeight: 700,
-  color: '#64748b', marginBottom: 6, letterSpacing: .7, textTransform: 'uppercase',
-};
-const inp = {
-  width: '100%', padding: '11px 14px', borderRadius: 9,
-  border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)',
-  fontSize: 13, color: C.text, fontFamily: 'inherit',
-};
+import { inp, lbl } from '../constants/styleTokens';
 
 const EyeOff = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -26,7 +17,6 @@ const Spinner = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2.5" strokeLinecap="round"
     style={{ animation: 'spin .7s linear infinite' }}>
-    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
   </svg>
 );
@@ -108,13 +98,17 @@ export default function Login() {
         </div>
 
         {/* Feature list */}
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {FEATURES.map(({ Icon, text }) => (
-            <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 13 }}>
+          {FEATURES.map(({ Icon, text }, i) => (
+            <div key={text} style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              animation: `fadeUp .35s cubic-bezier(.22,1,.36,1) ${200 + i * 70}ms both`,
+            }}>
               <div style={{
                 width: 34, height: 34, borderRadius: 9, flexShrink: 0,
                 background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background .2s ease, border-color .2s ease',
               }}>
                 <Icon size={15} stroke={C.accent} />
               </div>

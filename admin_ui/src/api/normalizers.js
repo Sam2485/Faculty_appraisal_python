@@ -6,7 +6,8 @@
 export function normalizeStats(raw) {
   raw = raw ?? {};
 
-  const total = raw.total_registered ?? raw.total_faculty ?? raw.total ?? 0;
+  const adminCount = raw.by_role?.admin ?? 0;
+  const total = (raw.total_registered ?? raw.total_faculty ?? raw.total ?? 0) - adminCount;
 
   // teaching_submission_pipeline = { "Pending Review": 30, "Approved": 90, ... }
   // Any faculty who has a Declaration record counts as "submitted"
@@ -22,7 +23,7 @@ export function normalizeStats(raw) {
   const allSchools = new Set([...Object.keys(bySchoolSub), ...Object.keys(bySchoolReg)]);
 
   const bySchool = Array.from(allSchools)
-    .filter(Boolean)
+    .filter(s => s && s !== 'null' && s !== 'undefined')
     .map(school => {
       const statusMap = bySchoolSub[school] ?? {};
       const sub       = Object.values(statusMap).reduce((s, n) => s + (n ?? 0), 0);
@@ -51,22 +52,24 @@ export function normalizeStats(raw) {
 export function normalizeUsers(raw) {
   raw = raw ?? [];
   const arr = Array.isArray(raw) ? raw : (raw.users ?? raw.items ?? []);
-  return arr.map(u => ({
-    id:          u.email,                              // email is the primary key
-    name:        u.full_name ?? u.name ?? u.email,
-    email:       u.email,
-    dept:        u.department ?? u.dept ?? '—',
-    school:      u.school ?? '—',
-    role:        u.appraisal_role ?? 'faculty',
-    designation: u.designation ?? '—',
-    employeeId:  u.employee_id ?? '—',
-    phone:       u.phone ?? '—',
-    qualification:       u.qualification ?? '—',
-    teachingExperience:  u.teaching_experience ?? '—',
-    status:      u.is_verified === false ? 'Unverified' : 'Active',
-    yr:          u.created_at ? new Date(u.created_at).getFullYear().toString() : '—',
-    sub:         false, // not returned by /admin/users — use /admin/stats by_school for submission data
-  }));
+  return arr
+    .filter(u => (u.appraisal_role ?? u.role) !== 'admin')
+    .map(u => ({
+      id:          u.email,
+      name:        u.full_name ?? u.name ?? u.email,
+      email:       u.email,
+      dept:        u.department ?? u.dept ?? '—',
+      school:      u.school ?? '—',
+      role:        u.appraisal_role ?? 'faculty',
+      designation: u.designation ?? '—',
+      employeeId:  u.employee_id ?? '—',
+      phone:       u.phone ?? '—',
+      qualification:      u.qualification ?? '—',
+      teachingExperience: u.teaching_experience ?? '—',
+      status:      u.is_verified === false ? 'Unverified' : 'Active',
+      yr:          u.created_at ? new Date(u.created_at).getFullYear().toString() : '—',
+      sub:         false,
+    }));
 }
 
 // ---------------------------------------------------------------------------
