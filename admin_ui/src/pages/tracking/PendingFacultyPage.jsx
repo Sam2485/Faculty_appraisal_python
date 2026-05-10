@@ -1,106 +1,159 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
-import { normalizeStats } from '../../api/normalizers';
+import { normalizeUsers, normalizeStats } from '../../api/normalizers';
 import { useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
+import { inp, tdS } from '../../constants/styleTokens';
+import { I } from '../../components/icons';
 import Badge from '../../components/Badge';
+import Av from '../../components/Av';
 import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
+import TH from '../../components/TH';
+
+const SCHOOLS = [
+  'SoCSEA', 'SoC', 'SoBB', 'SoMCS', 'SoD', 'SoAA', 'SoCE', 'SoEMR',
+];
 
 export default function PendingFacultyPage() {
-  const [year, setYear] = useState('');
+  const [year, setYear]     = useState('');   // '' = use latest from stats
+  const [school, setSchool] = useState('All');
+  const [search, setSearch] = useState('');
+  const [tick, setTick]     = useState(0);
 
-  const { data: raw, loading, error } = useFetch(
-    () => api.stats.get(year || undefined),
-    [year]
+  const refresh = useCallback(() => setTick(t => t + 1), []);
+
+  // Fetch stats first to get available years
+  const { data: rawStats, loading: statsLoading } = useFetch(() => api.stats.get(), []);
+  const statsData      = normalizeStats(rawStats);
+  const availableYears = statsData.availableYears;
+
+  // academic_year is REQUIRED by the backend — resolve to latest if user hasn't picked one
+  const effectiveYear = year || availableYears[0] || null;
+
+  // Only call pending-faculty once we have a year
+  const { data: rawPending, loading: pendingLoading, error: pendingError } = useFetch(
+    () => effectiveYear
+      ? api.pending.list({ academic_year: effectiveYear })
+      : Promise.resolve(null),
+    [effectiveYear, tick]
   );
-  const stats = normalizeStats(raw);
-  const totalPending = stats.bySchool.reduce((s, r) => s + r.pend, 0);
+
+  const loading = statsLoading || pendingLoading;
+  const pending = normalizeUsers(rawPending ?? []);
+
+  const rows = pending.filter(f =>
+    (school === 'All' || f.school === school) &&
+    (f.name.toLowerCase().includes(search.toLowerCase()) ||
+     f.email.toLowerCase().includes(search.toLowerCase()) ||
+     f.dept.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const bySchool = SCHOOLS.map(s => ({
+    name: s,
+    count: pending.filter(f => f.school === s).length,
+  })).filter(s => s.count > 0);
 
   return (
     <div className="page-enter">
-      <PageHead title="Pending Faculty" sub="Faculty yet to submit — breakdown by school" />
+      <PageHead
+        title="Pending Faculty"
+        sub={loading ? 'Loading…' : `${rows.length} faculty yet to submit`}
+      />
 
       {loading && <Loading />}
-      {error   && <ApiError message={error} />}
+      {pendingError && <ApiError message={pendingError} />}
 
-      {!loading && !error && (
+      {!loading && !pendingError && !effectiveYear && (
+        <div style={{ padding: '20px 0', textAlign: 'center', color: C.muted, fontSize: 13 }}>
+          No appraisal cycle data available yet.
+        </div>
+      )}
+
+      {!loading && !pendingError && effectiveYear && (
         <>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-            {stats.availableYears.length > 0 && (
-              <select value={year}
-                onChange={e => setYear(e.target.value)}
+          {/* ── Toolbar ────────────────────────────────────────────── */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            {availableYears.length > 0 && (
+              <select value={year} onChange={e => setYear(e.target.value)}
                 style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.09)',
                   background: 'rgba(255,255,255,.04)', color: C.text, fontSize: 12, cursor: 'pointer' }}>
-                <option value="">Latest cycle</option>
-                {stats.availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             )}
-            <Badge color="red" dot>{totalPending} pending</Badge>
+
+            <select value={school} onChange={e => setSchool(e.target.value)}
+              style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.09)',
+                background: 'rgba(255,255,255,.04)', color: C.text, fontSize: 12, cursor: 'pointer' }}>
+              <option value="All">All Schools</option>
+              {SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+              <div style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', opacity: .35 }}>
+                <I.search size={13} />
+              </div>
+              <input className="ifield" placeholder="Search name, email, department…"
+                value={search} onChange={e => setSearch(e.target.value)}
+                style={{ ...inp, paddingLeft: 34 }} />
+            </div>
+
+            <Badge color="red" dot>{pending.length} pending</Badge>
           </div>
 
-          <Card>
-            {stats.bySchool.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: C.muted, fontSize: 13 }}>
-                No data available
-              </div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {['School', 'Pending', 'Submitted', 'Total', 'Progress'].map(h => (
-                      <th key={h} style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700,
-                        color: C.muted, textAlign: h === 'School' ? 'left' : 'center',
-                        letterSpacing: .6, textTransform: 'uppercase',
-                        borderBottom: '1px solid rgba(255,255,255,.06)' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.bySchool.map((s, i) => {
-                    const pct = s.total > 0 ? Math.round((s.sub / s.total) * 100) : 0;
-                    return (
-                      <tr key={s.name} className="tr-row" style={{ animationDelay: `${i * 40}ms` }}>
-                        <td style={{ padding: '11px 12px', fontSize: 13, color: C.text,
-                          fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,.03)' }}>
-                          {s.name}
-                        </td>
-                        <td style={{ padding: '11px 12px', textAlign: 'center',
-                          borderBottom: '1px solid rgba(255,255,255,.03)' }}>
-                          <Badge color={s.pend > 0 ? 'red' : 'green'}>{s.pend}</Badge>
-                        </td>
-                        <td style={{ padding: '11px 12px', textAlign: 'center',
-                          borderBottom: '1px solid rgba(255,255,255,.03)' }}>
-                          <Badge color="green">{s.sub}</Badge>
-                        </td>
-                        <td style={{ padding: '11px 12px', fontSize: 12, color: C.muted,
-                          textAlign: 'center', fontFamily: "'JetBrains Mono',monospace",
-                          borderBottom: '1px solid rgba(255,255,255,.03)' }}>
-                          {s.total}
-                        </td>
-                        <td style={{ padding: '11px 12px', borderBottom: '1px solid rgba(255,255,255,.03)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ flex: 1, height: 5, borderRadius: 3,
-                              background: 'rgba(255,255,255,.06)' }}>
-                              <div style={{ height: '100%', borderRadius: 3,
-                                width: `${pct}%`,
-                                background: pct === 100 ? C.green : pct > 50 ? '#fbbf24' : C.red,
-                                transition: 'width .4s ease' }} />
-                            </div>
-                            <span style={{ fontSize: 10, color: C.muted,
-                              fontFamily: "'JetBrains Mono',monospace", minWidth: 28 }}>
-                              {pct}%
-                            </span>
-                          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 190px', gap: 14, alignItems: 'start' }}>
+            <Card>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>{['Faculty', 'School', 'Department', 'Role'].map(h => <TH key={h}>{h}</TH>)}</tr>
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} style={{ ...tdS, textAlign: 'center', padding: '20px 0', color: C.muted }}>
+                          {pending.length === 0 ? 'All faculty have submitted' : 'No records match the filter'}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </Card>
+                    ) : rows.map((f, i) => (
+                      <tr key={f.id} className="tr-row" style={{ animationDelay: `${i * 30}ms` }}>
+                        <td style={tdS}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Av init={f.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+                                color={C.red} size={28} />
+                            <div>
+                              <div style={{ fontWeight: 600, color: C.text, fontSize: 13 }}>{f.name}</div>
+                              <div style={{ fontSize: 10, color: C.muted }}>{f.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ ...tdS, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{f.school}</td>
+                        <td style={{ ...tdS, fontSize: 12 }}>{f.dept}</td>
+                        <td style={tdS}><Badge color="red">{f.role}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card title="By School" delay={60}>
+              {bySchool.length === 0 ? (
+                <div style={{ fontSize: 12, color: C.muted, textAlign: 'center', padding: '8px 0' }}>
+                  No pending faculty
+                </div>
+              ) : bySchool.map((s, i) => (
+                <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'center', padding: '8px 0',
+                  borderBottom: i < bySchool.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none' }}>
+                  <span style={{ fontSize: 12, color: C.subtle,
+                    fontFamily: "'JetBrains Mono',monospace" }}>{s.name}</span>
+                  <Badge color="red">{s.count}</Badge>
+                </div>
+              ))}
+            </Card>
+          </div>
         </>
       )}
     </div>

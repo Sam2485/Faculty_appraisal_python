@@ -1,6 +1,5 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { C } from '../../constants/colors';
-import { trendData } from '../../constants/mockData';
 import { I } from '../../components/icons';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
@@ -22,6 +21,12 @@ export default function OverviewPage() {
     { name: 'Pending',   value: stats.pending,   color: C.red   },
   ];
 
+  const pipelineData = Object.entries(stats.pipeline ?? {}).map(([status, count]) => ({
+    status: status.replace('Pending ', '').replace('Reviewed by ', ''),
+    fullStatus: status,
+    count,
+  }));
+
   return (
     <div className="page-enter">
       <PageHead title="Overview" sub="Real-time snapshot of the appraisal system · Cycle 2024–25" />
@@ -39,27 +44,21 @@ export default function OverviewPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 14 }}>
-            <Card title="Submission Trend" sub="Placeholder — no monthly trend endpoint yet" delay={100}>
-              <ResponsiveContainer width="100%" height={210}>
-                <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gS" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={C.accent} stopOpacity={.28} />
-                      <stop offset="95%" stopColor={C.accent} stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={C.red} stopOpacity={.22} />
-                      <stop offset="95%" stopColor={C.red} stopOpacity={0}   />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.04)" />
-                  <XAxis dataKey="m"  tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis              tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<ChartTip />} />
-                  <Area type="monotone" dataKey="sub"  name="Submitted" stroke={C.accent} fill="url(#gS)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="pend" name="Pending"   stroke={C.red}    fill="url(#gP)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
+            <Card title="Review Pipeline" sub="Submissions by review stage" delay={100}>
+              {pipelineData.length === 0 ? (
+                <div style={{ height: 210, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: C.muted, fontSize: 13 }}>No submissions yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={210}>
+                  <BarChart data={pipelineData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.04)" />
+                    <XAxis dataKey="status" tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis               tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTip />} formatter={(v, n, p) => [v, p.payload.fullStatus]} />
+                    <Bar dataKey="count" name="Submissions" fill={C.accent} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </Card>
 
             <Card title="Cycle Split" sub="Current year" delay={140}>

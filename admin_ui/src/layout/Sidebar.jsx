@@ -7,15 +7,14 @@ import { api } from '../api/client';
 
 // One accent colour per nav section
 const SEC_COLORS = [
-  '#3b82f6', // Dashboard   — blue
-  '#a78bfa', // Faculty     — purple
-  '#34d399', // Appraisal   — green
-  '#fbbf24', // Tracking    — amber
-  '#f472b6', // Credentials — pink
-  '#22d3ee', // Analytics   — cyan
-  '#fb923c', // Feedback    — orange
+  '#3b82f6', // Dashboard     — blue
+  '#a78bfa', // Faculty       — purple
+  '#34d399', // Appraisal     — green
+  '#fbbf24', // Tracking      — amber
+  '#22d3ee', // Analytics     — cyan
+  '#fb923c', // Feedback      — orange
   '#818cf8', // Announcements — indigo
-  '#94a3b8', // Settings    — slate
+  '#94a3b8', // Settings      — slate
 ];
 
 function NavSection({ section, defaultOpen, colorIdx }) {
@@ -67,7 +66,7 @@ function NavSection({ section, defaultOpen, colorIdx }) {
 
       {/* Children */}
       {open && (
-        <div style={{ marginTop: 2, marginLeft: 8, marginBottom: 4, paddingLeft: 12, borderLeft: `1.5px solid rgba(255,255,255,.06)` }}>
+        <div className="nav-children" style={{ marginTop: 2, marginLeft: 8, marginBottom: 4, paddingLeft: 12, borderLeft: `1.5px solid rgba(255,255,255,.06)` }}>
           {section.children.map(child => {
             const active = location.pathname === child.path;
             const CIcon  = child.icon;
@@ -163,15 +162,11 @@ export default function Sidebar() {
 
       {/* ── Nav ───────────────────────────────────────────────────────────── */}
       <nav style={{ flex: 1, overflowY: 'auto', padding: '4px 10px 8px', scrollbarWidth: 'none' }}>
-        <style>{`
-          .nav-sec-btn:hover  { background: rgba(255,255,255,.04) !important; }
-          .nav-child-btn:hover { background: rgba(255,255,255,.04) !important; color: #94a3b8 !important; }
-        `}</style>
-
         {NAV.map((section, i) => (
           <NavSection key={section.label} section={section} defaultOpen={i === 0} colorIdx={i} />
         ))}
       </nav>
+
 
       {/* ── Profile card ──────────────────────────────────────────────────── */}
       <div style={{ padding: '10px 14px 16px', flexShrink: 0 }}>
@@ -218,10 +213,9 @@ export default function Sidebar() {
             border: '1px solid rgba(248,113,113,.15)',
             borderRadius: 9, cursor: 'pointer',
             color: C.red, fontSize: 12, fontWeight: 500,
-            fontFamily: 'inherit', transition: 'all .15s ease',
+            fontFamily: 'inherit',
           }}
         >
-          <style>{`.signout-btn:hover { background: rgba(248,113,113,.12) !important; border-color: rgba(248,113,113,.28) !important; }`}</style>
           <I.lock size={13} stroke={C.red} /> Sign Out
         </button>
       </div>
