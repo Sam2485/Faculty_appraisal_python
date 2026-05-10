@@ -100,14 +100,16 @@ async def review_non_teaching(email: str, data: Dict[str, Any], current_user: Cu
     # Update the appraisal object
     appr.status = next_status
     setattr(appr, time_field, datetime.utcnow())
-    
-    # If the payload contains the new total, save it
+
     if 'payload' in data:
         appr.payload = data['payload']
-        # Optionally extract totals from payload if not explicitly provided
-    
-    if 'total_score' in data: # Assume frontend sends this
+
+    if 'total_score' in data:
         setattr(appr, field, data['total_score'])
+
+    # Write reviewer marks into normalized Part A and Part B tables
+    if data.get('payload'):
+        await crud.update_reviewer_marks(db, email, academic_year, data['payload'], primary_role)
 
     await db.commit()
     await db.refresh(appr)
