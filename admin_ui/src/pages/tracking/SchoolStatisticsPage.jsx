@@ -9,14 +9,16 @@ import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
 import ProgressBar from '../../components/ProgressBar';
 import ChartTip from '../../components/ChartTip';
+import SchoolProgress from '../../components/SchoolProgress';
+import LiveBadge from '../../components/LiveBadge';
 
 export default function SchoolStatisticsPage() {
-  const { data: raw, loading, error } = useFetch(() => api.stats.get(), []);
+  const { data: raw, loading, error, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
   const { bySchool } = normalizeStats(raw);
 
   return (
     <div className="page-enter">
-      <PageHead title="School Statistics" sub="Submission breakdown by school" />
+      <PageHead title="School Statistics" sub="Submission breakdown by school" action={<LiveBadge lastUpdated={lastUpdated} />} />
 
       {loading && <Loading />}
       {error   && <ApiError message={error} />}
@@ -41,20 +43,7 @@ export default function SchoolStatisticsPage() {
           </Card>
 
           <Card title="Completion Rates" delay={60}>
-            {bySchool.map((s, i) => {
-              const pct = s.total ? s.sub / s.total : 0;
-              const bc  = pct >= .8 ? 'green' : pct >= .6 ? 'blue' : 'yellow';
-              const col = pct >= .8 ? `linear-gradient(90deg,${C.green},#059669)` : pct >= .6 ? `linear-gradient(90deg,${C.accent},#2563eb)` : `linear-gradient(90deg,${C.yellow},#d97706)`;
-              return (
-                <div key={s.name} style={{ marginBottom: i < bySchool.length - 1 ? 13 : 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                    <span style={{ fontSize: 12, color: C.subtle }}>{s.name}</span>
-                    <Badge color={bc}>{Math.round(pct * 100)}%</Badge>
-                  </div>
-                  <ProgressBar value={pct * 100} color={col} />
-                </div>
-              );
-            })}
+            <SchoolProgress schools={bySchool} showCount={false} emptyMsg="No data" />
           </Card>
         </div>
       )}

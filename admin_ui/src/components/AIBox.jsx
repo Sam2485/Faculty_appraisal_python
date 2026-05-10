@@ -32,9 +32,9 @@ export default function AIBox() {
 
       {/* Panel */}
       {open && (
-        <div style={{ position: 'fixed', bottom: 80, right: 24, width: 340, maxHeight: 480, background: '#0d1420', border: '1px solid rgba(255,255,255,.1)', borderRadius: 16, display: 'flex', flexDirection: 'column', zIndex: 999, boxShadow: '0 24px 64px rgba(0,0,0,.6)', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', bottom: 80, right: 24, width: 340, maxHeight: 480, background: C.surf, border: '1px solid var(--c-border)', borderRadius: 16, display: 'flex', flexDirection: 'column', zIndex: 999, boxShadow: '0 24px 64px var(--c-stat-shadow)', overflow: 'hidden' }}>
           {/* Header */}
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--c-divider)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>AI Assistant</div>
               <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>Ask anything about the dashboard</div>
@@ -53,12 +53,12 @@ export default function AIBox() {
               </div>
             )}
             {messages.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%', padding: '8px 12px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'linear-gradient(135deg,#3b82f6,#2563eb)' : 'rgba(255,255,255,.06)', fontSize: 12, color: C.text, lineHeight: 1.5 }}>
+              <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%', padding: '8px 12px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'linear-gradient(135deg,#3b82f6,#2563eb)' : 'var(--c-soft-bg)', fontSize: 12, color: m.role === 'user' ? '#fff' : C.text, lineHeight: 1.5 }}>
                 {m.content}
               </div>
             ))}
             {loading && (
-              <div style={{ alignSelf: 'flex-start', padding: '8px 12px', borderRadius: '12px 12px 12px 4px', background: 'rgba(255,255,255,.06)', fontSize: 12, color: C.muted }}>
+              <div style={{ alignSelf: 'flex-start', padding: '8px 12px', borderRadius: '12px 12px 12px 4px', background: 'var(--c-soft-bg)', fontSize: 12, color: C.muted }}>
                 Thinking…
               </div>
             )}
@@ -67,13 +67,13 @@ export default function AIBox() {
           </div>
 
           {/* Input */}
-          <form onSubmit={submit} style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,.07)', display: 'flex', gap: 8 }}>
+          <form onSubmit={submit} style={{ padding: '10px 12px', borderTop: '1px solid var(--c-divider)', display: 'flex', gap: 8 }}>
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Ask a question…"
               className="ifield"
-              style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: C.text, fontFamily: 'inherit' }}
+              style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--c-input-border)', background: 'var(--c-input-bg)', fontSize: 12, color: C.text, fontFamily: 'inherit' }}
             />
             <button type="submit" disabled={loading} style={{ padding: '8px 12px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
               <I.send size={13} stroke="#fff" />

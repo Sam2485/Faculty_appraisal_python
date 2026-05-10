@@ -9,7 +9,7 @@ export const NAV = [
     ],
   },
   {
-    label: "Faculty", icon: I.users,
+    label: "User Registration", icon: I.users,
     children: [
       { label: "Faculty List",   icon: I.list,    path: "/faculty"           },
       { label: "Add Faculty",    icon: I.addUser, path: "/faculty/add"       },
@@ -52,9 +52,8 @@ export const NAV = [
   {
     label: "Settings", icon: I.gear,
     children: [
-      { label: "System Settings",  icon: I.monitor, path: "/settings"          },
-      { label: "Role Permissions", icon: I.shield,  path: "/settings/roles"    },
-      { label: "Security",         icon: I.lock,    path: "/settings/security" },
+      { label: "System Settings", icon: I.monitor, path: "/settings"          },
+      { label: "Security",        icon: I.lock,    path: "/settings/security" },
     ],
   },
 ];

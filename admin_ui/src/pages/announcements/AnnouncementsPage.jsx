@@ -7,6 +7,7 @@ import { inp, lbl, pBtn, oBtn } from '../../constants/styleTokens';
 import { I } from '../../components/icons';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
+import Modal from '../../components/Modal';
 import PageHead from '../../components/PageHead';
 
 const AUDIENCE = [
@@ -91,10 +92,7 @@ export default function AnnouncementsPage() {
 
       {/* ── Edit modal ─────────────────────────────────────────────── */}
       {editing && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div style={{ background: '#1a1d2e', borderRadius: 14, padding: 28, width: '100%',
-            maxWidth: 480, border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 24px 60px rgba(0,0,0,.6)' }}>
+        <Modal maxWidth={480} onClose={() => setEditing(null)}>
             <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 20 }}>Edit Announcement</div>
 
             <div style={{ marginBottom: 14 }}>
@@ -139,8 +137,7 @@ export default function AnnouncementsPage() {
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14, alignItems: 'start' }}>

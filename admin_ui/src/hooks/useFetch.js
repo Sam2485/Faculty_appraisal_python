@@ -1,19 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
-export function useFetch(fetcher, deps = []) {
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+export function useFetch(fetcher, deps = [], { interval } = {}) {
+  const [data, setData]               = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const intervalRef                   = useRef(null);
+  const fetcherRef                    = useRef(fetcher);
+  fetcherRef.current = fetcher;
+
+  const run = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
+    return fetcherRef.current()
+      .then(d  => { setData(d); setLastUpdated(Date.now()); if (!silent) setLoading(false); })
+      .catch(e => { if (!silent) { setError(e.message || 'Failed to load data'); setLoading(false); } });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetcher()
-      .then(d  => { if (!cancelled) { setData(d);               setLoading(false); } })
-      .catch(e => { if (!cancelled) { setError(e.message || 'Failed to load data'); setLoading(false); } });
-    return () => { cancelled = true; };
+    if (!cancelled) run(false);
+
+    if (interval) {
+      intervalRef.current = setInterval(() => { if (!cancelled) run(true); }, interval);
+    }
+
+    return () => {
+      cancelled = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { data, loading, error };
+  return { data, loading, error, lastUpdated };
 }

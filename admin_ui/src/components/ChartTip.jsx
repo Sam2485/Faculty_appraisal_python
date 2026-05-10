@@ -4,10 +4,10 @@ export default function ChartTip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: 'rgba(13,20,32,.96)',
-      border: '1px solid rgba(255,255,255,.1)',
+      background: C.surf,
+      border: '1px solid var(--c-border)',
       borderRadius: 10, padding: '10px 14px', fontSize: 12,
-      boxShadow: '0 12px 36px rgba(0,0,0,.5)',
+      boxShadow: '0 12px 36px var(--c-stat-shadow)',
       backdropFilter: 'blur(12px)',
       animation: 'scaleIn .14s cubic-bezier(.22,1,.36,1) both',
     }}>

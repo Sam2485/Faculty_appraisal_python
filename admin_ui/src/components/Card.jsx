@@ -7,7 +7,7 @@ export default function Card({ title, sub, action, children, style = {}, delay =
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           marginBottom: 16, paddingBottom: 13,
-          borderBottom: '1px solid rgba(255,255,255,.06)',
+          borderBottom: '1px solid var(--c-divider)',
         }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{title}</div>

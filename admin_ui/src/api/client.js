@@ -127,6 +127,13 @@ const announcements = {
 }
 
 // ---------------------------------------------------------------------------
+// AI assistant
+// ---------------------------------------------------------------------------
+const ai = {
+  ask: (prompt) => request('/admin/ai', { method: 'POST', body: JSON.stringify({ prompt }) }),
+}
+
+// ---------------------------------------------------------------------------
 // Analytics export (file downloads — returns a Blob, not JSON)
 // ---------------------------------------------------------------------------
 async function downloadFile(path) {
@@ -146,4 +153,4 @@ const exportData = {
   faculty:     (params = {}) => downloadFile('/admin/export/faculty?' + new URLSearchParams(params)),
 }
 
-export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, announcements, export: exportData }
+export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, announcements, ai, export: exportData }

@@ -1,4 +1,5 @@
 /* Normalizers — translate exact backend response shapes into frontend-friendly objects */
+import { ALL_SCHOOL_CODES } from '../constants/schools';
 
 // ---------------------------------------------------------------------------
 // Stats  →  GET /api/v1/admin/stats
@@ -23,7 +24,7 @@ export function normalizeStats(raw) {
   const allSchools = new Set([...Object.keys(bySchoolSub), ...Object.keys(bySchoolReg)]);
 
   const bySchool = Array.from(allSchools)
-    .filter(s => s && s !== 'null' && s !== 'undefined')
+    .filter(s => ALL_SCHOOL_CODES.includes(s))
     .map(school => {
       const statusMap = bySchoolSub[school] ?? {};
       const sub       = Object.values(statusMap).reduce((s, n) => s + (n ?? 0), 0);

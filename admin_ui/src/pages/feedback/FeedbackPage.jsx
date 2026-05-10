@@ -8,6 +8,7 @@ import { smBtn } from '../../constants/styleTokens';
 import Badge from '../../components/Badge';
 import Av from '../../components/Av';
 import Card from '../../components/Card';
+import Modal from '../../components/Modal';
 import PageHead from '../../components/PageHead';
 
 const catColor = { Bug: 'red', Query: 'yellow' };
@@ -40,12 +41,7 @@ export default function FeedbackPage() {
 
       {/* ── Detail modal ───────────────────────────────────────────── */}
       {(detailLoading || viewing || detailErr) && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
-          onClick={() => { setViewing(null); setDetailErr(null); }}>
-          <div style={{ background: '#1a1d2e', borderRadius: 14, padding: 28, width: '100%',
-            maxWidth: 520, border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 24px 60px rgba(0,0,0,.6)' }}
-            onClick={e => e.stopPropagation()}>
+        <Modal maxWidth={520} onClose={() => { setViewing(null); setDetailErr(null); }}>
 
             {detailLoading && (
               <div style={{ textAlign: 'center', padding: '24px 0', color: C.muted, fontSize: 13 }}>
@@ -97,8 +93,7 @@ export default function FeedbackPage() {
                 </>
               );
             })()}
-          </div>
-        </div>
+        </Modal>
       )}
 
       {loading && <Loading />}

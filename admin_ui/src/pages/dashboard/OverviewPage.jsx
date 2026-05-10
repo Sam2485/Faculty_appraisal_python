@@ -7,13 +7,15 @@ import StatCard from '../../components/StatCard';
 import PageHead from '../../components/PageHead';
 import ProgressBar from '../../components/ProgressBar';
 import ChartTip from '../../components/ChartTip';
+import SchoolProgress from '../../components/SchoolProgress';
+import LiveBadge from '../../components/LiveBadge';
 import { Loading, ApiError } from '../../components/LoadingState';
 import { useFetch } from '../../hooks/useFetch';
 import { normalizeStats } from '../../api/normalizers';
 import { api } from '../../api/client';
 
 export default function OverviewPage() {
-  const { data: raw, loading, error } = useFetch(() => api.stats.get(), []);
+  const { data: raw, loading, error, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
   const stats = normalizeStats(raw);
 
   const pieData = [
@@ -29,7 +31,7 @@ export default function OverviewPage() {
 
   return (
     <div className="page-enter">
-      <PageHead title="Overview" sub="Real-time snapshot of the appraisal system · Cycle 2024–25" />
+      <PageHead title="Overview" sub="Real-time snapshot of the appraisal system · Cycle 2024–25" action={<LiveBadge lastUpdated={lastUpdated} />} />
 
       {loading && <Loading />}
       {error   && <ApiError message={error} />}
@@ -83,25 +85,7 @@ export default function OverviewPage() {
           </div>
 
           <Card title="School-wise Progress" delay={180}>
-            {stats.bySchool.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: C.muted, fontSize: 13 }}>No school breakdown available</div>
-            ) : stats.bySchool.map((s, i) => {
-              const pct = s.total ? s.sub / s.total : 0;
-              const col = pct >= .8 ? `linear-gradient(90deg,${C.green},#059669)` : pct >= .6 ? `linear-gradient(90deg,${C.accent},#2563eb)` : `linear-gradient(90deg,${C.yellow},#d97706)`;
-              const bc  = pct >= .8 ? 'green' : pct >= .6 ? 'blue' : 'yellow';
-              return (
-                <div key={s.name} style={{ marginBottom: i < stats.bySchool.length - 1 ? 13 : 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                    <span style={{ fontSize: 12, color: C.subtle, fontWeight: 500 }}>{s.name}</span>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{ fontSize: 11, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{s.sub}/{s.total}</span>
-                      <Badge color={bc}>{Math.round(pct * 100)}%</Badge>
-                    </div>
-                  </div>
-                  <ProgressBar value={pct * 100} color={col} />
-                </div>
-              );
-            })}
+            <SchoolProgress schools={stats.bySchool} emptyMsg="No school breakdown available" />
           </Card>
         </>
       )}

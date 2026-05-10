@@ -5,16 +5,66 @@ document.head.appendChild(fontLink);
 
 const style = document.createElement("style");
 style.textContent = `
+  :root,
+  html[data-theme="dark"]{
+    color-scheme:dark;
+    --c-bg:#080c14;
+    --c-surf:#0d1420;
+    --c-card:rgba(255,255,255,.033);
+    --c-card-hover-border:rgba(255,255,255,.12);
+    --c-border:rgba(255,255,255,.07);
+    --c-divider:rgba(255,255,255,.06);
+    --c-row-border:rgba(255,255,255,.03);
+    --c-text:#f1f5f9;
+    --c-muted:#64748b;
+    --c-subtle:#94a3b8;
+    --c-input-bg:rgba(255,255,255,.04);
+    --c-input-border:rgba(255,255,255,.09);
+    --c-btn-border:rgba(255,255,255,.1);
+    --c-soft-bg:rgba(255,255,255,.05);
+    --c-shadow:rgba(0,0,0,.28);
+    --c-stat-shadow:rgba(0,0,0,.55);
+    --c-select-bg:#0d1420;
+    --c-skeleton-a:rgba(255,255,255,.04);
+    --c-skeleton-b:rgba(255,255,255,.08);
+    --c-section-hover:rgba(255,255,255,.75);
+  }
+
+  html[data-theme="light"]{
+    color-scheme:light;
+    --c-bg:#f6f8fc;
+    --c-surf:#ffffff;
+    --c-card:rgba(255,255,255,.82);
+    --c-card-hover-border:rgba(15,23,42,.14);
+    --c-border:rgba(15,23,42,.09);
+    --c-divider:rgba(15,23,42,.08);
+    --c-row-border:rgba(15,23,42,.06);
+    --c-text:#0f172a;
+    --c-muted:#64748b;
+    --c-subtle:#475569;
+    --c-input-bg:rgba(255,255,255,.9);
+    --c-input-border:rgba(15,23,42,.12);
+    --c-btn-border:rgba(15,23,42,.12);
+    --c-soft-bg:rgba(15,23,42,.04);
+    --c-shadow:rgba(15,23,42,.1);
+    --c-stat-shadow:rgba(15,23,42,.14);
+    --c-select-bg:#ffffff;
+    --c-skeleton-a:rgba(15,23,42,.05);
+    --c-skeleton-b:rgba(15,23,42,.1);
+    --c-section-hover:rgba(15,23,42,.72);
+  }
+
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   html,body,#root{height:100%}
-  body{background:#080c14;font-family:'Plus Jakarta Sans',sans-serif;color:#f1f5f9}
+  html,body{transition:background-color .25s ease,color .25s ease}
+  body{background:var(--c-bg);font-family:'Plus Jakarta Sans',sans-serif;color:var(--c-text)}
 
   ::-webkit-scrollbar{width:5px;height:5px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:rgba(59,130,246,.22);border-radius:6px;transition:background .2s}
   ::-webkit-scrollbar-thumb:hover{background:rgba(59,130,246,.42)}
 
-  select option{background:#0d1420;color:#f1f5f9}
+  select option{background:var(--c-select-bg);color:var(--c-text)}
 
   /* ── Keyframes ─────────────────────────────────────────────────── */
   @keyframes fadeUp{
@@ -73,16 +123,16 @@ style.textContent = `
 
   /* ── Glass cards ───────────────────────────────────────────────── */
   .glass{
-    background:rgba(255,255,255,.033);
+    background:var(--c-card);
     backdrop-filter:blur(24px);
     -webkit-backdrop-filter:blur(24px);
-    border:1px solid rgba(255,255,255,.07);
+    border:1px solid var(--c-border);
     border-radius:14px;
-    transition:border-color .25s ease,box-shadow .25s ease;
+    transition:background .25s ease,border-color .25s ease,box-shadow .25s ease;
   }
   .glass:hover{
-    border-color:rgba(255,255,255,.12);
-    box-shadow:0 12px 40px rgba(0,0,0,.28);
+    border-color:var(--c-card-hover-border);
+    box-shadow:0 12px 40px var(--c-shadow);
   }
   .card-appear{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both}
 
@@ -93,8 +143,8 @@ style.textContent = `
   }
   .stat-card:hover{
     transform:translateY(-4px);
-    box-shadow:0 28px 60px rgba(0,0,0,.55)!important;
-    border-color:rgba(255,255,255,.14)!important;
+    box-shadow:0 28px 60px var(--c-stat-shadow)!important;
+    border-color:var(--c-card-hover-border)!important;
   }
   .stat-value{animation:countUp .5s cubic-bezier(.22,1,.36,1) both}
 
@@ -153,9 +203,9 @@ style.textContent = `
   .skeleton{
     background:linear-gradient(
       90deg,
-      rgba(255,255,255,.04) 25%,
-      rgba(255,255,255,.08) 50%,
-      rgba(255,255,255,.04) 75%
+      var(--c-skeleton-a) 25%,
+      var(--c-skeleton-b) 50%,
+      var(--c-skeleton-a) 75%
     );
     background-size:200% 100%;
     animation:shimmer 1.7s ease-in-out infinite;
@@ -169,7 +219,7 @@ style.textContent = `
   .slide-down{animation:slideDown .2s cubic-bezier(.22,1,.36,1) both}
   .search-result:hover{background:rgba(59,130,246,.09)!important}
   .section-btn{transition:color .14s ease}
-  .section-btn:hover{color:rgba(255,255,255,.75)!important}
+  .section-btn:hover{color:var(--c-section-hover)!important}
   .float{animation:float 4s ease-in-out infinite}
   .glow-pulse{animation:glowPulse 2.5s ease-in-out infinite}
 `;
