@@ -4,8 +4,8 @@ export const inp = {
   width: "100%",
   padding: "9px 12px",
   borderRadius: 8,
-  border: "1px solid rgba(255,255,255,.09)",
-  background: "rgba(255,255,255,.04)",
+  border: "1px solid var(--c-input-border)",
+  background: "var(--c-input-bg)",
   fontSize: 13,
   color: C.text,
   fontFamily: "inherit",
@@ -25,7 +25,7 @@ export const tdS = {
   padding: "11px 12px",
   fontSize: 13,
   color: C.subtle,
-  borderBottom: "1px solid rgba(255,255,255,.03)",
+  borderBottom: "1px solid var(--c-row-border)",
   verticalAlign: "middle",
 };
 
@@ -52,7 +52,7 @@ export const oBtn = {
   padding: "9px 18px",
   background: "transparent",
   color: C.subtle,
-  border: "1px solid rgba(255,255,255,.1)",
+  border: "1px solid var(--c-btn-border)",
   borderRadius: 8,
   cursor: "pointer",
   fontSize: 13,
@@ -61,11 +61,17 @@ export const oBtn = {
 
 export const smBtn = {
   padding: "5px 12px",
-  background: "rgba(255,255,255,.05)",
+  background: "var(--c-soft-bg)",
   color: C.subtle,
-  border: "1px solid rgba(255,255,255,.08)",
+  border: "1px solid var(--c-btn-border)",
   borderRadius: 6,
   cursor: "pointer",
   fontSize: 11,
   fontWeight: 600,
 };
+
+export function rateColor(pct) {
+  if (pct >= .8) return { bar: `linear-gradient(90deg,${C.green},#059669)`,  badge: 'green'  };
+  if (pct >= .6) return { bar: `linear-gradient(90deg,${C.accent},#2563eb)`, badge: 'blue'   };
+  return              { bar: `linear-gradient(90deg,${C.yellow},#d97706)`, badge: 'yellow' };
+}

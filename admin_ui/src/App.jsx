@@ -22,6 +22,7 @@ import AnalyticsPage     from './pages/analytics/AnalyticsPage'
 import FeedbackPage      from './pages/feedback/FeedbackPage'
 import AnnouncementsPage from './pages/announcements/AnnouncementsPage'
 import SettingsPage      from './pages/settings/SettingsPage'
+import SecurityPage      from './pages/settings/SecurityPage'
 
 export default function App() {
   return (
@@ -61,8 +62,7 @@ export default function App() {
 
         {/* Settings */}
         <Route path="settings"          element={<SettingsPage />} />
-        <Route path="settings/roles"    element={<SettingsPage />} />
-        <Route path="settings/security" element={<SettingsPage />} />
+        <Route path="settings/security" element={<SecurityPage />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
