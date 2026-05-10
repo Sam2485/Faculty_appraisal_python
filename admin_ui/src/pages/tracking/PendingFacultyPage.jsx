@@ -5,16 +5,14 @@ import { normalizeUsers, normalizeStats } from '../../api/normalizers';
 import { useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
 import { inp, tdS } from '../../constants/styleTokens';
+import { ALL_SCHOOL_CODES } from '../../constants/schools';
 import { I } from '../../components/icons';
 import Badge from '../../components/Badge';
 import Av from '../../components/Av';
 import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
+import LiveBadge from '../../components/LiveBadge';
 import TH from '../../components/TH';
-
-const SCHOOLS = [
-  'SoCSEA', 'SoC', 'SoBB', 'SoMCS', 'SoD', 'SoAA', 'SoCE', 'SoEMR',
-];
 
 export default function PendingFacultyPage() {
   const [year, setYear]     = useState('');   // '' = use latest from stats
@@ -25,7 +23,7 @@ export default function PendingFacultyPage() {
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
   // Fetch stats first to get available years
-  const { data: rawStats, loading: statsLoading } = useFetch(() => api.stats.get(), []);
+  const { data: rawStats, loading: statsLoading } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
   const statsData      = normalizeStats(rawStats);
   const availableYears = statsData.availableYears;
 
@@ -33,11 +31,12 @@ export default function PendingFacultyPage() {
   const effectiveYear = year || availableYears[0] || null;
 
   // Only call pending-faculty once we have a year
-  const { data: rawPending, loading: pendingLoading, error: pendingError } = useFetch(
+  const { data: rawPending, loading: pendingLoading, error: pendingError, lastUpdated } = useFetch(
     () => effectiveYear
       ? api.pending.list({ academic_year: effectiveYear })
       : Promise.resolve(null),
-    [effectiveYear, tick]
+    [effectiveYear, tick],
+    { interval: 30_000 },
   );
 
   const loading = statsLoading || pendingLoading;
@@ -50,7 +49,7 @@ export default function PendingFacultyPage() {
      f.dept.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const bySchool = SCHOOLS.map(s => ({
+  const bySchool = ALL_SCHOOL_CODES.map(s => ({
     name: s,
     count: pending.filter(f => f.school === s).length,
   })).filter(s => s.count > 0);
@@ -60,6 +59,7 @@ export default function PendingFacultyPage() {
       <PageHead
         title="Pending Faculty"
         sub={loading ? 'Loading…' : `${rows.length} faculty yet to submit`}
+        action={<LiveBadge lastUpdated={lastUpdated} />}
       />
 
       {loading && <Loading />}
@@ -87,7 +87,7 @@ export default function PendingFacultyPage() {
               style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.09)',
                 background: 'rgba(255,255,255,.04)', color: C.text, fontSize: 12, cursor: 'pointer' }}>
               <option value="All">All Schools</option>
-              {SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+              {ALL_SCHOOL_CODES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
 
             <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>

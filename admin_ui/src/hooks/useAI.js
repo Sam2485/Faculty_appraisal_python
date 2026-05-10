@@ -1,17 +1,8 @@
 import { useState } from 'react';
+import { api } from '../api/client';
 
 export async function callClaude(prompt) {
-  const token = localStorage.getItem('admin_token');
-  const res = await fetch('/api/v1/admin/ai', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ prompt }),
-  });
-  if (!res.ok) throw new Error('AI endpoint not available');
-  const data = await res.json();
+  const data = await api.ai.ask(prompt);
   return data.response ?? data.message ?? JSON.stringify(data);
 }
 

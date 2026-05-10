@@ -7,8 +7,13 @@ import { Loading, ApiError } from '../../components/LoadingState';
 import { I } from '../../components/icons';
 import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
+import LiveBadge from '../../components/LiveBadge';
 import ProgressBar from '../../components/ProgressBar';
 import { inp } from '../../constants/styleTokens';
+import {
+  ENGG_SCHOOL_CODES, NON_ENGG_SCHOOL_CODES, TEACHING_SCHOOL_CODES,
+  SCHOOL_META, SOEMR_DEPTS,
+} from '../../constants/schools';
 
 // ── Stage maps (backend Declaration.status → pipeline key) ────────────────────
 
@@ -27,28 +32,6 @@ const NT_STAGE_KEY = {
   'Registrar Reviewed':          'vc',
   'VC Approved':                 'done',
 };
-
-// ── School metadata ────────────────────────────────────────────────────────────
-
-const ENGG_SCHOOLS    = ['SoCSEA', 'SoBB', 'SoCE', 'SoEMR'];
-const NON_ENGG_SCHOOLS = ['SoC', 'SoMCS', 'SoD', 'SoAA'];
-const ALL_SCHOOL_CODES = [...ENGG_SCHOOLS, ...NON_ENGG_SCHOOLS];
-
-const SCHOOL_META = {
-  SoCSEA: { full: 'Computer Science Engineering & Applications', dean: 'Dean of Engineering',     hasHod: false, track: 'engineering'     },
-  SoBB:   { full: 'Bio-Engineering & Bio Science',               dean: 'Dean of Engineering',     hasHod: false, track: 'engineering'     },
-  SoCE:   { full: 'Continual Education',                         dean: 'Dean of Engineering',     hasHod: false, track: 'engineering'     },
-  SoEMR:  { full: 'Engineering, Management & Research',          dean: 'Dean of Engineering',     hasHod: true,  track: 'engineering'     },
-  SoC:    { full: 'Commerce & Management',                       dean: 'Dean of Non-Engineering', hasHod: false, track: 'non_engineering' },
-  SoMCS:  { full: 'Media & Communication Studies',               dean: 'Dean of Non-Engineering', hasHod: false, track: 'non_engineering' },
-  SoD:    { full: 'Design',                                      dean: 'Dean of Non-Engineering', hasHod: false, track: 'non_engineering' },
-  SoAA:   { full: 'Applied Arts',                                dean: 'Dean of Non-Engineering', hasHod: false, track: 'non_engineering' },
-};
-
-const SOEMR_DEPTS = [
-  'Mechanical Engineering', 'Civil Engineering',
-  'Chemical Engineering',   'Semiconductor Engineering',
-];
 
 // ── Pipeline stage definitions ────────────────────────────────────────────────
 
@@ -150,7 +133,7 @@ function stageCounts(pipeline, map) {
 }
 
 function routeLabel(schoolCode, role) {
-  const isEng = ENGG_SCHOOLS.includes(schoolCode);
+  const isEng = ENGG_SCHOOL_CODES.includes(schoolCode);
   if (role === 'faculty' && schoolCode === 'SoEMR')  return 'Faculty → HOD (dept) → Director (SoEMR) → Dean (Eng) → VC';
   if (role === 'faculty' && isEng)                   return `Faculty → Director (${schoolCode}) → Dean (Eng) → VC`;
   if (role === 'faculty')                             return `Faculty → Director (${schoolCode}) → Dean (Non-Eng) → VC`;
@@ -302,8 +285,8 @@ export default function AppraisalCyclePage() {
   const [transRole,      setTransRole]      = useState('faculty');
   const [ntTransRole,    setNtTransRole]    = useState('non_teaching_staff');
 
-  const { data: raw,      loading: sL, error: sErr } = useFetch(() => api.stats.get(), []);
-  const { data: rawUsers, loading: uL               } = useFetch(() => api.users.list(), []);
+  const { data: raw,      loading: sL, error: sErr, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
+  const { data: rawUsers, loading: uL               } = useFetch(() => api.users.list(), [], { interval: 30_000 });
   const { data: rawPending, loading: pL             } = useFetch(
     () => raw?.academic_year
       ? api.pending.list({ academic_year: raw.academic_year })
@@ -399,6 +382,7 @@ export default function AppraisalCyclePage() {
       <PageHead
         title="Appraisal Cycle"
         sub={`${stats.academicYear ?? 'Current cycle'} · ${stats.total} registered · ${stats.submitted} submitted`}
+        action={<LiveBadge lastUpdated={lastUpdated} />}
       />
 
       {/* Track tabs */}
@@ -451,8 +435,8 @@ export default function AppraisalCyclePage() {
                 <div>
                   {/* School selector pills */}
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
-                    {ALL_SCHOOL_CODES.map(code => {
-                      const isEngg   = ENGG_SCHOOLS.includes(code);
+                    {TEACHING_SCHOOL_CODES.map(code => {
+                      const isEngg   = ENGG_SCHOOL_CODES.includes(code);
                       const tagCol   = isEngg ? C.accent : C.green;
                       const isActive = selectedSchool === code;
                       // Count for current active stage filter
@@ -752,7 +736,7 @@ export default function AppraisalCyclePage() {
                     <div style={{ marginBottom: 12 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: C.accent, marginBottom: 6,
                         textTransform: 'uppercase', letterSpacing: .5 }}>Engineering</div>
-                      {ENGG_SCHOOLS.map((sc, i) => {
+                      {ENGG_SCHOOL_CODES.map((sc, i) => {
                         const sPipeline = bySchoolPipeline[sc] ?? {};
                         const sCounts   = stageCounts(sPipeline, STAGE_KEY);
                         const sTot = Object.values(sPipeline).reduce((s, n) => s + n, 0);
@@ -787,7 +771,7 @@ export default function AppraisalCyclePage() {
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 700, color: C.green, marginBottom: 6,
                         textTransform: 'uppercase', letterSpacing: .5 }}>Non-Engineering</div>
-                      {NON_ENGG_SCHOOLS.map(sc => {
+                      {NON_ENGG_SCHOOL_CODES.map(sc => {
                         const sPipeline = bySchoolPipeline[sc] ?? {};
                         const sCounts   = stageCounts(sPipeline, STAGE_KEY);
                         return (

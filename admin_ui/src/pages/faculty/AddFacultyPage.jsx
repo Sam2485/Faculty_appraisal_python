@@ -3,28 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { inp, lbl, pBtn, oBtn } from '../../constants/styleTokens';
+import { ENGG_SCHOOLS, NON_ENGG_SCHOOLS, SOEMR_DEPTS } from '../../constants/schools';
 import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
 import { I } from '../../components/icons';
-
-// ── Static data ────────────────────────────────────────────────────────────────
-
-const ENGG_SCHOOLS = [
-  { code: 'SoCSEA', short: 'SoCSEA', label: 'School of Computer Science, Engineering & Applications' },
-  { code: 'SoBB',   short: 'SoBB',   label: 'School of Bio-Engineering & Bio Science'                },
-  { code: 'SoCE',   short: 'SoCE',   label: 'School of Continual Education'                          },
-  { code: 'SoEMR',  short: 'SoEMR',  label: 'School of Engineering, Management & Research', hod: true },
-];
-const NON_ENGG_SCHOOLS = [
-  { code: 'SoC',   short: 'SoC',   label: 'School of Commerce & Management'         },
-  { code: 'SoMCS', short: 'SoMCS', label: 'School of Media & Communication Studies' },
-  { code: 'SoD',   short: 'SoD',   label: 'School of Design'                        },
-  { code: 'SoAA',  short: 'SoAA',  label: 'School of Applied Arts'                  },
-];
-const SOEMR_DEPTS = [
-  'Mechanical Engineering', 'Civil Engineering',
-  'Chemical Engineering',   'Semiconductor Engineering',
-];
 
 const ENGG_ROLES = [
   { value: 'faculty',  label: 'Faculty',             color: C.accent,  icon: I.users,  flow: 'HOD/Director → Dean (Eng) → VC'          },
@@ -55,7 +37,7 @@ const STEPS = [
 ];
 
 const EMPTY = {
-  full_name: '', email: '', password: '',
+  full_name: '', email: '', password: 'demo123',
   school: '', department: '', appraisal_role: '',
   designation: '', phone: '', qualification: '', teaching_experience: '',
 };
@@ -239,49 +221,6 @@ function TrackCard({ label, sub, icon: Icon, color, active, onClick }) {
   );
 }
 
-// School tile
-function SchoolTile({ school, active, onClick }) {
-  return (
-    <button type="button" onClick={onClick} className="act-btn" style={{
-      padding: '10px 12px', borderRadius: 9, textAlign: 'left', cursor: 'pointer',
-      border: `1.5px solid ${active ? C.accent : 'rgba(255,255,255,.07)'}`,
-      background: active ? `${C.accent}12` : 'rgba(255,255,255,.02)',
-      position: 'relative',
-    }}>
-      <div style={{
-        fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700,
-        color: active ? C.accent : C.subtle, marginBottom: 3,
-      }}>
-        {school.short}
-        {school.hod && (
-          <span style={{
-            marginLeft: 6, fontSize: 8, padding: '1px 5px', borderRadius: 3,
-            background: 'rgba(167,139,250,.15)', color: '#a78bfa', fontFamily: 'inherit',
-          }}>HOD</span>
-        )}
-      </div>
-      <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.35 }}>{school.label}</div>
-      {active && (
-        <div style={{ position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: '50%', background: C.accent }} />
-      )}
-    </button>
-  );
-}
-
-// Department tile
-function DeptTile({ dept, active, onClick }) {
-  return (
-    <button type="button" onClick={onClick} className="act-btn" style={{
-      padding: '10px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-      border: `1.5px solid ${active ? '#a78bfa' : 'rgba(255,255,255,.07)'}`,
-      background: active ? 'rgba(167,139,250,.1)' : 'rgba(255,255,255,.02)',
-      fontSize: 12, fontWeight: 600, color: active ? '#a78bfa' : C.subtle,
-    }}>
-      {dept}
-    </button>
-  );
-}
-
 // Journey flow panel
 function FlowPreview({ nodes }) {
   if (!nodes.length) {
@@ -419,7 +358,8 @@ export default function AddFacultyPage() {
   const handleTrack = (t) => {
     setTrack(t);
     setErr(null);
-    setForm(p => ({ ...p, appraisal_role: '', school: '', department: '' }));
+    // CISR has only one school — auto-assign it immediately
+    setForm(p => ({ ...p, appraisal_role: '', school: t === 'cisr' ? 'CISR' : '', department: '' }));
   };
   const handleSchool = (code) => {
     setForm(p => ({
@@ -595,20 +535,23 @@ export default function AddFacultyPage() {
         </InfoBox>
       )}
 
-      {/* ── School picker (non-Dean, non-HOD) ── */}
+      {/* ── School picker — dropdown (non-Dean, non-HOD) ── */}
       {showSchoolPicker && (
         <div style={{ marginBottom: 18 }}>
-          <SL>School</SL>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <SL>{isEngineering ? 'Engineering School' : 'Non-Engineering School'}</SL>
+          <select
+            className="ifield"
+            value={school}
+            onChange={e => handleSchool(e.target.value)}
+            style={inp}
+          >
+            <option value="">— Select School —</option>
             {groupSchools.map(s => (
-              <SchoolTile
-                key={s.code}
-                school={s}
-                active={school === s.code}
-                onClick={() => handleSchool(s.code)}
-              />
+              <option key={s.code} value={s.code}>
+                {s.full} ({s.code})
+              </option>
             ))}
-          </div>
+          </select>
         </div>
       )}
 
@@ -631,20 +574,40 @@ export default function AddFacultyPage() {
         </div>
       )}
 
-      {/* ── Department — SoEMR fixed tiles ── */}
+      {/* ── CISR: locked school display ── */}
+      {isCISR && !!role && (
+        <div style={{ marginBottom: 18 }}>
+          <SL>School (auto-assigned)</SL>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 14px', borderRadius: 9,
+            background: 'rgba(251,146,60,.07)', border: '1.5px solid rgba(251,146,60,.22)',
+          }}>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: C.orange }}>
+              CISR
+            </span>
+            <span style={{ fontSize: 12, color: C.subtle }}>
+              Center for Interdisciplinary Studies & Research
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Department — SoEMR dropdown ── */}
       {showDeptFixed && (
         <div>
           <SL>Department</SL>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <select
+            className="ifield"
+            value={dept}
+            onChange={e => setForm(p => ({ ...p, department: e.target.value }))}
+            style={inp}
+          >
+            <option value="">— Select Department —</option>
             {SOEMR_DEPTS.map(d => (
-              <DeptTile
-                key={d}
-                dept={d}
-                active={dept === d}
-                onClick={() => setForm(p => ({ ...p, department: d }))}
-              />
+              <option key={d} value={d}>{d}</option>
             ))}
-          </div>
+          </select>
         </div>
       )}
 
@@ -682,8 +645,11 @@ export default function AddFacultyPage() {
             onChange={set('email')} placeholder="staff@dypiu.edu" style={inp} />
         </Field>
         <Field label="Password" req>
-          <input className="ifield" type="password" value={form.password}
+          <input className="ifield" type="text" value={form.password}
             onChange={set('password')} placeholder="Temporary password" style={inp} />
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 5 }}>
+            Default temporary password is <span style={{ fontFamily: "'JetBrains Mono',monospace", color: C.yellow }}>demo123</span> — the user should change it on first login.
+          </div>
         </Field>
       </div>
       <div style={{

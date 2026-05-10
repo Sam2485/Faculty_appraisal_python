@@ -6,25 +6,14 @@ import { normalizeUsers } from '../../api/normalizers';
 import { useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
 import { inp, lbl, tdS, pBtn, smBtn } from '../../constants/styleTokens';
+import { SCHOOLS } from '../../constants/schools';
 import { I } from '../../components/icons';
 import Badge from '../../components/Badge';
 import Av from '../../components/Av';
 import Card from '../../components/Card';
+import Modal from '../../components/Modal';
 import PageHead from '../../components/PageHead';
 import TH from '../../components/TH';
-
-const SCHOOLS = [
-  { code: 'SoCSEA', label: 'SoCSEA', full: 'School of Computer Science Engineering & Applications' },
-  { code: 'SoC',    label: 'SoC',    full: 'School of Commerce & Management'                       },
-  { code: 'SoBB',   label: 'SoBB',   full: 'School of Bio-Engineering & Bio-Sciences'              },
-  { code: 'SoMCS',  label: 'SoMCS',  full: 'School of Media & Communication Studies'               },
-  { code: 'SoD',    label: 'SoD',    full: 'School of Design'                                      },
-  { code: 'SoAA',   label: 'SoAA',   full: 'School of Applied Arts'                                },
-  { code: 'SoCE',   label: 'SoCE',   full: 'School of Continual Education'                         },
-  { code: 'SoEMR',  label: 'SoEMR',  full: 'School of Engineering, Management & Research'          },
-];
-
-const SCHOOL_MAP = Object.fromEntries(SCHOOLS.map(s => [s.code, s.full]));
 
 export default function FacultyListPage() {
   const navigate = useNavigate();
@@ -117,10 +106,7 @@ export default function FacultyListPage() {
 
       {/* ── Edit modal ────────────────────────────────────────────── */}
       {editing && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div style={{ background: '#1a1d2e', borderRadius: 14, padding: 28, width: '100%',
-            maxWidth: 480, border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 24px 60px rgba(0,0,0,.6)' }}>
+        <Modal maxWidth={480} onClose={() => setEditing(null)}>
             <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 4 }}>Edit Faculty</div>
             <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>{editing.email}</div>
 
@@ -162,8 +148,7 @@ export default function FacultyListPage() {
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {loading && <Loading />}
@@ -191,7 +176,7 @@ export default function FacultyListPage() {
             <select value={school} onChange={e => setSchool(e.target.value)}
               style={{ ...inp, width: 'auto', minWidth: 160, cursor: 'pointer', flex: '0 0 auto' }}>
               <option value="All">All Schools</option>
-              {SCHOOLS.map(s => <option key={s.code} value={s.code}>{s.label}</option>)}
+              {SCHOOLS.map(s => <option key={s.code} value={s.code}>{s.full} ({s.code})</option>)}
             </select>
 
             <div style={{ display: 'flex', gap: 6 }}>

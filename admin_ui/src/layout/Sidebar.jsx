@@ -4,6 +4,7 @@ import { C } from '../constants/colors';
 import { NAV } from '../constants/nav';
 import { I } from '../components/icons';
 import { api } from '../api/client';
+import ThemeToggle from '../components/ThemeToggle';
 
 // One accent colour per nav section
 const SEC_COLORS = [
@@ -36,7 +37,7 @@ function NavSection({ section, defaultOpen, colorIdx }) {
           padding: '9px 10px', background: isChildActive ? `${col}12` : 'transparent',
           border: `1px solid ${isChildActive ? `${col}25` : 'transparent'}`,
           borderRadius: 10, cursor: 'pointer',
-          color: isChildActive ? C.text : C.subtle,
+          color: isChildActive ? '#f1f5f9' : '#94a3b8',
           fontFamily: 'inherit', fontSize: 10.5, fontWeight: 700,
           letterSpacing: .7, textTransform: 'uppercase',
           transition: 'all .15s ease',
@@ -133,7 +134,7 @@ export default function Sidebar() {
             <I.school size={20} stroke="#fff" />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -.5, lineHeight: 1 }}>DYP Admin</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9', letterSpacing: -.5, lineHeight: 1 }}>DYP Admin</div>
             <div style={{ fontSize: 9.5, color: '#475569', letterSpacing: .9, textTransform: 'uppercase', marginTop: 4 }}>
               Faculty Appraisal
             </div>
@@ -154,7 +155,7 @@ export default function Sidebar() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: `0 0 6px ${C.green}` }} />
-            <span style={{ fontSize: 11, color: C.subtle, fontWeight: 500 }}>Cycle 2024–25</span>
+            <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>Cycle 2024–25</span>
           </div>
           <span style={{ fontSize: 9.5, color: '#3b82f6', fontWeight: 700, letterSpacing: .4, textTransform: 'uppercase' }}>Live</span>
         </div>
@@ -172,6 +173,10 @@ export default function Sidebar() {
       <div style={{ padding: '10px 14px 16px', flexShrink: 0 }}>
         {/* Top divider */}
         <div style={{ height: 1, marginBottom: 12, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent)' }} />
+
+        <div style={{ marginBottom: 10 }}>
+          <ThemeToggle />
+        </div>
 
         {/* Profile row */}
         <div style={{
@@ -192,7 +197,7 @@ export default function Sidebar() {
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {profile?.full_name || 'Admin'}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>

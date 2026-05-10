@@ -81,18 +81,18 @@ export default function Login() {
             <I.school size={21} stroke="#fff" />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -.3 }}>DYP University</div>
-            <div style={{ fontSize: 11, color: C.muted }}>Faculty Appraisal System</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9', letterSpacing: -.3 }}>DYP University</div>
+            <div style={{ fontSize: 11, color: '#64748b' }}>Faculty Appraisal System</div>
           </div>
         </div>
 
         {/* Headline */}
         <div style={{ marginTop: 64, marginBottom: 40, position: 'relative' }}>
-          <div style={{ fontSize: 30, fontWeight: 800, color: C.text, lineHeight: 1.18,
+          <div style={{ fontSize: 30, fontWeight: 800, color: '#f1f5f9', lineHeight: 1.18,
             letterSpacing: -.6, marginBottom: 14 }}>
             Admin<br />Portal
           </div>
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.75, maxWidth: 280 }}>
+          <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.75, maxWidth: 280 }}>
             Centralized control for faculty appraisals across all schools and departments.
           </div>
         </div>
@@ -112,13 +112,13 @@ export default function Login() {
               }}>
                 <Icon size={15} stroke={C.accent} />
               </div>
-              <span style={{ fontSize: 13, color: C.subtle }}>{text}</span>
+              <span style={{ fontSize: 13, color: '#94a3b8' }}>{text}</span>
             </div>
           ))}
         </div>
 
         {/* Footer */}
-        <div style={{ marginTop: 'auto', paddingTop: 40, fontSize: 11, color: C.muted,
+        <div style={{ marginTop: 'auto', paddingTop: 40, fontSize: 11, color: '#64748b',
           borderTop: '1px solid rgba(255,255,255,.05)', position: 'relative' }}>
           DY Patil International University · 2024–25 Cycle
         </div>
