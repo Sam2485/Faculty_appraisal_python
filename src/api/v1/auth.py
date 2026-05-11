@@ -177,8 +177,10 @@ async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
         db.add(PasswordResetToken(email=email, token_hash=token_hash, expires_at=expires_at))
         await db.commit()
 
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-        reset_url = f"{frontend_url}/reset-password?token={raw_token}"
+        redirect_url = data.get("redirect_url", "").strip().rstrip("/")
+        if not redirect_url:
+            redirect_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/reset-password"
+        reset_url = f"{redirect_url}?token={raw_token}"
         try:
             await send_reset_email(email, reset_url)
         except Exception as e:

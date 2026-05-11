@@ -370,9 +370,41 @@ Reviewer totals are `0` / empty string until that reviewer has submitted their r
 
 ### GET `/api/v1/dashboard/faculty/{email}?academic_year=2025-2026` — requires auth
 
-Returns the full saved snapshot (same shape as `GET /appraisal/snapshot` payload) for a specific faculty member.  
+Returns the full saved snapshot plus all reviewer scores for a specific faculty member.  
 The logged-in user must have authority over that faculty member — otherwise **403**.  
-Used by reviewer dashboards to open and read a faculty's submitted form.
+Used by reviewer dashboards to open and read a faculty's submitted form and view previous reviewer scores.
+
+```json
+// Response 200 — faculty has submitted
+{
+  "id": "<uuid>",
+  "faculty_email": "faculty@example.com",
+  "academic_year": "2025-2026",
+  "payload": {
+    /* full form payload — same shape as GET /appraisal/snapshot */
+  },
+  "created_at": "2025-06-01T10:00:00",
+  "updated_at": "2025-06-05T08:00:00",
+  "reviews": [
+    {
+      "reviewer_role": "hod",
+      "reviewer_email": "hod@example.com",
+      "part_a_score": 42.0,
+      "part_b_score": 28.0,
+      "total_score": 70.0,
+      "section_scores": { "lectures": 45, "journals": 80 },
+      "remarks": "Good performance",
+      "status": "Pending Director Review",
+      "reviewed_at": "2025-06-05T14:00:00"
+    }
+  ]
+}
+
+// Response 200 — faculty has not submitted yet (no snapshot)
+{ "reviews": [] }
+```
+
+The `reviews` array has the same structure as in `GET /appraisal/status`. Reviewer scores accumulate here as the form moves through the chain.
 
 ---
 
@@ -532,15 +564,17 @@ For `reporting_officer`, `registrar`, and `vc`: returns all non-teaching staff v
 ```json
 // Response — array of:
 {
-  "id": "<uuid>",
   "staff_email": "staff@example.com",
-  "academic_year": "2025-2026",
+  "name": "John Smith",
+  "designation": "Lab Assistant",
+  "department": "Computer Science",
+  "appraisalRole": "non_teaching_staff",
   "status": "Submitted",
-  "self_total": 19.0,
-  "ro_total": 0,
-  "registrar_total": 0,
-  "vc_total": 0,
-  "submitted_at": "2025-06-02T09:00:00",
+  "submittedOn": "2025-06-02",
+  "selfTotal": 19.0,
+  "roTotal": 0,
+  "registrarTotal": 0,
+  "vcTotal": 0,
   "payload": {
     /* full form payload */
   }
@@ -549,23 +583,28 @@ For `reporting_officer`, `registrar`, and `vc`: returns all non-teaching staff v
 
 **Visibility rules:**
 
-| Reviewer            | Sees                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| `reporting_officer` | Only `non_teaching_staff` with status `Submitted`                                     |
-| `registrar`         | `non_teaching_staff` and `reporting_officer` with status `Reporting Officer Reviewed` |
-| `vc`                | All non-teaching roles with status `Registrar Reviewed`                               |
+| Reviewer            | Sees                                                      |
+| ------------------- | --------------------------------------------------------- |
+| `reporting_officer` | Non-teaching staff in their own school and department     |
+| `registrar`         | All non-teaching staff across all schools                 |
+| `vc`                | All non-teaching staff across all schools                 |
 
 ---
 
 ### PUT `/api/v1/non-teaching/review/{staffEmail}` — requires auth
 
 Submit a review for a non-teaching staff member. `{staffEmail}` is URL-encoded.  
-The reviewer fills in their marks in the `payload` (Part A marks as `roMarks`/`regMarks`/`vcMarks`; Part B ratings as `p{n}_ro`/`p{n}_reg`/`p{n}_vc`), and the updated payload is sent back.
+The reviewer fills in their marks in the `payload` and the backend writes them to the normalized Part A and Part B tables.
+
+**Payload mark fields (set by reviewer):**
+- Part A marks: inside each section object, add `roMarks`, `regMarks`, or `vcMarks` key (e.g. `selfResp.roMarks = 8`)
+- Part B ratings: inside `partB.<section>`, use `p{n}_ro`, `p{n}_reg`, or `p{n}_vc` per parameter (e.g. `partB.profComp.p0_ro = 4`)
 
 ```json
 // Request
 {
   "academic_year": "2025-2026",
+  "total_score": 72.0,
   "payload": {
     /* full form payload with reviewer's marks filled in */
   },
@@ -573,7 +612,7 @@ The reviewer fills in their marks in the `payload` (Part A marks as `roMarks`/`r
   "remarks": "Satisfactory performance"
 }
 
-// Response 200: updated record (same shape as GET /non-teaching/subordinates item)
+// Response 200: updated non-teaching appraisal record (same shape as GET /non-teaching/appraisal)
 ```
 
 **`remarks` field mapping inside payload:**
