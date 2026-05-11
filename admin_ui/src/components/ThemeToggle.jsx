@@ -19,9 +19,9 @@ export default function ThemeToggle() {
         gap: 10,
         padding: '9px 11px',
         borderRadius: 10,
-        border: '1px solid rgba(255,255,255,.08)',
-        background: 'rgba(255,255,255,.035)',
-        color: '#f1f5f9',
+        border: '1px solid var(--c-sidebar-toggle-border)',
+        background: 'var(--c-sidebar-toggle-bg)',
+        color: 'var(--c-sidebar-text)',
         cursor: 'pointer',
         fontFamily: 'inherit',
       }}

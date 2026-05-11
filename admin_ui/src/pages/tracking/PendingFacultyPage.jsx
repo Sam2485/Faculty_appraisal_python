@@ -2,9 +2,9 @@ import { useState, useCallback } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeUsers, normalizeStats } from '../../api/normalizers';
-import { useFetch } from '../../hooks/useFetch';
+import { AUTO_REFRESH_INTERVAL, useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
-import { inp, tdS } from '../../constants/styleTokens';
+import { inp, tdS, selS } from '../../constants/styleTokens';
 import { ALL_SCHOOL_CODES } from '../../constants/schools';
 import { I } from '../../components/icons';
 import Badge from '../../components/Badge';
@@ -23,7 +23,7 @@ export default function PendingFacultyPage() {
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
   // Fetch stats first to get available years
-  const { data: rawStats, loading: statsLoading } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
+  const { data: rawStats, loading: statsLoading } = useFetch(() => api.stats.get(), [], { interval: AUTO_REFRESH_INTERVAL });
   const statsData      = normalizeStats(rawStats);
   const availableYears = statsData.availableYears;
 
@@ -36,7 +36,7 @@ export default function PendingFacultyPage() {
       ? api.pending.list({ academic_year: effectiveYear })
       : Promise.resolve(null),
     [effectiveYear, tick],
-    { interval: 30_000 },
+    { interval: AUTO_REFRESH_INTERVAL },
   );
 
   const loading = statsLoading || pendingLoading;
@@ -76,16 +76,12 @@ export default function PendingFacultyPage() {
           {/* ── Toolbar ────────────────────────────────────────────── */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             {availableYears.length > 0 && (
-              <select value={year} onChange={e => setYear(e.target.value)}
-                style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.09)',
-                  background: 'rgba(255,255,255,.04)', color: C.text, fontSize: 12, cursor: 'pointer' }}>
+              <select value={year} onChange={e => setYear(e.target.value)} style={selS}>
                 {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             )}
 
-            <select value={school} onChange={e => setSchool(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.09)',
-                background: 'rgba(255,255,255,.04)', color: C.text, fontSize: 12, cursor: 'pointer' }}>
+            <select value={school} onChange={e => setSchool(e.target.value)} style={selS}>
               <option value="All">All Schools</option>
               {ALL_SCHOOL_CODES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -146,7 +142,7 @@ export default function PendingFacultyPage() {
               ) : bySchool.map((s, i) => (
                 <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between',
                   alignItems: 'center', padding: '8px 0',
-                  borderBottom: i < bySchool.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none' }}>
+                  borderBottom: i < bySchool.length - 1 ? '1px solid var(--c-row-border)' : 'none' }}>
                   <span style={{ fontSize: 12, color: C.subtle,
                     fontFamily: "'JetBrains Mono',monospace" }}>{s.name}</span>
                   <Badge color="red">{s.count}</Badge>

@@ -82,7 +82,7 @@ export default function AnnouncementsPage() {
 
   const smAction = (extra = {}) => ({
     padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6,
-    background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+    background: 'var(--c-soft-bg)', border: '1px solid var(--c-btn-border)',
     color: C.subtle, cursor: 'pointer', ...extra,
   });
 
@@ -131,7 +131,7 @@ export default function AnnouncementsPage() {
               </button>
               <button className="act-btn"
                 style={{ padding: '9px 18px', background: 'transparent', color: C.muted,
-                  border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, cursor: 'pointer',
+                  border: '1px solid var(--c-btn-border)', borderRadius: 8, cursor: 'pointer',
                   fontSize: 13, fontWeight: 600 }}
                 onClick={() => setEditing(null)}>
                 Cancel

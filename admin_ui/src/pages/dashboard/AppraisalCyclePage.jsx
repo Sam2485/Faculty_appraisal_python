@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeStats, normalizeUsers } from '../../api/normalizers';
-import { useFetch } from '../../hooks/useFetch';
+import { AUTO_REFRESH_INTERVAL, useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
 import { I } from '../../components/icons';
 import Card from '../../components/Card';
@@ -285,13 +285,14 @@ export default function AppraisalCyclePage() {
   const [transRole,      setTransRole]      = useState('faculty');
   const [ntTransRole,    setNtTransRole]    = useState('non_teaching_staff');
 
-  const { data: raw,      loading: sL, error: sErr, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
-  const { data: rawUsers, loading: uL               } = useFetch(() => api.users.list(), [], { interval: 30_000 });
+  const { data: raw,      loading: sL, error: sErr, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: AUTO_REFRESH_INTERVAL });
+  const { data: rawUsers, loading: uL               } = useFetch(() => api.users.list(), [], { interval: AUTO_REFRESH_INTERVAL });
   const { data: rawPending, loading: pL             } = useFetch(
     () => raw?.academic_year
       ? api.pending.list({ academic_year: raw.academic_year })
       : Promise.resolve(null),
     [raw?.academic_year],
+    { interval: AUTO_REFRESH_INTERVAL },
   );
 
   const stats    = normalizeStats(raw);

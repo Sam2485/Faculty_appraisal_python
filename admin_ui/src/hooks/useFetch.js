@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+export const AUTO_REFRESH_INTERVAL = 15_000;
+
 export function useFetch(fetcher, deps = [], { interval } = {}) {
   const [data, setData]               = useState(null);
   const [loading, setLoading]         = useState(true);

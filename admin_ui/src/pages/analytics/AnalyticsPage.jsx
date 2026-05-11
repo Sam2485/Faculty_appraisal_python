@@ -6,7 +6,7 @@ import {
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeStats } from '../../api/normalizers';
-import { useFetch } from '../../hooks/useFetch';
+import { AUTO_REFRESH_INTERVAL, useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
 import { inp, smBtn, rateColor } from '../../constants/styleTokens';
 import Badge from '../../components/Badge';
@@ -139,7 +139,7 @@ export default function AnalyticsPage() {
   const { data: raw, loading, error, lastUpdated } = useFetch(
     () => api.stats.get(year || undefined),
     [year],
-    { interval: 30_000 },
+    { interval: AUTO_REFRESH_INTERVAL },
   );
   const stats = normalizeStats(raw);
   const { bySchool, pipeline, nonTeachingPipeline, byRole } = stats;
@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
                     return (
                       <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between',
                         alignItems: 'center', padding: '7px 0',
-                        borderBottom: i < sortedSchools.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none' }}>
+                        borderBottom: i < sortedSchools.length - 1 ? '1px solid var(--c-row-border)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace",
                             minWidth: 14, textAlign: 'right' }}>#{i + 1}</span>
@@ -305,7 +305,7 @@ export default function AnalyticsPage() {
                     {roleData.map((r, i) => (
                       <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 8,
                         padding: '5px 0',
-                        borderBottom: i < roleData.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none' }}>
+                        borderBottom: i < roleData.length - 1 ? '1px solid var(--c-row-border)' : 'none' }}>
                         <div style={{ width: 8, height: 8, borderRadius: '50%',
                           background: r.color, flexShrink: 0 }} />
                         <span style={{ fontSize: 11, color: C.subtle, flex: 1 }}>{r.name}</span>
@@ -338,10 +338,10 @@ export default function AnalyticsPage() {
               ].map((e, i) => (
                 <div key={e.key} style={{ display: 'flex', justifyContent: 'space-between',
                   alignItems: 'center', padding: '13px 0',
-                  borderBottom: i === 0 ? '1px solid rgba(255,255,255,.05)' : 'none' }}>
+                  borderBottom: i === 0 ? '1px solid var(--c-divider)' : 'none' }}>
                   <div style={{ display: 'flex', gap: 11, alignItems: 'center' }}>
                     <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                      background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)',
+                      background: 'var(--c-soft-bg)', border: '1px solid var(--c-divider)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <e.icon size={15} stroke={C.muted} />
                     </div>

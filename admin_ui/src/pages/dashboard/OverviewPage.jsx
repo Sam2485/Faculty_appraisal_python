@@ -10,12 +10,12 @@ import ChartTip from '../../components/ChartTip';
 import SchoolProgress from '../../components/SchoolProgress';
 import LiveBadge from '../../components/LiveBadge';
 import { Loading, ApiError } from '../../components/LoadingState';
-import { useFetch } from '../../hooks/useFetch';
+import { AUTO_REFRESH_INTERVAL, useFetch } from '../../hooks/useFetch';
 import { normalizeStats } from '../../api/normalizers';
 import { api } from '../../api/client';
 
 export default function OverviewPage() {
-  const { data: raw, loading, error, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
+  const { data: raw, loading, error, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: AUTO_REFRESH_INTERVAL });
   const stats = normalizeStats(raw);
 
   const pieData = [

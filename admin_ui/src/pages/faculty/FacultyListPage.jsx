@@ -75,7 +75,7 @@ export default function FacultyListPage() {
   };
 
   const handleRemove = async (f) => {
-    if (!window.confirm(`Remove ${f.name} (${f.email})?\n\nThis cannot be undone.`)) return;
+    if (!window.confirm(`Remove ${f.name} (${f.email})?\n\nThis will permanently delete the faculty account AND all their submitted appraisal forms.\n\nThis cannot be undone.`)) return;
     setRemoving(f.email); setRemoveErr(null);
     try {
       await api.users.remove(f.email); refresh();
@@ -142,7 +142,7 @@ export default function FacultyListPage() {
               </button>
               <button className="act-btn"
                 style={{ padding: '9px 18px', background: 'transparent', color: C.muted,
-                  border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, cursor: 'pointer',
+                  border: '1px solid var(--c-btn-border)', borderRadius: 8, cursor: 'pointer',
                   fontSize: 13, fontWeight: 600 }}
                 onClick={() => setEditing(null)}>
                 Cancel
