@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, distinct
+from sqlalchemy import select, func, distinct, text
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
 from src.models.core import FacultyProfile, Declaration, AppraisalReview, AppraisalConfig, ModuleConfig
@@ -333,6 +333,58 @@ async def delete_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Delete all appraisal data linked to this user before removing the profile.
+    # Teaching tables keyed by faculty_email
+    for table in [
+        "declarations",
+        "teaching_process",
+        "course_files",
+        "innovative_teaching",
+        "projects_guided",
+        "qualification_enhancement",
+        "student_feedback",
+        "department_activities",
+        "university_activities",
+        "social_contributions",
+        "industry_connect",
+        "acr_scores",
+        "journal_publications",
+        "popular_writings",
+        "book_publications",
+        "ict_pedagogy",
+        "research_guidance",
+        "research_projects",
+        "external_research_projects",
+        "ipr_records",
+        "patents",
+        "awards",
+        "conferences",
+        "research_proposals",
+        "products_developed",
+        "self_development",
+        "industrial_training",
+        "appraisal_documents",
+        "appraisal_reviews",
+        "appraisal_snapshots",
+    ]:
+        await db.execute(
+            text(f"DELETE FROM {table} WHERE faculty_email = :email"),
+            {"email": email},
+        )
+
+    # Non-teaching tables keyed by staff_email (child tables first)
+    for table in ["non_teaching_part_a_items", "non_teaching_part_b_ratings", "non_teaching_appraisals"]:
+        await db.execute(
+            text(f"DELETE FROM {table} WHERE staff_email = :email"),
+            {"email": email},
+        )
+
+    # Password reset tokens keyed by email
+    await db.execute(
+        text("DELETE FROM password_reset_tokens WHERE email = :email"),
+        {"email": email},
+    )
 
     await db.delete(user)
     await db.commit()

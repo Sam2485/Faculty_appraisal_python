@@ -16,11 +16,11 @@ async def get_non_teaching_appraisal(db: AsyncSession, email: str, year: str) ->
     return result.scalar_one_or_none()
 
 # Part A section definitions: key → (display title, max_marks)
-# Keys match the flat payload fields the frontend sends under payload.*
+# Must match form_section_definitions seed rows in schema.sql.
 _PART_A_SECTIONS = {
-    "selfResp":    ("Current Responsibilities", 10),
-    "selfContrib": ("Other Contributions",      10),
-    "selfAchieve": ("Achievements",             10),
+    "selfResp":    ("Current Responsibilities",   10),
+    "selfContrib": ("Other Useful Contributions", 10),
+    "selfAchieve": ("Achievements",                5),
 }
 
 async def _shred_part_a(db: AsyncSession, email: str, year: str, payload: dict) -> None:
@@ -96,12 +96,13 @@ _PART_A_REVIEWER_MAP = {
 }
 
 # Part B section definitions: key → (display title, parameter count)
-# Parameter count is inferred from the frontend payload (p0..pN keys).
+# Titles must match form_section_definitions seed rows in schema.sql.
+# Parameter count × 5 marks each = total section max_marks.
 _PART_B_SECTIONS = {
-    "profComp": ("Professional Competency",   5),
-    "quality":  ("Quality of Work",           5),
-    "personal": ("Personal Attributes",       6),
-    "regular":  ("Regularity & Discipline",   5),
+    "profComp": ("Professional Competence",   5),  # 5 × 5 = 25
+    "quality":  ("Quality of Work",           5),  # 5 × 5 = 25
+    "personal": ("Personal Characteristics",  6),  # 6 × 5 = 30
+    "regular":  ("Regularity",                5),  # 5 × 5 = 25
 }
 
 # Maps reviewer role → (payload key suffix for Part B, db column for Part B)
