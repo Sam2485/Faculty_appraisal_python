@@ -70,6 +70,16 @@ export const smBtn = {
   fontWeight: 600,
 };
 
+export const selS = {
+  padding: "7px 12px",
+  borderRadius: 8,
+  border: "1px solid var(--c-input-border)",
+  background: "var(--c-input-bg)",
+  color: "var(--c-text)",
+  fontSize: 12,
+  cursor: "pointer",
+};
+
 export function rateColor(pct) {
   if (pct >= .8) return { bar: `linear-gradient(90deg,${C.green},#059669)`,  badge: 'green'  };
   if (pct >= .6) return { bar: `linear-gradient(90deg,${C.accent},#2563eb)`, badge: 'blue'   };

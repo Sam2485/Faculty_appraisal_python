@@ -1,7 +1,7 @@
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeStats } from '../../api/normalizers';
-import { useFetch } from '../../hooks/useFetch';
+import { AUTO_REFRESH_INTERVAL, useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
 import { I } from '../../components/icons';
 import Card from '../../components/Card';
@@ -11,7 +11,7 @@ import SchoolProgress from '../../components/SchoolProgress';
 import LiveBadge from '../../components/LiveBadge';
 
 export default function SubmissionStatusPage() {
-  const { data: raw, loading, error, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: 30_000 });
+  const { data: raw, loading, error, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: AUTO_REFRESH_INTERVAL });
   const stats = normalizeStats(raw);
   const rate  = stats.total ? Math.round(stats.submitted / stats.total * 100) : 0;
 

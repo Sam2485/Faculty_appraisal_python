@@ -166,7 +166,7 @@ export default function SubmissionWindowPage() {
                     { l: 'Closes',   v: current.submission_end   ? new Date(current.submission_end).toLocaleDateString()   : '—' },
                     { l: 'Updated',  v: current.updated_at       ? new Date(current.updated_at).toLocaleDateString()       : '—' },
                   ].map(x => (
-                    <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,.04)', fontSize: 12 }}>
+                    <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--c-row-border)', fontSize: 12 }}>
                       <span style={{ color: C.muted }}>{x.l}</span>
                       <span style={{ color: C.subtle, fontFamily: "'JetBrains Mono',monospace" }}>{x.v}</span>
                     </div>

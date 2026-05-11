@@ -31,7 +31,7 @@ export function ApiError({ message, onRetry }) {
       <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, flexShrink: 0 }} />
       <span style={{ flex: 1 }}>{message || 'Failed to load data. Is the backend running?'}</span>
       {onRetry && (
-        <button onClick={onRetry} style={{ background: 'none', border: 'none', cursor: 'pointer',
+        <button onClick={onRetry} style={{ background: 'none', cursor: 'pointer',
           color: C.red, fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
           border: '1px solid rgba(248,113,113,.3)' }}>
           Retry

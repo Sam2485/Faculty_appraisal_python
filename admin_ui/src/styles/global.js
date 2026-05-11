@@ -28,6 +28,19 @@ style.textContent = `
     --c-skeleton-a:rgba(255,255,255,.04);
     --c-skeleton-b:rgba(255,255,255,.08);
     --c-section-hover:rgba(255,255,255,.75);
+    --c-track:rgba(255,255,255,.07);
+    --c-sidebar-bg:linear-gradient(180deg,#070c15 0%,#050a11 100%);
+    --c-sidebar-border:rgba(255,255,255,.06);
+    --c-sidebar-text:#f1f5f9;
+    --c-sidebar-muted:#94a3b8;
+    --c-sidebar-icon-bg:rgba(255,255,255,.05);
+    --c-sidebar-icon-border:rgba(255,255,255,.07);
+    --c-sidebar-tree:rgba(255,255,255,.06);
+    --c-sidebar-card-bg:rgba(255,255,255,.03);
+    --c-sidebar-card-border:rgba(255,255,255,.07);
+    --c-sidebar-divider:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);
+    --c-sidebar-toggle-bg:rgba(255,255,255,.035);
+    --c-sidebar-toggle-border:rgba(255,255,255,.08);
   }
 
   html[data-theme="light"]{
@@ -52,6 +65,19 @@ style.textContent = `
     --c-skeleton-a:rgba(15,23,42,.05);
     --c-skeleton-b:rgba(15,23,42,.1);
     --c-section-hover:rgba(15,23,42,.72);
+    --c-track:rgba(15,23,42,.1);
+    --c-sidebar-bg:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);
+    --c-sidebar-border:rgba(15,23,42,.1);
+    --c-sidebar-text:#0f172a;
+    --c-sidebar-muted:#64748b;
+    --c-sidebar-icon-bg:rgba(15,23,42,.05);
+    --c-sidebar-icon-border:rgba(15,23,42,.1);
+    --c-sidebar-tree:rgba(15,23,42,.1);
+    --c-sidebar-card-bg:rgba(15,23,42,.04);
+    --c-sidebar-card-border:rgba(15,23,42,.1);
+    --c-sidebar-divider:linear-gradient(90deg,transparent,rgba(15,23,42,.1),transparent);
+    --c-sidebar-toggle-bg:rgba(15,23,42,.05);
+    --c-sidebar-toggle-border:rgba(15,23,42,.12);
   }
 
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -152,9 +178,9 @@ style.textContent = `
   .nav-item{transition:background .12s ease,color .12s ease,border-color .12s ease}
   .nav-item:hover{background:rgba(99,179,237,.07)!important;color:#bae6fd!important}
   .nav-sec-btn{transition:background .15s ease,color .15s ease!important}
-  .nav-sec-btn:hover{background:rgba(255,255,255,.05)!important}
+  .nav-sec-btn:hover{background:var(--c-sidebar-icon-bg)!important}
   .nav-child-btn{transition:background .12s ease,color .12s ease!important}
-  .nav-child-btn:hover{background:rgba(255,255,255,.05)!important;color:#94a3b8!important}
+  .nav-child-btn:hover{background:var(--c-sidebar-icon-bg)!important;color:var(--c-sidebar-muted)!important}
   .nav-children{animation:expandDown .22s cubic-bezier(.22,1,.36,1) both}
 
   /* ── Buttons ────────────────────────────────────────────────────── */

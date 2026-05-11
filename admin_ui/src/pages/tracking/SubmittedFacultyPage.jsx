@@ -2,20 +2,21 @@ import { useState } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeStats } from '../../api/normalizers';
-import { useFetch } from '../../hooks/useFetch';
+import { AUTO_REFRESH_INTERVAL, useFetch } from '../../hooks/useFetch';
 import { Loading, ApiError } from '../../components/LoadingState';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
 import TH from '../../components/TH';
-import { tdS } from '../../constants/styleTokens';
+import { tdS, selS } from '../../constants/styleTokens';
 
 export default function SubmittedFacultyPage() {
   const [year, setYear] = useState('');
 
   const { data: raw, loading, error } = useFetch(
     () => api.stats.get(year || undefined),
-    [year]
+    [year],
+    { interval: AUTO_REFRESH_INTERVAL },
   );
   const stats = normalizeStats(raw);
   const totalSubmitted = stats.bySchool.reduce((s, r) => s + r.sub, 0);
@@ -36,8 +37,7 @@ export default function SubmittedFacultyPage() {
             {stats.availableYears.length > 0 && (
               <select value={year}
                 onChange={e => setYear(e.target.value)}
-                style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.09)',
-                  background: 'rgba(255,255,255,.04)', color: C.text, fontSize: 12, cursor: 'pointer' }}>
+                style={selS}>
                 <option value="">Latest cycle</option>
                 {stats.availableYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
@@ -76,7 +76,7 @@ export default function SubmittedFacultyPage() {
                   {pipelineEntries.map(([status, count], i) => (
                     <div key={status} style={{ display: 'flex', justifyContent: 'space-between',
                       alignItems: 'center', padding: '9px 0',
-                      borderBottom: i < pipelineEntries.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none' }}>
+                      borderBottom: i < pipelineEntries.length - 1 ? '1px solid var(--c-row-border)' : 'none' }}>
                       <span style={{ fontSize: 12, color: C.subtle }}>{status}</span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: C.text,
                         fontFamily: "'JetBrains Mono',monospace" }}>{count}</span>
