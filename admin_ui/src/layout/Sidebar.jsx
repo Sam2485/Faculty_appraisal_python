@@ -9,7 +9,7 @@ import ThemeToggle from '../components/ThemeToggle';
 // One accent colour per nav section
 const SEC_COLORS = [
   '#3b82f6', // Dashboard     — blue
-  '#a78bfa', // Faculty       — purple
+  '#a78bfa', // User Reg      — purple
   '#34d399', // Appraisal     — green
   '#fbbf24', // Tracking      — amber
   '#22d3ee', // Analytics     — cyan
@@ -37,7 +37,7 @@ function NavSection({ section, defaultOpen, colorIdx }) {
           padding: '9px 10px', background: isChildActive ? `${col}12` : 'transparent',
           border: `1px solid ${isChildActive ? `${col}25` : 'transparent'}`,
           borderRadius: 10, cursor: 'pointer',
-          color: isChildActive ? '#f1f5f9' : '#94a3b8',
+          color: isChildActive ? 'var(--c-sidebar-text)' : 'var(--c-sidebar-muted)',
           fontFamily: 'inherit', fontSize: 10.5, fontWeight: 700,
           letterSpacing: .7, textTransform: 'uppercase',
           transition: 'all .15s ease',
@@ -47,8 +47,8 @@ function NavSection({ section, defaultOpen, colorIdx }) {
         <div style={{
           width: 30, height: 30, borderRadius: 8, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: isChildActive ? `${col}22` : 'rgba(255,255,255,.05)',
-          border: `1px solid ${isChildActive ? `${col}35` : 'rgba(255,255,255,.07)'}`,
+          background: isChildActive ? `${col}22` : 'var(--c-sidebar-icon-bg)',
+          border: `1px solid ${isChildActive ? `${col}35` : 'var(--c-sidebar-icon-border)'}`,
           boxShadow: isChildActive ? `0 0 10px ${col}25` : 'none',
           transition: 'all .15s ease',
         }}>
@@ -67,7 +67,10 @@ function NavSection({ section, defaultOpen, colorIdx }) {
 
       {/* Children */}
       {open && (
-        <div className="nav-children" style={{ marginTop: 2, marginLeft: 8, marginBottom: 4, paddingLeft: 12, borderLeft: `1.5px solid rgba(255,255,255,.06)` }}>
+        <div className="nav-children" style={{
+          marginTop: 2, marginLeft: 8, marginBottom: 4,
+          paddingLeft: 12, borderLeft: `1.5px solid var(--c-sidebar-tree)`,
+        }}>
           {section.children.map(child => {
             const active = location.pathname === child.path;
             const CIcon  = child.icon;
@@ -84,12 +87,11 @@ function NavSection({ section, defaultOpen, colorIdx }) {
                   borderLeft: active ? `2.5px solid ${col}` : '2.5px solid transparent',
                   borderRadius: '0 8px 8px 0',
                   cursor: 'pointer',
-                  color: active ? col : '#64748b',
+                  color: active ? col : 'var(--c-sidebar-muted)',
                   fontFamily: 'inherit', fontSize: 12.5,
                   fontWeight: active ? 600 : 400,
                   marginBottom: 2, textAlign: 'left',
                   transition: 'all .12s ease',
-                  letterSpacing: active ? 0 : 0,
                 }}
               >
                 <CIcon size={13} stroke="currentColor" />
@@ -116,9 +118,10 @@ export default function Sidebar() {
   return (
     <aside style={{
       width: 264, flexShrink: 0, height: '100vh', position: 'sticky', top: 0,
-      background: 'linear-gradient(180deg,#070c15 0%,#050a11 100%)',
-      borderRight: '1px solid rgba(255,255,255,.06)',
+      background: 'var(--c-sidebar-bg)',
+      borderRight: '1px solid var(--c-sidebar-border)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      transition: 'border-color .25s ease',
     }}>
 
       {/* ── Brand ─────────────────────────────────────────────────────────── */}
@@ -129,13 +132,15 @@ export default function Sidebar() {
             width: 42, height: 42, borderRadius: 12, flexShrink: 0,
             background: 'linear-gradient(135deg,#3b82f6 0%,#818cf8 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 24px rgba(59,130,246,.4), 0 4px 12px rgba(0,0,0,.4)',
+            boxShadow: '0 0 24px rgba(59,130,246,.4), 0 4px 12px rgba(0,0,0,.25)',
           }}>
             <I.school size={20} stroke="#fff" />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9', letterSpacing: -.5, lineHeight: 1 }}>DYP Admin</div>
-            <div style={{ fontSize: 9.5, color: '#475569', letterSpacing: .9, textTransform: 'uppercase', marginTop: 4 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-sidebar-text)', letterSpacing: -.5, lineHeight: 1 }}>
+              DYP Admin
+            </div>
+            <div style={{ fontSize: 9.5, color: 'var(--c-sidebar-muted)', letterSpacing: .9, textTransform: 'uppercase', marginTop: 4 }}>
               Faculty Appraisal
             </div>
           </div>
@@ -155,7 +160,7 @@ export default function Sidebar() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: `0 0 6px ${C.green}` }} />
-            <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>Cycle 2024–25</span>
+            <span style={{ fontSize: 11, color: 'var(--c-sidebar-muted)', fontWeight: 500 }}>Cycle 2024–25</span>
           </div>
           <span style={{ fontSize: 9.5, color: '#3b82f6', fontWeight: 700, letterSpacing: .4, textTransform: 'uppercase' }}>Live</span>
         </div>
@@ -168,11 +173,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
-
       {/* ── Profile card ──────────────────────────────────────────────────── */}
       <div style={{ padding: '10px 14px 16px', flexShrink: 0 }}>
         {/* Top divider */}
-        <div style={{ height: 1, marginBottom: 12, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent)' }} />
+        <div style={{ height: 1, marginBottom: 12, background: 'var(--c-sidebar-divider)' }} />
 
         <div style={{ marginBottom: 10 }}>
           <ThemeToggle />
@@ -182,8 +186,8 @@ export default function Sidebar() {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '10px 12px', borderRadius: 11, marginBottom: 9,
-          background: 'rgba(255,255,255,.03)',
-          border: '1px solid rgba(255,255,255,.07)',
+          background: 'var(--c-sidebar-card-bg)',
+          border: '1px solid var(--c-sidebar-card-border)',
         }}>
           {/* Avatar */}
           <div style={{
@@ -197,12 +201,12 @@ export default function Sidebar() {
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--c-sidebar-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {profile?.full_name || 'Admin'}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
               <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 5px ${C.green}80` }} />
-              <span style={{ fontSize: 10, color: '#475569', letterSpacing: .3 }}>Administrator</span>
+              <span style={{ fontSize: 10, color: 'var(--c-sidebar-muted)', letterSpacing: .3 }}>Administrator</span>
             </div>
           </div>
         </div>

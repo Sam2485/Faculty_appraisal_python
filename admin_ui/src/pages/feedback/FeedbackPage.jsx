@@ -85,7 +85,7 @@ export default function FeedbackPage() {
 
                   <button className="act-btn"
                     style={{ padding: '9px 18px', background: 'transparent', color: C.muted,
-                      border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, cursor: 'pointer',
+                      border: '1px solid var(--c-btn-border)', borderRadius: 8, cursor: 'pointer',
                       fontSize: 13, fontWeight: 600 }}
                     onClick={() => setViewing(null)}>
                     Close
@@ -107,7 +107,7 @@ export default function FeedbackPage() {
             </div>
           ) : items.map((b, i) => (
             <div key={b.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start',
-              padding: '12px 0', borderBottom: i < items.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none' }}>
+              padding: '12px 0', borderBottom: i < items.length - 1 ? '1px solid var(--c-row-border)' : 'none' }}>
               <Av init={b.av} color={b.cat === 'Bug' ? C.red : C.yellow} size={32} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>
