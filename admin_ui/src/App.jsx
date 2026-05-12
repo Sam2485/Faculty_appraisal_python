@@ -51,8 +51,8 @@ export default function App() {
         {/* Credentials */}
         <Route path="credentials/reset" element={<CredentialDetailsPage />} />
 
-        {/* Analytics */}
-        <Route path="analytics" element={<AnalyticsPage />} />
+        {/* Analytics merged into Overview */}
+        <Route path="analytics" element={<Navigate to="/" replace />} />
 
         {/* Feedback */}
         <Route path="feedback" element={<FeedbackPage />} />

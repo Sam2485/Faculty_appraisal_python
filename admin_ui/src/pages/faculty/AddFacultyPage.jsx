@@ -5,6 +5,7 @@ import { api } from '../../api/client';
 import { inp, lbl, pBtn, oBtn } from '../../constants/styleTokens';
 import { ENGG_SCHOOLS, NON_ENGG_SCHOOLS, SOEMR_DEPTS } from '../../constants/schools';
 import Card from '../../components/Card';
+import Modal from '../../components/Modal';
 import PageHead from '../../components/PageHead';
 import { I } from '../../components/icons';
 
@@ -40,21 +41,29 @@ const EMPTY = {
   full_name: '', email: '', password: 'demo123',
   school: '', department: '', appraisal_role: '',
   designation: '', phone: '', qualification: '', teaching_experience: '',
+  reports_to_registrar: false,
 };
 
 // ── Appraisal flow computation ─────────────────────────────────────────────────
 
-function computeFlow(staffType, track, role, school, dept) {
+function computeFlow(staffType, track, role, school, dept, reportsDirectly = false) {
   if (!staffType || !role) return [];
   const n = (label, sub, sees, hides) => ({ label, sub, sees, hides });
 
   if (staffType === 'non_teaching') {
-    if (role === 'non_teaching_staff') return [
-      n('Staff', 'Fills and submits form', null, null),
-      n('Reporting Officer', 'Reviews & scores', 'Staff self-score only', null),
-      n('Registrar', 'Reviews & scores', 'Staff self-score only', 'Reporting Officer score hidden'),
-      n('VC', 'Final review & scores', 'All scores: Staff + RO + Registrar', null),
-    ];
+    if (role === 'non_teaching_staff') {
+      if (reportsDirectly) return [
+        n('Staff', 'Fills and submits form', null, null),
+        n('Registrar', 'Reviews & scores', 'Staff self-score', null),
+        n('VC', 'Final review & scores', 'Staff + Registrar scores', null),
+      ];
+      return [
+        n('Staff', 'Fills and submits form', null, null),
+        n('Reporting Officer', 'Reviews & scores', 'Staff self-score only', null),
+        n('Registrar', 'Reviews & scores', 'Staff self-score only', 'Reporting Officer score hidden'),
+        n('VC', 'Final review & scores', 'All scores: Staff + RO + Registrar', null),
+      ];
+    }
     if (role === 'reporting_officer') return [
       n('Reporting Officer', 'Fills and submits form', null, null),
       n('Registrar', 'Reviews & scores', 'RO self-score', null),
@@ -305,6 +314,42 @@ function InfoBox({ color, children }) {
   );
 }
 
+// Reporting structure toggle (non-teaching staff only)
+function ReportingToggle({ checked, onChange }) {
+  return (
+    <div onClick={onChange} style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '14px 16px', borderRadius: 10, cursor: 'pointer',
+      background: checked ? 'rgba(52,211,153,.07)' : 'rgba(255,255,255,.03)',
+      border: `1.5px solid ${checked ? 'rgba(52,211,153,.3)' : 'rgba(255,255,255,.08)'}`,
+      transition: 'all .2s',
+    }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: checked ? C.green : C.text }}>
+          Reports directly to Registrar
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+          {checked
+            ? 'Skips Reporting Officer — form submitted directly to Registrar'
+            : 'Standard flow: Staff → Reporting Officer → Registrar → VC'}
+        </div>
+      </div>
+      <div style={{
+        width: 40, height: 22, borderRadius: 11, position: 'relative', flexShrink: 0, marginLeft: 16,
+        background: checked ? C.green : 'rgba(255,255,255,.1)',
+        border: `1.5px solid ${checked ? C.green : 'rgba(255,255,255,.12)'}`,
+        transition: 'all .2s',
+      }}>
+        <div style={{
+          position: 'absolute', top: 2, left: checked ? 19 : 2,
+          width: 14, height: 14, borderRadius: '50%', background: '#fff',
+          transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,.35)',
+        }} />
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AddFacultyPage() {
@@ -317,6 +362,7 @@ export default function AddFacultyPage() {
   const [saving,    setSaving]    = useState(false);
   const [err,       setErr]       = useState(null);
   const [success,   setSuccess]   = useState(null);
+  const [receipt,   setReceipt]   = useState(null);
 
   const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -345,7 +391,58 @@ export default function AddFacultyPage() {
   const showDeptFixed    = (role === 'faculty' || role === 'hod') && school === 'SoEMR';
   const showDeptText     = role === 'faculty' && !!school && school !== 'SoEMR' && (isEngineering || isNonEng);
 
-  const flowNodes = computeFlow(staffType, track, role, school, dept);
+  const flowNodes = computeFlow(staffType, track, role, school, dept, form.reports_to_registrar);
+
+  // ── Print receipt ────────────────────────────────────────────────────────────
+
+  const handlePrint = (r) => {
+    const rows = [
+      ['Full Name',    r.name],
+      ['Email',        r.email],
+      ['Role',         r.role],
+      ['Staff Type',   r.staffType],
+      r.school             && ['School',      r.school],
+      r.department         && ['Department',  r.department],
+      r.designation        && ['Designation', r.designation],
+      r.phone              && ['Phone',       r.phone],
+      r.qualification      && ['Qualification', r.qualification],
+      r.teachingExperience && ['Experience',  r.teachingExperience],
+    ].filter(Boolean);
+
+    const w = window.open('', '_blank', 'width=640,height=860');
+    w.document.write(`<!DOCTYPE html><html><head>
+      <title>Account Receipt — ${r.name}</title>
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:48px 40px;color:#111;background:#fff}
+        .hdr{display:flex;align-items:center;gap:14px;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #e5e7eb}
+        .logo{width:44px;height:44px;background:#f0fdf4;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+        h1{font-size:17px;font-weight:700}
+        .sub{font-size:12px;color:#6b7280;margin-top:3px}
+        .badge{display:inline-block;padding:3px 10px;border-radius:20px;background:#f0fdf4;color:#15803d;font-size:11px;font-weight:700;border:1px solid #bbf7d0}
+        table{width:100%;border-collapse:collapse;margin-bottom:20px}
+        tr{border-bottom:1px solid #f3f4f6}
+        td{padding:10px 4px;font-size:13px;vertical-align:top}
+        td:first-child{color:#6b7280;width:150px;font-weight:500}
+        td:last-child{font-weight:600;color:#111}
+        .warn{padding:12px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;line-height:1.6}
+        .footer{margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center}
+        @media print{@page{margin:20mm}}
+      </style>
+    </head><body>
+      <div class="hdr">
+        <div class="logo">🎓</div>
+        <div><h1>DYP Faculty Appraisal System</h1><div class="sub">New Account Receipt &middot; ${r.createdAt}</div></div>
+        <div style="margin-left:auto"><span class="badge">✓ Active</span></div>
+      </div>
+      <table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>
+      <div class="warn">⚠&nbsp; Password is <strong>not included</strong> in this receipt. Communicate login credentials to the user separately through a secure channel.</div>
+      <div class="footer">Generated by DYP Faculty Appraisal Admin Panel &middot; ${r.createdAt}</div>
+    </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 400);
+  };
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -353,7 +450,7 @@ export default function AddFacultyPage() {
     setStaffType(type);
     setTrack('');
     setErr(null);
-    setForm(p => ({ ...p, appraisal_role: '', school: '', department: '' }));
+    setForm(p => ({ ...p, appraisal_role: '', school: '', department: '', reports_to_registrar: false }));
   };
   const handleTrack = (t) => {
     setTrack(t);
@@ -372,8 +469,9 @@ export default function AddFacultyPage() {
   };
   const handleRole = (val) => {
     const update = { appraisal_role: val, department: '' };
-    if (val === 'hod')  update.school = 'SoEMR'; // auto-assign
-    if (val === 'dean') update.school = '';       // dean has no specific school
+    if (val === 'hod')  update.school = 'SoEMR';
+    if (val === 'dean') update.school = '';
+    if (val !== 'non_teaching_staff') update.reports_to_registrar = false;
     setForm(p => ({ ...p, ...update }));
   };
 
@@ -411,6 +509,20 @@ export default function AddFacultyPage() {
     setSaving(true); setSuccess(null);
     try {
       await api.users.create(form);
+      const snap = {
+        name:               form.full_name || form.email,
+        email:              form.email,
+        role:               roleMeta?.label ?? role,
+        staffType:          staffType === 'teaching' ? 'Teaching' : 'Non-Teaching',
+        school:             school             || null,
+        department:         dept               || null,
+        designation:        form.designation   || null,
+        phone:              form.phone         || null,
+        qualification:      form.qualification || null,
+        teachingExperience: form.teaching_experience || null,
+        createdAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      };
+      setReceipt(snap);
       setSuccess(form.email);
       setForm(EMPTY);
       setStaffType('');
@@ -520,6 +632,17 @@ export default function AddFacultyPage() {
           );
         })}
       </div>
+
+      {/* ── Reporting structure — non-teaching staff only ── */}
+      {isNonTeaching && role === 'non_teaching_staff' && (
+        <div style={{ marginBottom: 20, animation: 'fadeUp .2s ease both' }}>
+          <SL>Reporting Structure</SL>
+          <ReportingToggle
+            checked={form.reports_to_registrar}
+            onChange={() => setForm(p => ({ ...p, reports_to_registrar: !p.reports_to_registrar }))}
+          />
+        </div>
+      )}
 
       {/* ── Contextual notes ── */}
       {role === 'dean' && (isEngineering || isNonEng) && (
@@ -707,14 +830,90 @@ export default function AddFacultyPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // ── Receipt modal ─────────────────────────────────────────────────────────────
+
+  const receiptFields = receipt ? [
+    { k: 'Full Name',    v: receipt.name        },
+    { k: 'Email',        v: receipt.email       },
+    { k: 'Role',         v: receipt.role        },
+    { k: 'Staff Type',   v: receipt.staffType   },
+    receipt.school             && { k: 'School',       v: receipt.school             },
+    receipt.department         && { k: 'Department',   v: receipt.department         },
+    receipt.designation        && { k: 'Designation',  v: receipt.designation        },
+    receipt.phone              && { k: 'Phone',        v: receipt.phone              },
+    receipt.qualification      && { k: 'Qualification',v: receipt.qualification      },
+    receipt.teachingExperience && { k: 'Experience',   v: receipt.teachingExperience },
+  ].filter(Boolean) : [];
+
   return (
     <div className="page-enter">
+
+      {/* ── Receipt modal ─────────────────────────────────────────── */}
+      {receipt && (
+        <Modal maxWidth={480} onClose={() => setReceipt(null)}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(52,211,153,.15)', border: '1px solid rgba(52,211,153,.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <I.check size={20} stroke={C.green} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Account Created</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{receipt.createdAt}</div>
+            </div>
+          </div>
+
+          {/* Detail rows */}
+          <div style={{ marginBottom: 16 }}>
+            {receiptFields.map((row, i) => (
+              <div key={row.k} style={{
+                display: 'flex', gap: 12, padding: '8px 0',
+                borderBottom: i < receiptFields.length - 1 ? '1px solid rgba(255,255,255,.05)' : 'none',
+              }}>
+                <span style={{ fontSize: 12, color: C.muted, width: 110, flexShrink: 0 }}>{row.k}</span>
+                <span style={{ fontSize: 12, color: C.text, fontWeight: 600, flex: 1,
+                  wordBreak: 'break-all',
+                  fontFamily: row.k === 'Email' ? "'JetBrains Mono',monospace" : 'inherit' }}>
+                  {row.v}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Password notice */}
+          <div style={{ marginBottom: 20, padding: '10px 12px', borderRadius: 8, fontSize: 11,
+            lineHeight: 1.6, color: C.yellow,
+            background: 'rgba(251,191,36,.07)', border: '1px solid rgba(251,191,36,.18)' }}>
+            Password is <strong>not included</strong> in this receipt. Share login credentials with the user separately through a secure channel.
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="act-btn" style={{ ...pBtn, display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => handlePrint(receipt)}>
+              <I.dl size={13} /> Print Receipt
+            </button>
+            <button className="act-btn" style={oBtn} onClick={() => setReceipt(null)}>
+              Add Another
+            </button>
+            <button className="act-btn"
+              style={{ padding: '9px 14px', background: 'transparent', color: C.muted,
+                border: '1px solid var(--c-btn-border)', borderRadius: 8, cursor: 'pointer',
+                fontSize: 13, fontWeight: 600 }}
+              onClick={() => navigate('/faculty')}>
+              View User List
+            </button>
+          </div>
+        </Modal>
+      )}
+
       <PageHead
-        title="Add Faculty / Staff"
+        title="Add User"
         sub="The appraisal routing is determined automatically from the role assigned here"
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 268px', gap: 14, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
 
         {/* ── Main form card ── */}
         <Card delay={0}>

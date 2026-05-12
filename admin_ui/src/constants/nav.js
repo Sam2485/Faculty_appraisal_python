@@ -11,8 +11,8 @@ export const NAV = [
   {
     label: "User Registration", icon: I.users,
     children: [
-      { label: "Faculty List",   icon: I.list,    path: "/faculty"           },
-      { label: "Add Faculty",    icon: I.addUser, path: "/faculty/add"       },
+      { label: "User List",      icon: I.list,    path: "/faculty"           },
+      { label: "Add User",       icon: I.addUser, path: "/faculty/add"       },
       { label: "Reset Password", icon: I.lock,    path: "/credentials/reset" },
     ],
   },
@@ -21,20 +21,6 @@ export const NAV = [
     children: [
       { label: "Submission Window", icon: I.doc,   path: "/appraisal/window"   },
       { label: "Submission Status", icon: I.check, path: "/appraisal/status"   },
-    ],
-  },
-  {
-    label: "Tracking", icon: I.chart,
-    children: [
-      { label: "Submitted Faculty", icon: I.check,  path: "/tracking/submitted" },
-      { label: "Pending Faculty",   icon: I.clock,  path: "/tracking/pending"   },
-      { label: "School Statistics", icon: I.school, path: "/tracking/schools"   },
-    ],
-  },
-  {
-    label: "Analytics", icon: I.trend,
-    children: [
-      { label: "Analytics & Reports", icon: I.trend, path: "/analytics" },
     ],
   },
   {
