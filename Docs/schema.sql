@@ -58,6 +58,8 @@ create table public.faculty_profiles (
     )
   ),
   is_verified boolean not null default false,
+  is_active boolean not null default true,
+  reports_to_registrar boolean not null default false,
   avatar text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -859,9 +861,7 @@ create table if not exists public.announcements (
     id          serial primary key,
     title       varchar(200) not null,
     body        varchar(5000) not null,
-    audience    varchar(50)  not null default 'all' check (
-                  audience in ('all', 'faculty', 'hod', 'dean', 'non_teaching_staff')
-                ),
+    audience    varchar(500) not null default 'all',
     is_active   boolean not null default true,
     created_by  varchar,
     created_at  timestamptz not null default now(),

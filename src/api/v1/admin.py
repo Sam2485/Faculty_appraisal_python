@@ -195,6 +195,7 @@ class UserCreateRequest(BaseModel):
     qualification: Optional[str] = None
     teaching_experience: Optional[str] = None
     is_verified: bool = True  # admin-created accounts skip email verification
+    reports_to_registrar: bool = False
 
 
 class UserUpdateRequest(BaseModel):
@@ -208,6 +209,7 @@ class UserUpdateRequest(BaseModel):
     qualification: Optional[str] = None
     teaching_experience: Optional[str] = None
     is_verified: Optional[bool] = None
+    reports_to_registrar: Optional[bool] = None
     password: Optional[str] = None  # if set, resets the user's password
 
 
@@ -246,6 +248,7 @@ async def list_users(
             "qualification": u.qualification,
             "teaching_experience": u.teaching_experience,
             "is_verified": u.is_verified,
+            "reports_to_registrar": u.reports_to_registrar,
             "created_at": u.created_at,
         }
         for u in users
@@ -283,6 +286,7 @@ async def create_user(
         qualification=data.qualification,
         teaching_experience=data.teaching_experience,
         is_verified=data.is_verified,
+        reports_to_registrar=data.reports_to_registrar,
     )
     db.add(user)
     await db.commit()

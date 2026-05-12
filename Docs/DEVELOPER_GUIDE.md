@@ -96,9 +96,10 @@ src/
 - `Declaration.status` advances: `Submitted` → `pending_director` → `pending_dean` → `pending_vc` → `completed`.
 
 ### Non-Teaching Flow
-- Staff submits via `PUT /non-teaching/appraisal` (full JSONB payload, no shredding).
-- Reporting Officer reviews via `PUT /non-teaching/review/{email}`.
-- Status: `Draft` → `pending_registrar` → `pending_vc` → `completed`.
+- Staff submits via `PUT /non-teaching/appraisal` (full JSONB payload). The backend also shreds Part A fields (`selfResp`, `selfContrib`, `selfAchieve`) into `non_teaching_part_a_items`.
+- Reviewer submits via `PUT /non-teaching/review/{email}`. Reviewer marks in the payload are written to `non_teaching_part_a_items` (ro_marks/registrar_marks/vc_marks) and `non_teaching_part_b_ratings` (ro_rating/registrar_rating/vc_rating).
+- Status chain: `Draft` → `Submitted` → `Reporting Officer Reviewed` → `Registrar Reviewed` → `VC Approved`
+- **`reports_to_registrar` flag** — if `faculty_profiles.reports_to_registrar = true` for a staff member, their submission sets status to `Pending Registrar Review` directly, skipping the RO stage. The RO cannot see or review those staff members. Admin sets this flag per staff member via `PUT /api/v1/admin/users/{email}`.
 
 ---
 
@@ -292,6 +293,13 @@ Never run `schema.sql` on a live database — it will wipe all faculty data.
 | `003_create_feedback_table.sql` | Created `feedback` table with category CHECK + indexes |
 | `004_add_indexes.sql` | Performance indexes on all Part A/B tables, faculty_profiles, declarations |
 | `005_add_is_verified_column.sql` | Added `is_verified boolean` to `faculty_profiles` |
+| `006_appraisal_config_and_announcements.sql` | Created `appraisal_config` and `announcements` tables |
+| `007_section_scores_and_password_reset.sql` | Added `section_scores jsonb` to `appraisal_reviews`; created `password_reset_tokens` table |
+| `008_add_audience_to_announcements.sql` | Added `audience varchar(50)` column to `announcements` |
+| `009_add_module_config_table.sql` | Created `module_config` table for Section Controls toggles |
+| `010_add_is_active_to_faculty_profiles.sql` | Added `is_active boolean` to `faculty_profiles` |
+| `011_widen_announcement_audience.sql` | Widened `announcements.audience` from `varchar(50)` to `varchar(500)` |
+| `012_add_reports_to_registrar.sql` | Added `reports_to_registrar boolean` to `faculty_profiles` for direct-to-registrar non-teaching flow |
 | `seed_admin_user.sql` | One-time seed — creates the first admin account (not a schema change) |
 
 > **Rule: never edit a migration file that has already been applied to any database.**
@@ -323,7 +331,7 @@ All endpoints require a valid JWT for a user with `appraisal_role = 'admin'`.
 | `GET` / `POST` | `/api/v1/admin/users` | List all users / create a new user |
 | `PUT` / `DELETE` | `/api/v1/admin/users/{email}` | Update or delete a user |
 
-> Creating the first admin: manually `INSERT` a row into `faculty_profiles` with `appraisal_role = 'admin'` and a bcrypt-hashed password (use `python -c "from passlib.context import CryptContext; print(CryptContext(['bcrypt']).hash('yourpassword'))"`).
+> Creating the first admin: manually `INSERT` a row into `faculty_profiles` with `appraisal_role = 'admin'` and a bcrypt-hashed password. Generate the hash with: `python -c "import bcrypt; print(bcrypt.hashpw(b'yourpassword', bcrypt.gensalt()).decode())"`
 
 ---
 

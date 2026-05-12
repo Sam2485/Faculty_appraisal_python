@@ -32,8 +32,12 @@ async def get_non_teaching_subordinates(academic_year: str, current_user: Curren
         # Sees all non-teaching pending review
         pass
     elif "reporting_officer" in current_user.roles:
-        # RO: Sees only those in their school/dept
-        query = query.where(FacultyProfile.school == current_user.school, FacultyProfile.department == current_user.department)
+        # RO: Sees only those in their school/dept who are NOT direct-to-registrar
+        query = query.where(
+            FacultyProfile.school == current_user.school,
+            FacultyProfile.department == current_user.department,
+            FacultyProfile.reports_to_registrar == False,
+        )
     else:
         return []
 
@@ -96,7 +100,13 @@ async def review_non_teaching(email: str, data: Dict[str, Any], current_user: Cu
         primary_role = "registrar" # Default admin review to registrar level
 
     field, next_status, time_field = role_config[primary_role]
-    
+
+    if primary_role == "reporting_officer" and target.reports_to_registrar:
+        raise HTTPException(
+            status_code=403,
+            detail="This staff member reports directly to the Registrar. Reporting Officer review does not apply."
+        )
+
     # Update the appraisal object
     appr.status = next_status
     setattr(appr, time_field, datetime.utcnow())

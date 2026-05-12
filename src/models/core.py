@@ -21,6 +21,7 @@ class FacultyProfile(Base):
     academic_year = Column(String)
     appraisal_role = Column(String, nullable=False, default='faculty')
     is_verified = Column(Boolean, default=False)
+    reports_to_registrar = Column(Boolean, nullable=False, default=False)
     avatar = Column(String)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

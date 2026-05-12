@@ -80,7 +80,20 @@ async def get_snapshot(academic_year: str, current_user: CurrentUser, db: AsyncS
 async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     academic_year = data.get('academic_year')
     payload = data.get('payload')
-    
+
+    if not academic_year:
+        raise HTTPException(status_code=422, detail="academic_year is required")
+
+    decl_res = await db.execute(select(Declaration).where(
+        Declaration.faculty_email == current_user.email,
+        Declaration.academic_year == academic_year
+    ))
+    if decl_res.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Your appraisal has already been submitted and cannot be modified."
+        )
+
     try:
         result = await db.execute(select(AppraisalSnapshot).where(
             AppraisalSnapshot.faculty_email == current_user.email,

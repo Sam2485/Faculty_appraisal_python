@@ -128,11 +128,16 @@ Always returns 200 regardless of whether the email exists (prevents email enumer
 
 ```json
 // Request
-{ "email": "user@example.com" }
+{
+  "email": "user@example.com",
+  "redirect_url": "https://your-frontend.example.com/reset-password"
+}
 
 // Response 200
 { "message": "If that email is registered, a reset link has been sent." }
 ```
+
+`redirect_url` — the full path to your frontend's reset-password page. The backend appends `?token=<TOKEN>` to it and puts the resulting URL in the email. If omitted, the backend falls back to the `FRONTEND_URL` environment variable. Always send this so the email link works regardless of which frontend deployment the user is on (Netlify, GCP, localhost).
 
 ---
 
