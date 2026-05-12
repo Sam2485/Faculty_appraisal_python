@@ -54,7 +54,9 @@ create table public.faculty_profiles (
       'section_head',
       'registrar',
       'staff',
-      'admin'
+      'admin',
+      'hr',
+      'super_admin'
     )
   ),
   is_verified boolean not null default false,
