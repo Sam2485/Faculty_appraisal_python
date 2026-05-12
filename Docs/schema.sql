@@ -122,7 +122,7 @@ create table public.course_files (
   row_no integer,
   course text,
   title text,
-  details text,
+  details text check (details is null or details in ('1.Available', '2.Partially Available', '3.Not Available')),
   score numeric not null default 0,
   hod_score numeric,
   director_score numeric,
@@ -907,6 +907,12 @@ begin
     select schemaname, tablename
     from pg_tables
     where schemaname = 'public'
+      and exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public'
+          and table_name = tablename
+          and column_name = 'updated_at'
+      )
   loop
     execute format(
       'create trigger %I before update on %I.%I for each row execute function public.set_updated_at()',

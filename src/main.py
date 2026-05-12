@@ -41,7 +41,6 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000",
-    "https://dypfacultyappraisal.netlify.app",
     "https://faculty-appraisal-frontend-376777978967.asia-south1.run.app",
 ]
 

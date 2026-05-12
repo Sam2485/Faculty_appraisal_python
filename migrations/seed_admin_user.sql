@@ -20,7 +20,7 @@ insert into public.faculty_profiles (email, full_name, password_hash, appraisal_
 values (
   'admin@dypatil.edu',                                                    -- change if needed
   'System Administrator',
-  '$2b$12$qcXvEq3zaGKoTQfW1A1E8OUa1/60tvnjUbQ6UyftGI8AbvcuQuE2W',       -- hash of Dypiu#2020$
+  '$2b$12$VYGK9cEZx0hlqsKR/XiOl.yoKfN09nJyr/q3z7C7TozIVsmAdM51.',       -- hash of Ruhan@2003
   'admin',
   true
 )

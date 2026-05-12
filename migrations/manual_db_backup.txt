@@ -1,0 +1,49 @@
+gcloud sql export sql faculty-appraisal-db \
+    gs://faculty-appraisal-backups-495011/backup_manual_$(date +%Y%m%d_%H%M%S).sql \
+    --database=faculty_appraisal
+
+
+
+Here is how you retrieve and use it:
+
+1. How to see and retrieve the file
+Once the export is finished, you can find the file in your Cloud Storage bucket.
+
+Via Cloud Console:
+
+Go to the Cloud Storage Buckets page .
+Click on your bucket name (faculty-appraisal-backups-495011).
+You will see your file (e.g., backup_manual_20260511.sql). You can click the Download button to save it to your local computer if you want an offline copy.
+Via Cloud Shell (Command Line):
+
+gcloud storage ls gs://faculty-appraisal-backups-495011/
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+2. How to "Restore" it back to your database
+If something goes wrong and you need to put the data back into your DB, you perform an Import. This tells the database to read that text file and execute all the commands inside it.
+
+The Command:
+
+gcloud sql import sql faculty-appraisal-db \
+    gs://faculty-appraisal-backups-495011/backup_manual_20260511.sql \
+    --database=faculty_appraisal
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+What this does during the restore:
+
+It opens the .sql file.
+It runs the CREATE TABLE commands to build the structure.
+It runs the INSERT commands to populate the rows with your data.
+⚠️ Critical Warnings for Restoring
+Duplicate Data: If your database still has data in it, running an import might fail or create "duplicate" errors (because it tries to create tables that already exist). Before a full restore, it is often best to drop the existing database and create a fresh, empty one:
+
+# WARNING: This deletes current data to make room for the backup
+gcloud sql databases delete faculty_appraisal --instance=faculty-appraisal-db
+gcloud sql databases create faculty_appraisal --instance=faculty-appraisal-db
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+Permissions: Just like exporting, the "Service Account" of your SQL instance must have Storage Object Viewer permissions on the bucket to "read" the file for the restore. (If you followed my previous step for Storage Object Admin, you are already covered).
+
+Time: Depending on the size of your database, an import can take anywhere from a few seconds to several minutes. During this time, the database might be slow or unresponsive.
+
+Next Step: Since you are in the console right now, you can try running the Export command in your Cloud Shell. Once it finishes, I can help you verify that the file was created successfully!
