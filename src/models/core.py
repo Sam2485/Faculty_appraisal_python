@@ -123,7 +123,8 @@ class AppraisalConfig(Base):
 
 
 VALID_ANNOUNCEMENT_AUDIENCES = frozenset({
-    "all", "faculty", "hod", "dean", "non_teaching_staff"
+    "all", "faculty", "hod", "director", "dean", "registrar", "non_teaching_staff",
+    "SoCSEA", "SoBB", "SoCE", "SoEMR", "SoC", "SoMCS", "CioD", "SoAA", "CISR",
 })
 
 class Announcement(Base):
@@ -131,7 +132,7 @@ class Announcement(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(200), nullable=False)
     body = Column(String(5000), nullable=False)
-    audience = Column(String(50), nullable=False, default="all")
+    audience = Column(String(500), nullable=False, default="all")
     is_active = Column(Boolean, nullable=False, default=True)
     created_by = Column(String)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
