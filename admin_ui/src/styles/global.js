@@ -45,39 +45,53 @@ style.textContent = `
 
   html[data-theme="light"]{
     color-scheme:light;
-    --c-bg:#f6f8fc;
+
+    /* ── Page & surface ───────────────────────── */
+    --c-bg:#eef2f7;
     --c-surf:#ffffff;
-    --c-card:rgba(255,255,255,.82);
-    --c-card-hover-border:rgba(15,23,42,.14);
-    --c-border:rgba(15,23,42,.09);
+    --c-card:rgba(255,255,255,.96);
+    --c-card-hover-border:rgba(59,130,246,.28);
+    --c-border:rgba(15,23,42,.1);
     --c-divider:rgba(15,23,42,.08);
-    --c-row-border:rgba(15,23,42,.06);
+    --c-row-border:rgba(15,23,42,.055);
+
+    /* ── Typography ───────────────────────────── */
     --c-text:#0f172a;
     --c-muted:#64748b;
-    --c-subtle:#475569;
-    --c-input-bg:rgba(255,255,255,.9);
-    --c-input-border:rgba(15,23,42,.12);
-    --c-btn-border:rgba(15,23,42,.12);
-    --c-soft-bg:rgba(15,23,42,.04);
-    --c-shadow:rgba(15,23,42,.1);
-    --c-stat-shadow:rgba(15,23,42,.14);
+    --c-subtle:#334155;
+
+    /* ── Inputs ───────────────────────────────── */
+    --c-input-bg:#ffffff;
+    --c-input-border:rgba(15,23,42,.15);
+    --c-btn-border:rgba(15,23,42,.13);
+    --c-soft-bg:#f8fafc;
     --c-select-bg:#ffffff;
-    --c-skeleton-a:rgba(15,23,42,.05);
-    --c-skeleton-b:rgba(15,23,42,.1);
-    --c-section-hover:rgba(15,23,42,.72);
+
+    /* ── Shadows ──────────────────────────────── */
+    --c-shadow:rgba(15,23,42,.1);
+    --c-stat-shadow:rgba(15,23,42,.15);
+
+    /* ── Skeletons ────────────────────────────── */
+    --c-skeleton-a:rgba(15,23,42,.06);
+    --c-skeleton-b:rgba(15,23,42,.13);
+
+    /* ── Misc ─────────────────────────────────── */
+    --c-section-hover:rgba(15,23,42,.8);
     --c-track:rgba(15,23,42,.1);
-    --c-sidebar-bg:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);
-    --c-sidebar-border:rgba(15,23,42,.1);
-    --c-sidebar-text:#0f172a;
-    --c-sidebar-muted:#64748b;
-    --c-sidebar-icon-bg:rgba(15,23,42,.05);
-    --c-sidebar-icon-border:rgba(15,23,42,.1);
-    --c-sidebar-tree:rgba(15,23,42,.1);
-    --c-sidebar-card-bg:rgba(15,23,42,.04);
-    --c-sidebar-card-border:rgba(15,23,42,.1);
-    --c-sidebar-divider:linear-gradient(90deg,transparent,rgba(15,23,42,.1),transparent);
-    --c-sidebar-toggle-bg:rgba(15,23,42,.05);
-    --c-sidebar-toggle-border:rgba(15,23,42,.12);
+
+    /* ── Sidebar — kept DARK for contrast ─────── */
+    --c-sidebar-bg:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);
+    --c-sidebar-border:rgba(255,255,255,.06);
+    --c-sidebar-text:#f1f5f9;
+    --c-sidebar-muted:#94a3b8;
+    --c-sidebar-icon-bg:rgba(255,255,255,.06);
+    --c-sidebar-icon-border:rgba(255,255,255,.09);
+    --c-sidebar-tree:rgba(255,255,255,.07);
+    --c-sidebar-card-bg:rgba(255,255,255,.04);
+    --c-sidebar-card-border:rgba(255,255,255,.09);
+    --c-sidebar-divider:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);
+    --c-sidebar-toggle-bg:rgba(255,255,255,.06);
+    --c-sidebar-toggle-border:rgba(255,255,255,.1);
   }
 
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -240,6 +254,37 @@ style.textContent = `
     background-size:200% 100%;
     animation:shimmer 1.7s ease-in-out infinite;
     border-radius:6px;
+  }
+
+  /* ── Light-theme overrides ──────────────────────────────────────── */
+  [data-theme="light"] .glass{
+    background:#ffffff;
+    border-color:rgba(15,23,42,.08);
+    box-shadow:0 1px 3px rgba(15,23,42,.07),0 4px 16px rgba(15,23,42,.06);
+  }
+  [data-theme="light"] .glass:hover{
+    border-color:rgba(59,130,246,.28);
+    box-shadow:0 4px 20px rgba(15,23,42,.1),0 1px 4px rgba(15,23,42,.07);
+  }
+  [data-theme="light"] .nav-item:hover{
+    background:rgba(59,130,246,.09)!important;
+    color:#1d4ed8!important;
+  }
+  [data-theme="light"] .nav-child-btn:hover{
+    background:rgba(59,130,246,.07)!important;
+    color:#1e40af!important;
+  }
+  [data-theme="light"] .act-btn:hover{
+    box-shadow:0 4px 14px rgba(15,23,42,.14)!important;
+  }
+  [data-theme="light"] .tr-row:hover{
+    background:rgba(59,130,246,.05)!important;
+  }
+  [data-theme="light"] .progress-fill::after{
+    background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.55) 50%,transparent 100%);
+  }
+  [data-theme="light"] body{
+    background:var(--c-bg);
   }
 
   /* ── Misc utilities ─────────────────────────────────────────────── */

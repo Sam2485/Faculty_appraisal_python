@@ -27,8 +27,8 @@ export default function Card({ title, sub, action, info, children, style = {}, d
                 {/* Info icon */}
                 <div style={{
                   width: 17, height: 17, borderRadius: '50%', cursor: 'help',
-                  background: tip ? `${C.accent}18` : 'rgba(255,255,255,.06)',
-                  border: `1px solid ${tip ? `${C.accent}40` : 'rgba(255,255,255,.1)'}`,
+                  background: tip ? `${C.accent}18` : 'var(--c-soft-bg)',
+                  border: `1px solid ${tip ? `${C.accent}40` : 'var(--c-border)'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 10, fontWeight: 800,
                   color: tip ? C.accent : C.muted,
@@ -43,9 +43,9 @@ export default function Card({ title, sub, action, info, children, style = {}, d
                   <div style={{
                     position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 600,
                     width: 230, padding: '11px 13px', borderRadius: 10,
-                    background: C.surf,
-                    border: '1px solid rgba(255,255,255,.1)',
-                    boxShadow: '0 16px 40px rgba(0,0,0,.7)',
+                    background: 'var(--c-surf)',
+                    border: '1px solid var(--c-border)',
+                    boxShadow: '0 16px 40px var(--c-shadow)',
                     fontSize: 11.5, color: C.subtle, lineHeight: 1.7,
                     animation: 'fadeIn .12s ease',
                     pointerEvents: 'none',
@@ -54,8 +54,8 @@ export default function Card({ title, sub, action, info, children, style = {}, d
                     <div style={{
                       position: 'absolute', top: -5, left: 7,
                       width: 8, height: 8, borderRadius: 1,
-                      background: C.surf,
-                      border: '1px solid rgba(255,255,255,.1)',
+                      background: 'var(--c-surf)',
+                      border: '1px solid var(--c-border)',
                       transform: 'rotate(45deg)',
                       borderBottom: 'none', borderRight: 'none',
                     }} />

@@ -145,6 +145,33 @@ function MultiSelectDropdown({ noun, options, selected, onChange }) {
   );
 }
 
+// ── Pagination helpers ─────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 25;
+
+function getPageNums(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const out = [1];
+  if (current > 3) out.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) out.push(p);
+  if (current < total - 2) out.push('…');
+  out.push(total);
+  return out;
+}
+
+function PgBtn({ children, onClick, disabled, active }) {
+  return (
+    <button className="act-btn" onClick={onClick} disabled={disabled} style={{
+      minWidth: 30, height: 30, padding: '0 7px', borderRadius: 7, fontSize: 12,
+      fontWeight: active ? 700 : 500, cursor: disabled ? 'default' : 'pointer',
+      border: `1px solid ${active ? C.accent : 'rgba(255,255,255,.1)'}`,
+      background: active ? `${C.accent}20` : 'transparent',
+      color: active ? C.accent : disabled ? 'rgba(255,255,255,.2)' : C.subtle,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>{children}</button>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function FacultyListPage() {
@@ -162,6 +189,7 @@ export default function FacultyListPage() {
   const [saving,          setSaving]          = useState(false);
   const [saveErr,         setSaveErr]         = useState(null);
   const [selected,        setSelected]        = useState(new Set());
+  const [page,            setPage]            = useState(1);
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
   const { data: raw, loading, error } = useFetch(() => api.users.list(), [tick]);
@@ -175,9 +203,16 @@ export default function FacultyListPage() {
      f.email.toLowerCase().includes(search.toLowerCase()))
   );
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const pageRows   = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [search, selectedSchools, selectedRoles, statusFilter]);
+
   // ── Selection ────────────────────────────────────────────────────────────────
 
-  const visibleEmails   = rows.map(r => r.email);
+  const visibleEmails   = pageRows.map(r => r.email);
   const selectedVisible = visibleEmails.filter(e => selected.has(e));
   const allChecked      = visibleEmails.length > 0 && selectedVisible.length === visibleEmails.length;
   const someChecked     = selectedVisible.length > 0 && !allChecked;
@@ -593,7 +628,9 @@ export default function FacultyListPage() {
               })}
 
               <span style={{ marginLeft: 'auto', fontSize: 12, color: C.muted }}>
-                {rows.length} {rows.length === 1 ? 'record' : 'records'}
+                {rows.length > PAGE_SIZE
+                  ? `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, rows.length)} of ${rows.length} records`
+                  : `${rows.length} ${rows.length === 1 ? 'record' : 'records'}`}
               </span>
             </div>
 
@@ -649,7 +686,7 @@ export default function FacultyListPage() {
                         {anyFilter > 0 ? 'No records match the current filters' : 'No users added yet'}
                       </td>
                     </tr>
-                  ) : rows.map((f, i) => {
+                  ) : pageRows.map((f, i) => {
                     const isSelected = selected.has(f.email);
                     const rm = roleMeta(f.role);
                     const isActive = f.status === 'Active';
@@ -757,6 +794,27 @@ export default function FacultyListPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* ── Pagination ───────────────────────────────────────────── */}
+            {totalPages > 1 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                paddingTop: 14, marginTop: 4, borderTop: '1px solid rgba(255,255,255,.06)',
+              }}>
+                <span style={{ fontSize: 12, color: C.muted }}>
+                  Page {safePage} of {totalPages}
+                </span>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <PgBtn onClick={() => setPage(p => p - 1)} disabled={safePage === 1}>‹</PgBtn>
+                  {getPageNums(safePage, totalPages).map((p, i) =>
+                    p === '…'
+                      ? <span key={`e${i}`} style={{ padding: '0 4px', color: C.muted, fontSize: 13, lineHeight: '30px' }}>…</span>
+                      : <PgBtn key={p} active={p === safePage} onClick={() => setPage(p)}>{p}</PgBtn>
+                  )}
+                  <PgBtn onClick={() => setPage(p => p + 1)} disabled={safePage === totalPages}>›</PgBtn>
+                </div>
+              </div>
+            )}
           </Card>
         </>
       )}
