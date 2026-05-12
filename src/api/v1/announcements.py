@@ -43,6 +43,19 @@ async def list_announcements(db: AsyncSession = Depends(get_db)):
 # Admin CRUD
 # ---------------------------------------------------------------------------
 
+def _validate_audience_str(v: str) -> str:
+    tokens = [t.strip() for t in v.split(",") if t.strip()]
+    if not tokens:
+        raise ValueError("audience cannot be empty")
+    invalid = [t for t in tokens if t not in VALID_ANNOUNCEMENT_AUDIENCES]
+    if invalid:
+        raise ValueError(
+            f"Invalid audience value(s): {invalid}. "
+            f"Each token must be one of: {sorted(VALID_ANNOUNCEMENT_AUDIENCES)}"
+        )
+    return v
+
+
 class AnnouncementCreate(BaseModel):
     title: str
     body: str
@@ -52,9 +65,7 @@ class AnnouncementCreate(BaseModel):
     @field_validator("audience")
     @classmethod
     def validate_audience(cls, v: str) -> str:
-        if v not in VALID_ANNOUNCEMENT_AUDIENCES:
-            raise ValueError(f"audience must be one of: {', '.join(sorted(VALID_ANNOUNCEMENT_AUDIENCES))}")
-        return v
+        return _validate_audience_str(v)
 
 
 class AnnouncementUpdate(BaseModel):
@@ -66,8 +77,8 @@ class AnnouncementUpdate(BaseModel):
     @field_validator("audience")
     @classmethod
     def validate_audience(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in VALID_ANNOUNCEMENT_AUDIENCES:
-            raise ValueError(f"audience must be one of: {', '.join(sorted(VALID_ANNOUNCEMENT_AUDIENCES))}")
+        if v is not None:
+            return _validate_audience_str(v)
         return v
 
 

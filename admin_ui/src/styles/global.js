@@ -143,6 +143,10 @@ style.textContent = `
     from{width:0;opacity:0}
     to{width:40px;opacity:1}
   }
+  @keyframes drawerIn{
+    from{opacity:0;transform:translateX(24px)}
+    to{opacity:1;transform:translateX(0)}
+  }
 
   /* ── Page & layout ─────────────────────────────────────────────── */
   .page-enter{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both}

@@ -11,7 +11,7 @@ import LiveBadge from '../../components/LiveBadge';
 import ProgressBar from '../../components/ProgressBar';
 import { inp } from '../../constants/styleTokens';
 import {
-  ENGG_SCHOOL_CODES, NON_ENGG_SCHOOL_CODES, TEACHING_SCHOOL_CODES,
+  ENGG_SCHOOL_CODES, NON_ENGG_SCHOOL_CODES, TEACHING_SCHOOL_CODES, ALL_SCHOOL_CODES,
   SCHOOL_META, SOEMR_DEPTS,
 } from '../../constants/schools';
 
@@ -303,7 +303,13 @@ export default function AppraisalCyclePage() {
   const bySchoolReg      = raw?.by_school_registered ?? {};
   const byDept           = raw?.by_department_submitted ?? {};
 
-  const pendingArr    = Array.isArray(rawPending) ? rawPending : [];
+  // When rawPending is null it means no academic year exists yet (zero submissions),
+  // so the pending-faculty API was never called. Treat every teaching user as not-submitted
+  // so they don't incorrectly appear in the "submitted / in-review" section.
+  const TEACHING_ROLES_SET = new Set(['faculty', 'hod', 'director', 'dean', 'center_head']);
+  const pendingArr = rawPending === null
+    ? allUsers.filter(u => TEACHING_ROLES_SET.has(u.role))
+    : (Array.isArray(rawPending) ? rawPending : []);
   const pendingEmails = new Set(pendingArr.map(f => f.email));
 
   // Group users by school
@@ -436,9 +442,10 @@ export default function AppraisalCyclePage() {
                 <div>
                   {/* School selector pills */}
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
-                    {TEACHING_SCHOOL_CODES.map(code => {
+                    {ALL_SCHOOL_CODES.map(code => {
                       const isEngg   = ENGG_SCHOOL_CODES.includes(code);
-                      const tagCol   = isEngg ? C.accent : C.green;
+                      const isCisr   = !TEACHING_SCHOOL_CODES.includes(code);
+                      const tagCol   = isCisr ? C.yellow : isEngg ? C.accent : C.green;
                       const isActive = selectedSchool === code;
                       // Count for current active stage filter
                       const stageCnt = activeStage ? (stageCounts(bySchoolPipeline[code] ?? {}, STAGE_KEY)[activeStage] ?? 0) : null;
@@ -769,7 +776,7 @@ export default function AppraisalCyclePage() {
                         );
                       })}
                     </div>
-                    <div>
+                    <div style={{ marginBottom: 12 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: C.green, marginBottom: 6,
                         textTransform: 'uppercase', letterSpacing: .5 }}>Non-Engineering</div>
                       {NON_ENGG_SCHOOL_CODES.map(sc => {
@@ -800,6 +807,37 @@ export default function AppraisalCyclePage() {
                           </div>
                         );
                       })}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: C.yellow, marginBottom: 6,
+                        textTransform: 'uppercase', letterSpacing: .5 }}>CISR</div>
+                      {(() => {
+                        const sc = 'CISR';
+                        const sPipeline = bySchoolPipeline[sc] ?? {};
+                        const sCounts   = stageCounts(sPipeline, STAGE_KEY);
+                        return (
+                          <div key={sc} onClick={() => setSelectedSchool(sc)}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '7px 8px', borderRadius: 7, marginBottom: 3, cursor: 'pointer',
+                              background: selectedSchool === sc ? 'rgba(251,191,36,.08)' : 'rgba(255,255,255,.02)',
+                              border: `1px solid ${selectedSchool === sc ? 'rgba(251,191,36,.25)' : 'rgba(255,255,255,.05)'}`,
+                              transition: 'all .12s' }}>
+                            <span style={{ fontSize: 11, fontWeight: selectedSchool === sc ? 700 : 500,
+                              color: selectedSchool === sc ? C.yellow : C.subtle,
+                              fontFamily: "'JetBrains Mono',monospace" }}>{sc}</span>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              {[
+                                { k: 'not_submitted', n: (usersBySchool[sc] ?? []).filter(u => u.role === 'faculty' && pendingEmails.has(u.email)).length, c: C.red },
+                                { k: 'vc', n: sCounts['vc'] ?? 0, c: '#f472b6' },
+                              ].filter(x => x.n > 0).map(x => (
+                                <span key={x.k} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px',
+                                  borderRadius: 8, background: `${x.c}15`, color: x.c,
+                                  fontFamily: "'JetBrains Mono',monospace" }}>{x.n}</span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </Card>
 
