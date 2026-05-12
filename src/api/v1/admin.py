@@ -36,7 +36,8 @@ EDITABLE_ENV_KEYS = frozenset({
 
 VALID_ROLES = frozenset({
     "faculty", "non_teaching_staff", "staff", "hod", "reporting_officer",
-    "section_head", "director", "center_head", "dean", "registrar", "vc", "admin",
+    "section_head", "director", "center_head", "dean", "registrar", "vc",
+    "admin", "hr", "super_admin",
 })
 
 
@@ -195,6 +196,7 @@ class UserCreateRequest(BaseModel):
     qualification: Optional[str] = None
     teaching_experience: Optional[str] = None
     is_verified: bool = True  # admin-created accounts skip email verification
+    is_active: bool = True
     reports_to_registrar: bool = False
 
 
@@ -209,6 +211,7 @@ class UserUpdateRequest(BaseModel):
     qualification: Optional[str] = None
     teaching_experience: Optional[str] = None
     is_verified: Optional[bool] = None
+    is_active: Optional[bool] = None
     reports_to_registrar: Optional[bool] = None
     password: Optional[str] = None  # if set, resets the user's password
 
@@ -248,6 +251,7 @@ async def list_users(
             "qualification": u.qualification,
             "teaching_experience": u.teaching_experience,
             "is_verified": u.is_verified,
+            "is_active": u.is_active,
             "reports_to_registrar": u.reports_to_registrar,
             "created_at": u.created_at,
         }
@@ -286,6 +290,7 @@ async def create_user(
         qualification=data.qualification,
         teaching_experience=data.teaching_experience,
         is_verified=data.is_verified,
+        is_active=data.is_active,
         reports_to_registrar=data.reports_to_registrar,
     )
     db.add(user)
