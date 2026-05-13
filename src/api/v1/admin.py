@@ -445,6 +445,56 @@ async def get_pending_faculty(
 
 
 # ---------------------------------------------------------------------------
+# Submissions list — JSON (used by Appraisal Cycle page for per-faculty tracking)
+# ---------------------------------------------------------------------------
+
+@router.get("/submissions")
+async def list_submissions(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    academic_year: Optional[str] = Query(None),
+    school: Optional[str] = Query(None),
+):
+    _check_admin(current_user)
+
+    if not academic_year:
+        years_res = await db.execute(
+            select(distinct(Declaration.academic_year))
+            .order_by(Declaration.academic_year.desc())
+        )
+        years = [r[0] for r in years_res.all()]
+        academic_year = years[0] if years else None
+
+    if not academic_year:
+        return []
+
+    query = (
+        select(FacultyProfile, Declaration)
+        .join(Declaration, FacultyProfile.email == Declaration.faculty_email)
+        .where(Declaration.academic_year == academic_year)
+        .order_by(FacultyProfile.school, FacultyProfile.full_name)
+    )
+    if school:
+        query = query.where(FacultyProfile.school == school)
+
+    result = await db.execute(query)
+    return [
+        {
+            "email":          u.email,
+            "full_name":      u.full_name,
+            "school":         u.school or "",
+            "department":     u.department or "",
+            "appraisal_role": u.appraisal_role,
+            "designation":    u.designation or "",
+            "academic_year":  d.academic_year,
+            "status":         d.status,
+            "submitted_at":   d.submitted_at.isoformat() if d.submitted_at else None,
+        }
+        for u, d in result.all()
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Appraisal cycle / config
 # ---------------------------------------------------------------------------
 
