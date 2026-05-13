@@ -126,7 +126,7 @@ class AppraisalConfig(Base):
 
 VALID_ANNOUNCEMENT_AUDIENCES = frozenset({
     "all", "faculty", "hod", "director", "dean", "registrar", "non_teaching_staff",
-    "SoCSEA", "SoBB", "SoCE", "SoEMR", "SoC", "SoMCS", "CioD", "SoAA", "CISR",
+    "SoCSEA", "SoBB", "SoCE", "SoEMR", "SoC", "SoMCS", "SoD", "SoAA", "CISR",
 })
 
 class Announcement(Base):
