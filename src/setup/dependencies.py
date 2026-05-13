@@ -45,10 +45,12 @@ class User:
             "dean": 3,
             "registrar": 3.5,
             "vc": 4,
-            "admin": 5
+            "admin": 5,
+            "hr": 5,
+            "super_admin": 6,
         }
-        
-        if "admin" in self.roles:
+
+        if "admin" in self.roles or "super_admin" in self.roles:
             return True
 
         user_weight = max([role_weights.get(r, 0) for r in self.roles])

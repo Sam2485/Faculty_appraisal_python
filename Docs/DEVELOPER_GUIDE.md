@@ -300,6 +300,7 @@ Never run `schema.sql` on a live database — it will wipe all faculty data.
 | `010_add_is_active_to_faculty_profiles.sql` | Added `is_active boolean` to `faculty_profiles` |
 | `011_widen_announcement_audience.sql` | Widened `announcements.audience` from `varchar(50)` to `varchar(500)` |
 | `012_add_reports_to_registrar.sql` | Added `reports_to_registrar boolean` to `faculty_profiles` for direct-to-registrar non-teaching flow |
+| `013_add_hr_super_admin_roles.sql` | Expanded `appraisal_role` CHECK to include `hr` and `super_admin` |
 | `seed_admin_user.sql` | One-time seed — creates the first admin account (not a schema change) |
 
 > **Rule: never edit a migration file that has already been applied to any database.**
