@@ -38,7 +38,7 @@ export function normalizeStats(raw) {
     submitted,
     pending,
     bySchool,
-    // pass through extras pages may want
+    bySchoolSub,
     availableYears: raw.available_years ?? [],
     academicYear:   raw.academic_year   ?? null,
     byRole:         raw.by_role         ?? {},
