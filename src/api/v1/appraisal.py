@@ -80,6 +80,7 @@ async def get_snapshot(academic_year: str, current_user: CurrentUser, db: AsyncS
 async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     academic_year = data.get('academic_year')
     payload = data.get('payload')
+    docs = data.get('docs', {})
 
     if not academic_year:
         raise HTTPException(status_code=422, detail="academic_year is required")
@@ -100,7 +101,7 @@ async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: A
             AppraisalSnapshot.academic_year == academic_year
         ))
         db_snapshot = result.scalar_one_or_none()
-        
+
         if db_snapshot:
             db_snapshot.payload = payload
             flag_modified(db_snapshot, "payload")
@@ -111,7 +112,34 @@ async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: A
                 payload=payload
             )
             db.add(db_snapshot)
-        
+
+        if docs and isinstance(docs, dict):
+            await db.execute(
+                delete(AppraisalDocument).where(
+                    AppraisalDocument.faculty_email == current_user.email,
+                    AppraisalDocument.academic_year == academic_year
+                ),
+                execution_options={"synchronize_session": False}
+            )
+            for doc_key, file_list in docs.items():
+                if not isinstance(file_list, list):
+                    continue
+                section = doc_key.rstrip('0123456789') or doc_key
+                for row_no, file_obj in enumerate(file_list, 1):
+                    if not isinstance(file_obj, dict) or not file_obj.get('name'):
+                        continue
+                    db.add(AppraisalDocument(
+                        faculty_email=current_user.email,
+                        academic_year=academic_year,
+                        section=section,
+                        doc_key=doc_key,
+                        row_no=row_no,
+                        file_name=file_obj.get('name', ''),
+                        file_type=file_obj.get('type'),
+                        file_url=file_obj.get('url'),
+                        storage_path=file_obj.get('publicId')
+                    ))
+
         await db.commit()
         return {"message": "Saved"}
     except HTTPException:
