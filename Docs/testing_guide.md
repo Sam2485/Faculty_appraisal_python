@@ -68,7 +68,7 @@ Cross-role attack checks: confirm that Director cannot call the dean or VC revie
 ### Direct-to-registrar flow (`reports_to_registrar = true`)
 
 1. As admin, set `reports_to_registrar = true` via `PUT /api/v1/admin/users/{email}`.
-2. Staff submits — check that status becomes `Pending Registrar Review` (not `Pending RO Review`).
+2. Staff submits — check that status is `Submitted` (same as a normal submission; the flag controls visibility, not the status value).
 3. Log in as `reporting_officer` — confirm the staff member does **not** appear in their subordinates list.
 4. Confirm that `PUT /api/v1/non-teaching/review/{email}` as RO returns `403`.
 5. Registrar can review normally.

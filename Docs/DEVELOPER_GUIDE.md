@@ -99,7 +99,7 @@ src/
 - Staff submits via `PUT /non-teaching/appraisal` (full JSONB payload). The backend also shreds Part A fields (`selfResp`, `selfContrib`, `selfAchieve`) into `non_teaching_part_a_items`.
 - Reviewer submits via `PUT /non-teaching/review/{email}`. Reviewer marks in the payload are written to `non_teaching_part_a_items` (ro_marks/registrar_marks/vc_marks) and `non_teaching_part_b_ratings` (ro_rating/registrar_rating/vc_rating).
 - Status chain: `Draft` → `Submitted` → `Reporting Officer Reviewed` → `Registrar Reviewed` → `VC Approved`
-- **`reports_to_registrar` flag** — if `faculty_profiles.reports_to_registrar = true` for a staff member, their submission sets status to `Pending Registrar Review` directly, skipping the RO stage. The RO cannot see or review those staff members. Admin sets this flag per staff member via `PUT /api/v1/admin/users/{email}`.
+- **`reports_to_registrar` flag** — if `faculty_profiles.reports_to_registrar = true` for a staff member, their submission status stays `Submitted` (same as normal). The difference is that the RO subordinates query filters them out (`reports_to_registrar == False`), so the RO never sees them and cannot review them. The Registrar sees them directly. Admin sets this flag per staff member via `PUT /api/v1/admin/users/{email}`.
 
 ---
 
