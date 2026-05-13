@@ -117,6 +117,14 @@ const pending = {
 }
 
 // ---------------------------------------------------------------------------
+// Submissions — per-faculty form status list (requires backend: GET /admin/submissions)
+// Returns: [{ email, full_name, school, department, appraisal_role, status, submitted_at }]
+// ---------------------------------------------------------------------------
+const submissions = {
+  list: (params = {}) => request('/admin/submissions?' + new URLSearchParams(params)),
+}
+
+// ---------------------------------------------------------------------------
 // Announcements
 // ---------------------------------------------------------------------------
 const announcements = {
@@ -153,4 +161,4 @@ const exportData = {
   faculty:     (params = {}) => downloadFile('/admin/export/faculty?' + new URLSearchParams(params)),
 }
 
-export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, announcements, ai, export: exportData }
+export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, submissions, announcements, ai, export: exportData }

@@ -6,7 +6,7 @@ export const SCHOOLS = [
   { code: 'SoBB',   full: 'School of Bio-Engineering & Bio Science',          dean: 'engineering',     hod: false },
   { code: 'SoCE',   full: 'School of Continual Education',                    dean: 'engineering',     hod: false },
   { code: 'SoEMR',  full: 'School of Engineering, Management & Research',     dean: 'engineering',     hod: true  },
-  { code: 'SoC',    full: 'School of Commerce & Management',                  dean: 'non_engineering', hod: false },
+  { code: 'SoCM',   full: 'School of Commerce & Management',                  dean: 'non_engineering', hod: false },
   { code: 'SoMCS',  full: 'School of Media & Communication Studies',          dean: 'non_engineering', hod: false },
   { code: 'SoD',    full: 'School of Design',                                 dean: 'non_engineering', hod: false },
   { code: 'SoAA',   full: 'School of Applied Arts',                           dean: 'non_engineering', hod: false },

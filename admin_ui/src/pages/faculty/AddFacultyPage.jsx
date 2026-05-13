@@ -358,7 +358,8 @@ const TEMPLATE_HEADERS = [
   'school', 'department', 'designation', 'phone', 'qualification', 'teaching_experience',
 ];
 
-const REQUIRED_FIELDS = ['email', 'password', 'full_name', 'school', 'department', 'appraisal_role'];
+// school is optional for all; department is optional except when school === 'SoEMR'
+const REQUIRED_FIELDS = ['email', 'password', 'full_name', 'appraisal_role'];
 
 const VALID_ROLES = [
   'faculty','hod','director','dean','vc','registrar',
@@ -385,9 +386,11 @@ function parseCSV(text) {
 }
 
 function downloadTemplate() {
+  // One teaching example (SoCSEA — department optional for non-SoEMR)
+  // One non-teaching example (school + department both optional)
   const sample = [
-    'Dr. Priya Sharma,priya.sharma@dypatil.edu,Pass@123,faculty,SoCSEA,Computer Science,Assistant Professor,9876543201,Ph.D Computer Science,8 Years',
-    'Mr. Ravi Shinde,ravi.shinde@dypatil.edu,Pass@123,non_teaching_staff,Admin,Administration,Lab Assistant,9876543202,B.Sc,7 Years',
+    'Dr. Priya Sharma,priya.sharma@dypatil.edu,Pass@123,faculty,SoCSEA,,Assistant Professor,9876543201,Ph.D Computer Science,8 Years',
+    'Mr. Ravi Shinde,ravi.shinde@dypatil.edu,Pass@123,non_teaching_staff,,,Lab Assistant,9876543202,B.Sc,',
   ];
   const csv = [TEMPLATE_HEADERS.join(','), ...sample].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -435,7 +438,9 @@ function ImportModal({ onClose }) {
     handleFile(e.dataTransfer.files[0]);
   };
 
-  const rowIsValid  = r => REQUIRED_FIELDS.every(f => r[f]?.trim());
+  const rowIsValid = r =>
+    REQUIRED_FIELDS.every(f => r[f]?.trim()) &&
+    (r.school?.trim() !== 'SoEMR' || r.department?.trim()); // SoEMR requires department
   const validRows   = rows.filter(rowIsValid);
   const skippedRows = rows.filter(r => !rowIsValid(r));
 
@@ -651,6 +656,20 @@ function ImportModal({ onClose }) {
                     ))}
                   </div>
                 </div>
+                {/* Section: Conditional */}
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--c-divider)', background: 'rgba(251,191,36,.04)' }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: .8, textTransform: 'uppercase',
+                    color: C.yellow, marginBottom: 8,
+                  }}>
+                    Conditional
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.yellow, flexShrink: 0 }} />
+                    <code style={{ fontSize: 11.5, fontFamily: "'JetBrains Mono',monospace", color: C.text, fontWeight: 600 }}>department</code>
+                    <span style={{ fontSize: 10, color: C.muted }}>— required when <code style={{ fontFamily: "'JetBrains Mono',monospace", color: C.yellow }}>school = SoEMR</code></span>
+                  </div>
+                </div>
                 {/* Section: Optional */}
                 <div style={{ padding: '12px 16px', background: 'var(--c-soft-bg)' }}>
                   <div style={{
@@ -660,7 +679,7 @@ function ImportModal({ onClose }) {
                     Optional columns
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 10px' }}>
-                    {TEMPLATE_HEADERS.filter(h => !REQUIRED_FIELDS.includes(h)).map(h => (
+                    {TEMPLATE_HEADERS.filter(h => !REQUIRED_FIELDS.includes(h) && h !== 'department').map(h => (
                       <code key={h} style={{
                         fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: C.muted,
                       }}>{h}</code>
@@ -767,7 +786,14 @@ function ImportModal({ onClose }) {
                     <tbody>
                       {rows.map((r, i) => {
                         const isOk = rowIsValid(r);
-                        const miss = f => !r[f]?.trim();
+                        // highlight only fields whose absence actually invalidates the row
+                        const miss = f => {
+                          if (!r[f]?.trim()) {
+                            if (f === 'department') return r.school?.trim() === 'SoEMR';
+                            return REQUIRED_FIELDS.includes(f);
+                          }
+                          return false;
+                        };
                         return (
                           <tr key={i} className="tr-row" style={{
                             borderBottom: '1px solid var(--c-row-border)',
@@ -1129,7 +1155,7 @@ export default function AddFacultyPage() {
   const handleRole = (val) => {
     const update = { appraisal_role: val, department: '' };
     if (val === 'hod')  update.school = 'SoEMR';
-    if (val === 'dean') update.school = '';
+    if (val === 'dean') update.school = track;
     if (val !== 'non_teaching_staff') update.reports_to_registrar = false;
     setForm(p => ({ ...p, ...update }));
   };
@@ -1231,7 +1257,7 @@ export default function AddFacultyPage() {
             />
             <TrackCard
               label="Non-Engineering"
-              sub="SoC · SoMCS · SoD · SoAA"
+              sub="SoCM · SoMCS · SoD · SoAA"
               icon={I.school} color={C.green}
               active={track === 'non_engineering'}
               onClick={() => handleTrack('non_engineering')}
@@ -1308,7 +1334,7 @@ export default function AddFacultyPage() {
         <InfoBox color="green">
           {isEngineering
             ? 'Dean of Engineering oversees all 4 engineering schools (SoCSEA, SoBB, SoCE, SoEMR). No specific school or department is required.'
-            : 'Dean of Non-Engineering oversees all 4 non-engineering schools (SoC, SoMCS, SoD, SoAA). No specific school or department is required.'}
+            : 'Dean of Non-Engineering oversees all 4 non-engineering schools (SoCM, SoMCS, SoD, SoAA). No specific school or department is required.'}
         </InfoBox>
       )}
       {role === 'hod' && (

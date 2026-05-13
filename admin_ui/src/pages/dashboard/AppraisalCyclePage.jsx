@@ -9,13 +9,12 @@ import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
 import LiveBadge from '../../components/LiveBadge';
 import ProgressBar from '../../components/ProgressBar';
-import { inp } from '../../constants/styleTokens';
 import {
   ENGG_SCHOOL_CODES, NON_ENGG_SCHOOL_CODES, TEACHING_SCHOOL_CODES, ALL_SCHOOL_CODES,
   SCHOOL_META, SOEMR_DEPTS,
 } from '../../constants/schools';
 
-// ── Stage maps (backend Declaration.status → pipeline key) ────────────────────
+// ── Stage maps (backend Declaration.status → pipeline key) ───────────────────
 
 const STAGE_KEY = {
   'Pending Review':          'hod',
@@ -27,16 +26,16 @@ const STAGE_KEY = {
 };
 
 const NT_STAGE_KEY = {
-  'Draft':                       'ro',
-  'Reporting Officer Reviewed':  'registrar',
-  'Registrar Reviewed':          'vc',
-  'VC Approved':                 'done',
+  'Draft':                      'ro',
+  'Reporting Officer Reviewed': 'registrar',
+  'Registrar Reviewed':         'vc',
+  'VC Approved':                'done',
 };
 
 // ── Pipeline stage definitions ────────────────────────────────────────────────
 
 const T_STAGES = [
-  { key: 'not_submitted', label: 'Not Submitted', color: C.red,    icon: I.clock  },
+  { key: 'not_submitted', label: 'Not Submitted', color: C.red,     icon: I.clock  },
   { key: 'hod',           label: 'HOD Queue',     color: '#a78bfa', icon: I.school },
   { key: 'director',      label: 'Director',      color: C.yellow,  icon: I.star   },
   { key: 'dean',          label: 'Dean',          color: C.green,   icon: I.shield },
@@ -45,12 +44,52 @@ const T_STAGES = [
 ];
 
 const NT_STAGES = [
-  { key: 'not_submitted', label: 'Not Submitted', color: C.red,    icon: I.clock  },
+  { key: 'not_submitted', label: 'Not Submitted', color: C.red,     icon: I.clock  },
   { key: 'ro',            label: 'RO Queue',      color: '#a78bfa', icon: I.users  },
   { key: 'registrar',     label: 'Registrar',     color: C.yellow,  icon: I.star   },
   { key: 'vc',            label: 'VC Queue',      color: '#f472b6', icon: I.shield },
   { key: 'done',          label: 'Approved',      color: C.accent,  icon: I.check  },
 ];
+
+// ── Stage descriptions ────────────────────────────────────────────────────────
+
+const T_STAGE_DESC = {
+  not_submitted: 'Form not yet filled or submitted',
+  hod:           'Submitted — awaiting HOD review (SoEMR only)',
+  director:      'With Director for review',
+  dean:          'Director reviewed — with Dean',
+  vc:            'Dean reviewed — with VC',
+  done:          'VC approved — cycle complete',
+};
+
+// ── School-aware pipeline helpers ─────────────────────────────────────────────
+
+// Only SoEMR has HODs; all other schools route Faculty → Director directly.
+function getSchoolStages(schoolCode) {
+  if (schoolCode === 'SoEMR') return T_STAGES;
+  return T_STAGES.filter(s => s.key !== 'hod');
+}
+
+function getSchoolStageKey(schoolCode) {
+  if (schoolCode === 'SoEMR') return STAGE_KEY;
+  // For non-SoEMR schools, 'Submitted' / 'Pending Review' means it's with the Director.
+  return {
+    'Pending Review':          'director',
+    'Submitted':               'director',
+    'Pending Director Review': 'director',
+    'Pending Dean Review':     'dean',
+    'Pending VC Review':       'vc',
+    'Reviewed':                'done',
+  };
+}
+
+const NT_STAGE_DESC = {
+  not_submitted: 'Form not yet submitted',
+  ro:            'Submitted — awaiting Reporting Officer review',
+  registrar:     'RO reviewed — with Registrar',
+  vc:            'Registrar reviewed — with VC',
+  done:          'VC approved — cycle complete',
+};
 
 // ── Transparency rules ────────────────────────────────────────────────────────
 
@@ -59,15 +98,15 @@ function getTransparency(schoolCode, role) {
 
   if (schoolCode === 'SoEMR') {
     if (role === 'faculty') return [
-      { reviewer: 'HOD (dept-specific)',  sees: 'Faculty self-score',          hides: null },
-      { reviewer: 'Director (SoEMR)',     sees: 'Faculty self-score only',     hides: 'HOD score hidden' },
-      { reviewer: 'Dean of Engineering',  sees: 'Faculty self-score only',     hides: 'HOD + Director scores hidden' },
+      { reviewer: 'HOD (dept-specific)',  sees: 'Faculty self-score',                      hides: null },
+      { reviewer: 'Director (SoEMR)',     sees: 'Faculty self-score only',                 hides: 'HOD score hidden' },
+      { reviewer: 'Dean of Engineering',  sees: 'Faculty self-score only',                 hides: 'HOD + Director scores hidden' },
       { reviewer: 'VC',                   sees: 'All 4 scores (Faculty · HOD · Director · Dean)', hides: null },
     ];
     if (role === 'hod') return [
-      { reviewer: 'Director (SoEMR)',    sees: 'HOD self-score',         hides: null },
-      { reviewer: 'Dean of Engineering', sees: 'HOD self-score only',    hides: 'Director score hidden' },
-      { reviewer: 'VC',                  sees: 'HOD + Director + Dean',  hides: null },
+      { reviewer: 'Director (SoEMR)',    sees: 'HOD self-score',        hides: null },
+      { reviewer: 'Dean of Engineering', sees: 'HOD self-score only',   hides: 'Director score hidden' },
+      { reviewer: 'VC',                  sees: 'HOD + Director + Dean', hides: null },
     ];
     if (role === 'director') return [
       { reviewer: 'Dean of Engineering', sees: 'Director self-score', hides: null },
@@ -78,9 +117,9 @@ function getTransparency(schoolCode, role) {
 
   if (track === 'engineering') {
     if (role === 'faculty') return [
-      { reviewer: `Director (${schoolCode})`, sees: 'Faculty self-score',          hides: null },
-      { reviewer: 'Dean of Engineering',      sees: 'Faculty self-score only',     hides: 'Director score hidden' },
-      { reviewer: 'VC',                       sees: 'Faculty + Director + Dean',   hides: null },
+      { reviewer: `Director (${schoolCode})`, sees: 'Faculty self-score',        hides: null },
+      { reviewer: 'Dean of Engineering',      sees: 'Faculty self-score only',   hides: 'Director score hidden' },
+      { reviewer: 'VC',                       sees: 'Faculty + Director + Dean', hides: null },
     ];
     if (role === 'director') return [
       { reviewer: 'Dean of Engineering', sees: 'Director self-score', hides: null },
@@ -91,9 +130,9 @@ function getTransparency(schoolCode, role) {
 
   if (track === 'non_engineering') {
     if (role === 'faculty') return [
-      { reviewer: `Director (${schoolCode})`,  sees: 'Faculty self-score',          hides: null },
-      { reviewer: 'Dean of Non-Engineering',   sees: 'Faculty + Director scores',   hides: null },
-      { reviewer: 'VC',                        sees: 'All scores',                  hides: null },
+      { reviewer: `Director (${schoolCode})`, sees: 'Faculty self-score',        hides: null },
+      { reviewer: 'Dean of Non-Engineering',  sees: 'Faculty + Director scores', hides: null },
+      { reviewer: 'VC',                       sees: 'All scores',                hides: null },
     ];
     if (role === 'director') return [
       { reviewer: 'Dean of Non-Engineering', sees: 'Director self-score', hides: null },
@@ -107,13 +146,13 @@ function getTransparency(schoolCode, role) {
 
 function getNTTransparency(role) {
   if (role === 'non_teaching_staff') return [
-    { reviewer: 'Reporting Officer', sees: 'Staff self-score',          hides: null },
-    { reviewer: 'Registrar',         sees: 'Staff self-score only',     hides: 'Reporting Officer score hidden' },
+    { reviewer: 'Reporting Officer', sees: 'Staff self-score',                      hides: null },
+    { reviewer: 'Registrar',         sees: 'Staff self-score only',                 hides: 'Reporting Officer score hidden' },
     { reviewer: 'VC',                sees: 'All 3 scores (Staff · RO · Registrar)', hides: null },
   ];
   if (role === 'reporting_officer') return [
-    { reviewer: 'Registrar', sees: 'RO self-score',     hides: null },
-    { reviewer: 'VC',        sees: 'RO + Registrar',    hides: null },
+    { reviewer: 'Registrar', sees: 'RO self-score',  hides: null },
+    { reviewer: 'VC',        sees: 'RO + Registrar', hides: null },
   ];
   if (role === 'registrar') return [
     { reviewer: 'VC', sees: 'Registrar self-score', hides: null },
@@ -121,7 +160,7 @@ function getNTTransparency(role) {
   return [];
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function stageCounts(pipeline, map) {
   const out = {};
@@ -134,17 +173,17 @@ function stageCounts(pipeline, map) {
 
 function routeLabel(schoolCode, role) {
   const isEng = ENGG_SCHOOL_CODES.includes(schoolCode);
-  if (role === 'faculty' && schoolCode === 'SoEMR')  return 'Faculty → HOD (dept) → Director (SoEMR) → Dean (Eng) → VC';
-  if (role === 'faculty' && isEng)                   return `Faculty → Director (${schoolCode}) → Dean (Eng) → VC`;
-  if (role === 'faculty')                             return `Faculty → Director (${schoolCode}) → Dean (Non-Eng) → VC`;
-  if (role === 'hod')                                return 'HOD → Director (SoEMR) → Dean (Eng) → VC';
-  if (role === 'director' && isEng)                  return `Director → Dean (Eng) → VC`;
-  if (role === 'director')                           return `Director → Dean (Non-Eng) → VC`;
-  if (role === 'dean')                               return 'Dean → VC';
+  if (role === 'faculty' && schoolCode === 'SoEMR') return 'Faculty → HOD (dept) → Director (SoEMR) → Dean (Eng) → VC';
+  if (role === 'faculty' && isEng)                  return `Faculty → Director (${schoolCode}) → Dean (Eng) → VC`;
+  if (role === 'faculty')                           return `Faculty → Director (${schoolCode}) → Dean (Non-Eng) → VC`;
+  if (role === 'hod')                               return 'HOD → Director (SoEMR) → Dean (Eng) → VC';
+  if (role === 'director' && isEng)                 return `Director → Dean (Eng) → VC`;
+  if (role === 'director')                          return `Director → Dean (Non-Eng) → VC`;
+  if (role === 'dean')                              return 'Dean → VC';
   return '';
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function Av({ name, color, size = 28 }) {
   const init = (name ?? '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
@@ -162,7 +201,7 @@ function SectionLabel({ children }) {
   return (
     <div style={{
       fontSize: 9, fontWeight: 700, letterSpacing: .8, textTransform: 'uppercase',
-      color: C.muted, marginBottom: 8, paddingBottom: 6,
+      color: C.muted, marginBottom: 10, paddingBottom: 6,
       borderBottom: '1px solid rgba(255,255,255,.05)',
     }}>{children}</div>
   );
@@ -203,93 +242,133 @@ function TransPanel({ nodes, role, school, route }) {
   );
 }
 
-function PipelineStrip({ stages, counts, active, onSelect }) {
+// Vertical pipeline timeline — shows all stages simultaneously
+function PipelineTimeline({ stages, stgCounts, stageGroups, hasFacultyStatus, isDept, stageDesc }) {
   return (
-    <div style={{ display: 'flex', marginBottom: 18,
-      background: 'rgba(255,255,255,.02)', borderRadius: 12,
-      border: '1px solid rgba(255,255,255,.06)', overflow: 'hidden' }}>
-      {stages.map((s, i) => {
-        const SIcon  = s.icon;
-        const n      = counts[s.key] ?? 0;
-        const isAct  = active === s.key;
-        const isLast = i === stages.length - 1;
+    <div>
+      {stages.map((s, idx) => {
+        const n           = stgCounts[s.key] ?? 0;
+        const people      = stageGroups?.[s.key] ?? [];
+        const showNames   = hasFacultyStatus || s.key === 'not_submitted';
+        const displayList = showNames ? people : [];
+        const isLast      = idx === stages.length - 1;
+        const isActive    = n > 0;
+
         return (
-          <button
-            key={s.key}
-            onClick={() => onSelect(isAct ? null : s.key)}
-            className="act-btn"
-            style={{
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 5, padding: '13px 6px', cursor: 'pointer',
-              background: isAct ? `${s.color}0e` : 'transparent',
-              borderRight: isLast ? 'none' : '1px solid rgba(255,255,255,.05)',
-              borderBottom: `2px solid ${isAct ? s.color : 'transparent'}`,
-              transition: 'all .15s ease',
-            }}
-          >
-            <SIcon size={12} />
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: .4, textTransform: 'uppercase',
-              color: isAct ? s.color : C.muted, whiteSpace: 'nowrap' }}>{s.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1,
-              color: n > 0 ? s.color : 'rgba(255,255,255,.1)',
-              fontFamily: "'JetBrains Mono',monospace" }}>{n}</div>
-          </button>
+          <div key={s.key} style={{ display: 'flex' }}>
+            {/* Left: dot + vertical connector line */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 26, flexShrink: 0, paddingTop: 3 }}>
+              <div style={{
+                width: 11, height: 11, borderRadius: '50%', flexShrink: 0,
+                background: isActive ? s.color : 'rgba(255,255,255,.1)',
+                border: `2px solid ${isActive ? s.color : 'rgba(255,255,255,.12)'}`,
+                boxShadow: isActive ? `0 0 8px ${s.color}55` : 'none',
+              }} />
+              {!isLast && (
+                <div style={{
+                  width: 2, flex: 1, minHeight: displayList.length > 0 ? 36 : 22,
+                  marginTop: 4,
+                  background: isActive
+                    ? `linear-gradient(to bottom, ${s.color}55, rgba(255,255,255,.05))`
+                    : 'rgba(255,255,255,.06)',
+                }} />
+              )}
+            </div>
+
+            {/* Right: stage content */}
+            <div style={{ flex: 1, paddingLeft: 10, paddingBottom: isLast ? 0 : (displayList.length > 0 ? 18 : 12) }}>
+              {/* Stage header row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: displayList.length > 0 ? 8 : 0 }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, letterSpacing: .4, textTransform: 'uppercase',
+                  color: isActive ? s.color : 'rgba(255,255,255,.25)',
+                }}>{s.label}</span>
+
+                {/* Count badge */}
+                <span style={{
+                  fontSize: 13, fontWeight: 800, lineHeight: 1,
+                  fontFamily: "'JetBrains Mono',monospace",
+                  color: isActive ? s.color : 'rgba(255,255,255,.15)',
+                  background: isActive ? `${s.color}18` : 'rgba(255,255,255,.03)',
+                  border: `1px solid ${isActive ? `${s.color}35` : 'rgba(255,255,255,.06)'}`,
+                  padding: '2px 9px', borderRadius: 20,
+                }}>{n}</span>
+
+                {/* Description for count-only view */}
+                {!showNames && isActive && (
+                  <span style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
+                    {stageDesc?.[s.key] ?? ''}
+                  </span>
+                )}
+              </div>
+
+              {/* Not-submitted or subStatusMap names */}
+              {displayList.length > 0 && (
+                <div style={{
+                  background: 'rgba(255,255,255,.02)', borderRadius: 9,
+                  border: `1px solid ${s.color}18`, padding: '2px 0',
+                }}>
+                  {displayList.map((f, j) => (
+                    <div key={f.email ?? j} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 10px',
+                      borderBottom: j < displayList.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none',
+                    }}>
+                      <Av name={f.name} color={s.color} size={24} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.text,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</div>
+                        <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>
+                          {[
+                            f.designation !== '—' ? f.designation : null,
+                            isDept && f.dept !== '—' ? f.dept : null,
+                          ].filter(Boolean).join(' · ') || f.email}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10, flexShrink: 0,
+                        background: `${s.color}18`, color: s.color,
+                      }}>{s.key === 'not_submitted' ? 'Pending' : s.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Count-only description when no names and stage has submissions */}
+              {!showNames && isActive && stageDesc?.[s.key] && (
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>
+                  {stageDesc[s.key]}
+                </div>
+              )}
+            </div>
+          </div>
         );
       })}
     </div>
   );
 }
 
-function FacList({ title, color, people, dept = false, badge, badgeColor }) {
-  if (people.length === 0) return null;
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
-        <span style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: .5 }}>
-          {title} ({people.length})
-        </span>
-      </div>
-      {people.map((f, j) => (
-        <div key={f.email ?? f.id ?? j} style={{
-          display: 'flex', alignItems: 'center', gap: 9, padding: '7px 0',
-          borderBottom: j < people.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none',
-        }}>
-          <Av name={f.name} color={color} size={26} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.text,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>
-              {[f.designation !== '—' ? f.designation : null, dept && f.dept !== '—' ? f.dept : null]
-                .filter(Boolean).join(' · ') || f.email}
-            </div>
-          </div>
-          {badge && (
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12, flexShrink: 0,
-              background: `${badgeColor ?? color}14`, color: badgeColor ?? color }}>
-              {badge}
-            </span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Main page ──────────────────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AppraisalCyclePage() {
   const [track,          setTrack]          = useState('teaching');
   const [selectedSchool, setSelectedSchool] = useState('SoCSEA');
-  const [activeStage,    setActiveStage]    = useState(null);
   const [transRole,      setTransRole]      = useState('faculty');
   const [ntTransRole,    setNtTransRole]    = useState('non_teaching_staff');
 
-  const { data: raw,      loading: sL, error: sErr, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: AUTO_REFRESH_INTERVAL });
-  const { data: rawUsers, loading: uL               } = useFetch(() => api.users.list(), [], { interval: AUTO_REFRESH_INTERVAL });
-  const { data: rawPending, loading: pL             } = useFetch(
+  const { data: raw,        loading: sL, error: sErr, lastUpdated } = useFetch(() => api.stats.get(), [], { interval: AUTO_REFRESH_INTERVAL });
+  const { data: rawUsers,   loading: uL } = useFetch(() => api.users.list(), [], { interval: AUTO_REFRESH_INTERVAL });
+  const { data: rawPending, loading: pL } = useFetch(
     () => raw?.academic_year
       ? api.pending.list({ academic_year: raw.academic_year })
+      : Promise.resolve(null),
+    [raw?.academic_year],
+    { interval: AUTO_REFRESH_INTERVAL },
+  );
+  // Per-faculty submission status — needs backend: GET /api/v1/admin/submissions
+  const { data: rawSubs } = useFetch(
+    () => raw?.academic_year
+      ? api.submissions.list({ academic_year: raw.academic_year }).catch(() => null)
       : Promise.resolve(null),
     [raw?.academic_year],
     { interval: AUTO_REFRESH_INTERVAL },
@@ -299,13 +378,16 @@ export default function AppraisalCyclePage() {
   const allUsers = normalizeUsers(rawUsers ?? []);
   const loading  = sL || uL || pL;
 
+  // Build per-email status map from submissions endpoint (when available)
+  const subStatusMap = {};
+  if (Array.isArray(rawSubs)) {
+    rawSubs.forEach(s => { if (s.email) subStatusMap[s.email] = s.status; });
+  }
+
   const bySchoolPipeline = raw?.by_school_submitted  ?? {};
   const bySchoolReg      = raw?.by_school_registered ?? {};
   const byDept           = raw?.by_department_submitted ?? {};
 
-  // When rawPending is null it means no academic year exists yet (zero submissions),
-  // so the pending-faculty API was never called. Treat every teaching user as not-submitted
-  // so they don't incorrectly appear in the "submitted / in-review" section.
   const TEACHING_ROLES_SET = new Set(['faculty', 'hod', 'director', 'dean', 'center_head']);
   const pendingArr = rawPending === null
     ? allUsers.filter(u => TEACHING_ROLES_SET.has(u.role))
@@ -324,9 +406,8 @@ export default function AppraisalCyclePage() {
   const tCounts = stageCounts(stats.pipeline, STAGE_KEY);
   tCounts['not_submitted'] = stats.pending;
 
-  // ── Non-teaching pipeline totals ──────────────────────────────────────────────
+  // ── Non-teaching pipeline totals ─────────────────────────────────────────────
   const ntCounts = stageCounts(stats.nonTeachingPipeline, NT_STAGE_KEY);
-  const ntTotal  = Object.values(stats.nonTeachingPipeline).reduce((s, n) => s + n, 0);
   const ntUsers  = allUsers.filter(u => ['non_teaching_staff', 'reporting_officer', 'registrar'].includes(u.role));
   const ntPending = ntUsers.filter(u => pendingEmails.has(u.email));
   ntCounts['not_submitted'] = ntPending.length;
@@ -341,8 +422,10 @@ export default function AppraisalCyclePage() {
   const selNotSubmitted = selFaculty.filter(f =>  pendingEmails.has(f.email));
   const selSubmitted    = selFaculty.filter(f => !pendingEmails.has(f.email));
 
-  const selPipeline  = bySchoolPipeline[selectedSchool] ?? {};
-  const selStgCounts = stageCounts(selPipeline, STAGE_KEY);
+  const selPipeline    = bySchoolPipeline[selectedSchool] ?? {};
+  const selSchoolKey   = getSchoolStageKey(selectedSchool);
+  const selSchoolStages = getSchoolStages(selectedSchool);
+  const selStgCounts   = stageCounts(selPipeline, selSchoolKey);
   selStgCounts['not_submitted'] = selNotSubmitted.length;
 
   const selReg = bySchoolReg[selectedSchool] ?? selFaculty.length;
@@ -352,36 +435,81 @@ export default function AppraisalCyclePage() {
                : selPct >= 60 ? `linear-gradient(90deg,${C.accent},#2563eb)`
                :                `linear-gradient(90deg,${C.yellow},#d97706)`;
 
-  // Transparency roles available for selected school
-  const transRoles = selectedSchool === 'SoEMR'
-    ? [
-        { k: 'faculty',  label: 'Faculty'   },
-        { k: 'hod',      label: 'HOD'       },
-        { k: 'director', label: 'Director'  },
-        { k: 'dean',     label: 'Dean'      },
-      ]
-    : [
-        { k: 'faculty',  label: 'Faculty'   },
-        { k: 'director', label: 'Director'  },
-        { k: 'dean',     label: 'Dean'      },
-      ];
-  const ROLE_COLORS = { faculty: C.accent, hod: '#a78bfa', director: C.yellow, dean: C.green };
+  // ── Per-faculty stage groups for selected school ──────────────────────────────
+  const hasFacultyStatus = selFaculty.some(f => subStatusMap[f.email]);
+  const isSoEMR = selectedSchool === 'SoEMR';
+  const stageGroups = {
+    not_submitted: selNotSubmitted,
+    // HOD stage only exists for SoEMR
+    hod: isSoEMR && hasFacultyStatus
+      ? selSubmitted.filter(f => ['Pending Review', 'Submitted'].includes(subStatusMap[f.email]))
+      : [],
+    // For SoEMR: 'Pending Director Review'; for others: 'Submitted'/'Pending Review'/'Pending Director Review'
+    director: hasFacultyStatus
+      ? selSubmitted.filter(f => isSoEMR
+          ? subStatusMap[f.email] === 'Pending Director Review'
+          : ['Pending Review', 'Submitted', 'Pending Director Review'].includes(subStatusMap[f.email]))
+      : [],
+    dean: hasFacultyStatus ? selSubmitted.filter(f => subStatusMap[f.email] === 'Pending Dean Review') : [],
+    vc:   hasFacultyStatus ? selSubmitted.filter(f => subStatusMap[f.email] === 'Pending VC Review')   : [],
+    done: hasFacultyStatus ? selSubmitted.filter(f => subStatusMap[f.email] === 'Reviewed')            : [],
+  };
 
-  const transNodes = getTransparency(selectedSchool, transRole);
+  // ── NT per-user stage groups ──────────────────────────────────────────────────
+  const ntSubs = ntUsers.filter(u => !pendingEmails.has(u.email));
+  const hasFacultyStatusNT = ntSubs.some(u => subStatusMap[u.email]);
+  const ntStageGroups = {
+    not_submitted: ntPending,
+    ro:        hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'Draft') : [],
+    registrar: hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'Reporting Officer Reviewed') : [],
+    vc:        hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'Registrar Reviewed') : [],
+    done:      hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'VC Approved') : [],
+  };
+
+  // ── Transparency roles ────────────────────────────────────────────────────────
+  const transRoles = selectedSchool === 'SoEMR'
+    ? [{ k: 'faculty', label: 'Faculty' }, { k: 'hod', label: 'HOD' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }]
+    : [{ k: 'faculty', label: 'Faculty' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }];
+
+  const ROLE_COLORS = { faculty: C.accent, hod: '#a78bfa', director: C.yellow, dean: C.green };
+  const transNodes  = getTransparency(selectedSchool, transRole);
   const transRoute  = routeLabel(selectedSchool, transRole);
 
-  // ── Filter faculty by active pipeline stage ───────────────────────────────────
-  // "not_submitted" → show selNotSubmitted by name
-  // any other stage → we have school-level counts, not per-faculty stage
-  // So show submitted faculty grouped with "In Review" when no stage filter,
-  // or show count info when a specific stage is active.
-  const showNotSubmitted = !activeStage || activeStage === 'not_submitted';
-  const showSubmitted    = !activeStage || activeStage !== 'not_submitted';
-
-  // ── VC / Dean queue per Eng group ─────────────────────────────────────────────
-  const schoolStgCount = (sc, stgKey) => {
-    const counts = stageCounts(bySchoolPipeline[sc] ?? {}, STAGE_KEY);
-    return counts[stgKey] ?? 0;
+  // ── Queue sidebar helper ──────────────────────────────────────────────────────
+  const schoolQueueRow = (sc, col) => {
+    const sPipeline = bySchoolPipeline[sc] ?? {};
+    const sCounts   = stageCounts(sPipeline, getSchoolStageKey(sc));
+    const notSubCnt = (usersBySchool[sc] ?? []).filter(u => u.role === 'faculty' && pendingEmails.has(u.email)).length;
+    const badges = [
+      { k: 'not_submitted', n: notSubCnt,                  c: C.red     },
+      // HOD queue only meaningful for SoEMR
+      ...(sc === 'SoEMR' ? [{ k: 'hod', n: sCounts['hod'] ?? 0, c: '#a78bfa' }] : []),
+      { k: 'director',      n: sCounts['director'] ?? 0,   c: C.yellow  },
+      { k: 'dean',          n: sCounts['dean']     ?? 0,   c: C.green   },
+      { k: 'vc',            n: sCounts['vc']       ?? 0,   c: '#f472b6' },
+    ].filter(x => x.n > 0);
+    const isActive = selectedSchool === sc;
+    return (
+      <div key={sc} onClick={() => setSelectedSchool(sc)} style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '6px 8px', borderRadius: 7, marginBottom: 3, cursor: 'pointer',
+        background: isActive ? `${col}0a` : 'rgba(255,255,255,.02)',
+        border: `1px solid ${isActive ? `${col}30` : 'rgba(255,255,255,.05)'}`,
+        transition: 'all .12s',
+      }}>
+        <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500,
+          color: isActive ? col : C.subtle, fontFamily: "'JetBrains Mono',monospace" }}>{sc}</span>
+        <div style={{ display: 'flex', gap: 3 }}>
+          {badges.map(x => (
+            <span key={x.k} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 8,
+              background: `${x.c}15`, color: x.c, fontFamily: "'JetBrains Mono',monospace" }}>{x.n}</span>
+          ))}
+          {badges.length === 0 && (
+            <span style={{ fontSize: 9, color: C.muted, fontStyle: 'italic' }}>clear</span>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -416,65 +544,67 @@ export default function AppraisalCyclePage() {
           {/* ══════════ TEACHING ══════════ */}
           {track === 'teaching' && (
             <>
-              {/* Overall stats chips */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
+              {/* Overall stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
                 {[
-                  { l: 'Total Faculty', v: stats.total,     c: C.subtle  },
-                  { l: 'Submitted',     v: stats.submitted, c: C.green   },
-                  { l: 'Not Submitted', v: stats.pending,   c: C.red     },
-                  { l: 'Fully Approved', v: tCounts['done'] ?? 0, c: C.accent },
+                  { l: 'Total Faculty',  v: stats.total,           c: C.subtle },
+                  { l: 'Submitted',      v: stats.submitted,        c: C.green  },
+                  { l: 'Not Submitted',  v: stats.pending,          c: C.red    },
+                  { l: 'Fully Approved', v: tCounts['done'] ?? 0,   c: C.accent },
                 ].map((s, i) => (
-                  <div key={s.l} className="glass card-appear"
-                    style={{ padding: '14px 18px', animationDelay: `${i * 45}ms` }}>
+                  <div key={s.l} className="glass card-appear" style={{ padding: '14px 18px', animationDelay: `${i * 45}ms` }}>
                     <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: .7, marginBottom: 6 }}>{s.l}</div>
                     <div style={{ fontSize: 26, fontWeight: 800, color: s.c, fontFamily: "'JetBrains Mono',monospace" }}>{s.v}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Pipeline strip */}
-              <PipelineStrip stages={T_STAGES} counts={tCounts} active={activeStage} onSelect={setActiveStage} />
-
-              {/* Main grid */}
+              {/* Main 2-column grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 268px', gap: 14, alignItems: 'start' }}>
 
-                {/* ── Left: School detail ── */}
+                {/* ── Left: School detail + pipeline ── */}
                 <div>
-                  {/* School selector pills */}
-                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+
+                  {/* School selector pills with submission % */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                     {ALL_SCHOOL_CODES.map(code => {
                       const isEngg   = ENGG_SCHOOL_CODES.includes(code);
-                      const isCisr   = !TEACHING_SCHOOL_CODES.includes(code);
-                      const tagCol   = isCisr ? C.yellow : isEngg ? C.accent : C.green;
+                      const isNonEng = NON_ENGG_SCHOOL_CODES.includes(code);
+                      const tagCol   = !isEngg && !isNonEng ? C.yellow : isEngg ? C.accent : C.green;
+                      const reg      = bySchoolReg[code] ?? 0;
+                      const sub      = Object.values(bySchoolPipeline[code] ?? {}).reduce((s, n) => s + n, 0);
+                      const pct      = reg ? Math.round(sub / reg * 100) : 0;
                       const isActive = selectedSchool === code;
-                      // Count for current active stage filter
-                      const stageCnt = activeStage ? (stageCounts(bySchoolPipeline[code] ?? {}, STAGE_KEY)[activeStage] ?? 0) : null;
                       return (
                         <button key={code} onClick={() => setSelectedSchool(code)} className="act-btn" style={{
-                          padding: '5px 11px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                          fontFamily: "'JetBrains Mono',monospace",
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', borderRadius: 10, cursor: 'pointer',
                           border: `1px solid ${isActive ? tagCol : 'rgba(255,255,255,.08)'}`,
                           background: isActive ? `${tagCol}12` : 'rgba(255,255,255,.02)',
-                          color: isActive ? tagCol : C.muted,
                         }}>
-                          {code}
-                          {stageCnt !== null && stageCnt > 0 && (
-                            <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 800, color: isActive ? tagCol : C.muted }}>
-                              {stageCnt}
-                            </span>
+                          <span style={{ fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace",
+                            color: isActive ? tagCol : C.muted }}>{code}</span>
+                          {reg > 0 && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700,
+                              color: pct >= 80 ? C.green : pct >= 50 ? C.accent : C.yellow,
+                              background: pct >= 80 ? 'rgba(52,211,153,.12)' : pct >= 50 ? 'rgba(59,130,246,.12)' : 'rgba(251,191,36,.12)',
+                              padding: '1px 6px', borderRadius: 8,
+                            }}>{pct}%</span>
                           )}
                         </button>
                       );
                     })}
                   </div>
 
-                  {/* School card */}
+                  {/* Selected school card */}
                   <div className="glass" style={{ padding: '20px 22px' }}>
-                    {/* Header */}
+
+                    {/* School header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
                       marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,.06)' }}>
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: C.accent,
+                        <div style={{ fontSize: 16, fontWeight: 800, color: C.accent,
                           fontFamily: "'JetBrains Mono',monospace", marginBottom: 3 }}>{selectedSchool}</div>
                         <div style={{ fontSize: 12, color: C.subtle }}>{selMeta.full}</div>
                         <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
@@ -483,39 +613,48 @@ export default function AppraisalCyclePage() {
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: .5, marginBottom: 2 }}>Submission Rate</div>
-                        <div style={{ fontSize: 24, fontWeight: 800,
+                        <div style={{ fontSize: 28, fontWeight: 800,
                           color: selPct >= 80 ? C.green : selPct >= 60 ? C.accent : C.yellow,
-                          fontFamily: "'JetBrains Mono',monospace" }}>{selPct}%</div>
-                        <div style={{ fontSize: 11, color: C.muted }}>{selSub} / {selReg}</div>
+                          fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>{selPct}%</div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{selSub} / {selReg} submitted</div>
                       </div>
                     </div>
 
                     <ProgressBar value={selPct} color={barCol} />
 
-                    {/* Pipeline status for this school */}
-                    <div style={{ marginTop: 16, marginBottom: 18 }}>
-                      <SectionLabel>Application Status — {selectedSchool}</SectionLabel>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {T_STAGES.map(s => {
-                          const n = selStgCounts[s.key] ?? 0;
-                          if (n === 0 && s.key === 'not_submitted') return null;
-                          return (
-                            <div key={s.key} style={{
-                              display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 20,
-                              background: n > 0 ? `${s.color}12` : 'rgba(255,255,255,.03)',
-                              border: `1px solid ${activeStage === s.key ? s.color : n > 0 ? `${s.color}2a` : 'rgba(255,255,255,.06)'}`,
-                            }}>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: n > 0 ? s.color : 'rgba(255,255,255,.2)' }}>
-                                {s.label}
-                              </span>
-                              <span style={{ fontSize: 13, fontWeight: 800,
-                                color: n > 0 ? s.color : 'rgba(255,255,255,.15)',
-                                fontFamily: "'JetBrains Mono',monospace" }}>{n}</span>
+                    {/* Director(s) */}
+                    {selDirs.length > 0 && (
+                      <div style={{ marginTop: 16, marginBottom: 16 }}>
+                        <SectionLabel>Director{selDirs.length > 1 ? 's' : ''} — {selectedSchool}</SectionLabel>
+                        {selDirs.map((dir, j) => (
+                          <div key={dir.email} style={{
+                            display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0',
+                            borderBottom: j < selDirs.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none',
+                          }}>
+                            <Av name={dir.name} color={C.yellow} size={28} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{dir.name}</div>
+                              {dir.designation !== '—' && (
+                                <div style={{ fontSize: 10, color: C.muted }}>{dir.designation}</div>
+                              )}
                             </div>
-                          );
-                        })}
+                            <div style={{ textAlign: 'right', marginRight: 6 }}>
+                              <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: .4 }}>Dir. Queue</div>
+                              <div style={{ fontSize: 16, fontWeight: 800,
+                                color: (selStgCounts['director'] ?? 0) > 0 ? C.yellow : C.muted,
+                                fontFamily: "'JetBrains Mono',monospace" }}>
+                                {selStgCounts['director'] ?? 0}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12,
+                              background: pendingEmails.has(dir.email) ? 'rgba(248,113,113,.12)' : 'rgba(52,211,153,.1)',
+                              color: pendingEmails.has(dir.email) ? C.red : C.green }}>
+                              {pendingEmails.has(dir.email) ? 'Not Submitted' : 'Submitted'}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    )}
 
                     {/* SoEMR: Department breakdown */}
                     {selectedSchool === 'SoEMR' && (
@@ -547,7 +686,7 @@ export default function AppraisalCyclePage() {
                                 ) : (
                                   <div style={{ fontSize: 10, color: C.muted, fontStyle: 'italic', marginBottom: 6 }}>No HOD</div>
                                 )}
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                                   {deptSub.length > 0 && (
                                     <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
                                       background: 'rgba(52,211,153,.1)', color: C.green }}>{deptSub.length} submitted</span>
@@ -572,276 +711,67 @@ export default function AppraisalCyclePage() {
                       </div>
                     )}
 
-                    {/* Director(s) */}
-                    {selDirs.length > 0 && (
-                      <div style={{ marginBottom: 18 }}>
-                        <SectionLabel>Director{selDirs.length > 1 ? 's' : ''}</SectionLabel>
-                        {selDirs.map((dir, j) => (
-                          <div key={dir.email} style={{
-                            display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0',
-                            borderBottom: j < selDirs.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none',
-                          }}>
-                            <Av name={dir.name} color={C.yellow} size={28} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{dir.name}</div>
-                              {dir.designation !== '—' && (
-                                <div style={{ fontSize: 10, color: C.muted }}>{dir.designation}</div>
-                              )}
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: .4 }}>Dir. Queue</div>
-                              <div style={{ fontSize: 16, fontWeight: 800,
-                                color: (selStgCounts['director'] ?? 0) > 0 ? C.yellow : C.muted,
-                                fontFamily: "'JetBrains Mono',monospace" }}>
-                                {selStgCounts['director'] ?? 0}
-                              </div>
-                            </div>
-                            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12, marginLeft: 4,
-                              background: pendingEmails.has(dir.email) ? 'rgba(248,113,113,.12)' : 'rgba(52,211,153,.1)',
-                              color: pendingEmails.has(dir.email) ? C.red : C.green }}>
-                              {pendingEmails.has(dir.email) ? 'Not Submitted' : 'Submitted'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* ── Appraisal Pipeline Timeline ── */}
+                    <div style={{ marginTop: 18 }}>
+                      <SectionLabel>Appraisal Pipeline — {selectedSchool}</SectionLabel>
 
-                    {/* Faculty list */}
-                    <SectionLabel>
-                      Faculty — {selectedSchool}
-                      {activeStage ? ` · Filtered: ${T_STAGES.find(s => s.key === activeStage)?.label ?? activeStage}` : ''}
-                    </SectionLabel>
-
-                    {selFaculty.length === 0 ? (
-                      <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
-                        No faculty registered for {selectedSchool}
-                      </div>
-                    ) : (
-                      <>
-                        {/* Not submitted */}
-                        {showNotSubmitted && (
-                          <FacList
-                            title="Not Submitted — Form not yet filled"
-                            color={C.red}
-                            people={selNotSubmitted}
-                            dept={selectedSchool === 'SoEMR'}
-                            badge="Not Submitted"
-                            badgeColor={C.red}
+                      {selFaculty.length === 0 ? (
+                        <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
+                          No faculty registered for {selectedSchool}
+                        </div>
+                      ) : (
+                        <>
+                          <PipelineTimeline
+                            stages={selSchoolStages}
+                            stgCounts={selStgCounts}
+                            stageGroups={stageGroups}
+                            hasFacultyStatus={hasFacultyStatus}
+                            isDept={isSoEMR}
+                            stageDesc={T_STAGE_DESC}
                           />
-                        )}
 
-                        {/* HOD Queue */}
-                        {(activeStage === 'hod' || !activeStage) && (selStgCounts['hod'] ?? 0) > 0 && (
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa' }} />
-                              <span style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: .5 }}>
-                                HOD Queue ({selStgCounts['hod']}) — Pending HOD review
-                              </span>
+                          {/* Note when per-faculty names not yet available */}
+                          {!hasFacultyStatus && selSubmitted.length > 0 && (
+                            <div style={{
+                              marginTop: 12, padding: '10px 13px', borderRadius: 8, fontSize: 11, lineHeight: 1.6,
+                              color: C.muted, background: 'rgba(255,255,255,.025)',
+                              border: '1px solid rgba(255,255,255,.06)',
+                            }}>
+                              Individual faculty names per stage will appear once the backend exposes{' '}
+                              <code style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: C.subtle }}>
+                                GET /api/v1/admin/submissions
+                              </code>
                             </div>
-                            <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 11, color: '#a78bfa',
-                              background: 'rgba(167,139,250,.06)', border: '1px solid rgba(167,139,250,.15)' }}>
-                              {selStgCounts['hod']} form{(selStgCounts['hod'] ?? 0) !== 1 ? 's are' : ' is'} awaiting HOD review.
-                              {selectedSchool === 'SoEMR' && ' Each form routes to the HOD of the faculty\'s department.'}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Director Queue */}
-                        {(activeStage === 'director' || !activeStage) && (selStgCounts['director'] ?? 0) > 0 && (
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.yellow }} />
-                              <span style={{ fontSize: 10, fontWeight: 700, color: C.yellow, textTransform: 'uppercase', letterSpacing: .5 }}>
-                                Director Queue ({selStgCounts['director']}) — Pending Director review
-                              </span>
-                            </div>
-                            <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 11, color: C.yellow,
-                              background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.15)' }}>
-                              {selStgCounts['director']} form{(selStgCounts['director'] ?? 0) !== 1 ? 's are' : ' is'} with the Director of {selectedSchool} for review.
-                              {selMeta.track === 'engineering' && ' Director sees faculty self-score only (HOD score hidden).'}
-                              {selMeta.track === 'non_engineering' && ' Director sees faculty self-score.'}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Dean Queue */}
-                        {(activeStage === 'dean' || !activeStage) && (selStgCounts['dean'] ?? 0) > 0 && (
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green }} />
-                              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, textTransform: 'uppercase', letterSpacing: .5 }}>
-                                Dean Queue ({selStgCounts['dean']}) — Pending Dean review
-                              </span>
-                            </div>
-                            <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 11, color: C.green,
-                              background: 'rgba(52,211,153,.06)', border: '1px solid rgba(52,211,153,.15)' }}>
-                              {selStgCounts['dean']} form{(selStgCounts['dean'] ?? 0) !== 1 ? 's are' : ' is'} with the {selMeta.dean} for review.
-                              {selMeta.track === 'engineering' && ' Dean sees faculty self-score only (Director score hidden).'}
-                              {selMeta.track === 'non_engineering' && ' Dean sees faculty + Director scores.'}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* VC Queue */}
-                        {(activeStage === 'vc' || !activeStage) && (selStgCounts['vc'] ?? 0) > 0 && (
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f472b6' }} />
-                              <span style={{ fontSize: 10, fontWeight: 700, color: '#f472b6', textTransform: 'uppercase', letterSpacing: .5 }}>
-                                VC Queue ({selStgCounts['vc']}) — Pending VC review
-                              </span>
-                            </div>
-                            <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 11, color: '#f472b6',
-                              background: 'rgba(244,114,182,.06)', border: '1px solid rgba(244,114,182,.15)' }}>
-                              {selStgCounts['vc']} form{(selStgCounts['vc'] ?? 0) !== 1 ? 's are' : ' is'} with the VC.
-                              VC sees all scores.
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Approved */}
-                        {(activeStage === 'done' || !activeStage) && (selStgCounts['done'] ?? 0) > 0 && (
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent }} />
-                              <span style={{ fontSize: 10, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: .5 }}>
-                                Approved ({selStgCounts['done']}) — Appraisal complete
-                              </span>
-                            </div>
-                            <FacList
-                              title="Submitted & Approved"
-                              color={C.accent}
-                              people={selSubmitted}
-                              dept={selectedSchool === 'SoEMR'}
-                              badge="Approved ✓"
-                              badgeColor={C.green}
-                            />
-                          </div>
-                        )}
-
-                        {/* Submitted (in pipeline — no specific stage filter) */}
-                        {!activeStage && selSubmitted.length > 0 && (selStgCounts['done'] ?? 0) === 0 && (
-                          <FacList
-                            title="Submitted — In Review Pipeline"
-                            color={C.accent}
-                            people={selSubmitted}
-                            dept={selectedSchool === 'SoEMR'}
-                            badge="In Review"
-                            badgeColor={C.yellow}
-                          />
-                        )}
-                      </>
-                    )}
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* ── Right: Transparency reference ── */}
+                {/* ── Right sidebar ── */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-                  {/* Quick school-level queues for Eng/Non-Eng */}
+                  {/* Queue Overview */}
                   <Card title="Queue Overview" sub="Across all schools" delay={40}>
                     <div style={{ marginBottom: 12 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: C.accent, marginBottom: 6,
                         textTransform: 'uppercase', letterSpacing: .5 }}>Engineering</div>
-                      {ENGG_SCHOOL_CODES.map((sc, i) => {
-                        const sPipeline = bySchoolPipeline[sc] ?? {};
-                        const sCounts   = stageCounts(sPipeline, STAGE_KEY);
-                        const sTot = Object.values(sPipeline).reduce((s, n) => s + n, 0);
-                        const sReg = bySchoolReg[sc] ?? 0;
-                        return (
-                          <div key={sc} onClick={() => setSelectedSchool(sc)}
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              padding: '7px 8px', borderRadius: 7, marginBottom: 3, cursor: 'pointer',
-                              background: selectedSchool === sc ? 'rgba(59,130,246,.08)' : 'rgba(255,255,255,.02)',
-                              border: `1px solid ${selectedSchool === sc ? 'rgba(59,130,246,.25)' : 'rgba(255,255,255,.05)'}`,
-                              transition: 'all .12s' }}>
-                            <span style={{ fontSize: 11, fontWeight: selectedSchool === sc ? 700 : 500,
-                              color: selectedSchool === sc ? C.accent : C.subtle,
-                              fontFamily: "'JetBrains Mono',monospace" }}>{sc}</span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {[
-                                { k: 'not_submitted', n: (usersBySchool[sc] ?? []).filter(u => u.role === 'faculty' && pendingEmails.has(u.email)).length, c: C.red },
-                                { k: 'hod',      n: sCounts['hod']      ?? 0, c: '#a78bfa' },
-                                { k: 'director', n: sCounts['director'] ?? 0, c: C.yellow  },
-                                { k: 'dean',     n: sCounts['dean']     ?? 0, c: C.green   },
-                                { k: 'vc',       n: sCounts['vc']       ?? 0, c: '#f472b6' },
-                              ].filter(x => x.n > 0).map(x => (
-                                <span key={x.k} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px',
-                                  borderRadius: 8, background: `${x.c}15`, color: x.c,
-                                  fontFamily: "'JetBrains Mono',monospace" }}>{x.n}</span>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {ENGG_SCHOOL_CODES.map(sc => schoolQueueRow(sc, C.accent))}
                     </div>
                     <div style={{ marginBottom: 12 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: C.green, marginBottom: 6,
                         textTransform: 'uppercase', letterSpacing: .5 }}>Non-Engineering</div>
-                      {NON_ENGG_SCHOOL_CODES.map(sc => {
-                        const sPipeline = bySchoolPipeline[sc] ?? {};
-                        const sCounts   = stageCounts(sPipeline, STAGE_KEY);
-                        return (
-                          <div key={sc} onClick={() => setSelectedSchool(sc)}
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              padding: '7px 8px', borderRadius: 7, marginBottom: 3, cursor: 'pointer',
-                              background: selectedSchool === sc ? 'rgba(52,211,153,.08)' : 'rgba(255,255,255,.02)',
-                              border: `1px solid ${selectedSchool === sc ? 'rgba(52,211,153,.25)' : 'rgba(255,255,255,.05)'}`,
-                              transition: 'all .12s' }}>
-                            <span style={{ fontSize: 11, fontWeight: selectedSchool === sc ? 700 : 500,
-                              color: selectedSchool === sc ? C.green : C.subtle,
-                              fontFamily: "'JetBrains Mono',monospace" }}>{sc}</span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {[
-                                { k: 'not_submitted', n: (usersBySchool[sc] ?? []).filter(u => u.role === 'faculty' && pendingEmails.has(u.email)).length, c: C.red },
-                                { k: 'director', n: sCounts['director'] ?? 0, c: C.yellow  },
-                                { k: 'dean',     n: sCounts['dean']     ?? 0, c: C.green   },
-                                { k: 'vc',       n: sCounts['vc']       ?? 0, c: '#f472b6' },
-                              ].filter(x => x.n > 0).map(x => (
-                                <span key={x.k} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px',
-                                  borderRadius: 8, background: `${x.c}15`, color: x.c,
-                                  fontFamily: "'JetBrains Mono',monospace" }}>{x.n}</span>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {NON_ENGG_SCHOOL_CODES.map(sc => schoolQueueRow(sc, C.green))}
                     </div>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 700, color: C.yellow, marginBottom: 6,
                         textTransform: 'uppercase', letterSpacing: .5 }}>CISR</div>
-                      {(() => {
-                        const sc = 'CISR';
-                        const sPipeline = bySchoolPipeline[sc] ?? {};
-                        const sCounts   = stageCounts(sPipeline, STAGE_KEY);
-                        return (
-                          <div key={sc} onClick={() => setSelectedSchool(sc)}
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              padding: '7px 8px', borderRadius: 7, marginBottom: 3, cursor: 'pointer',
-                              background: selectedSchool === sc ? 'rgba(251,191,36,.08)' : 'rgba(255,255,255,.02)',
-                              border: `1px solid ${selectedSchool === sc ? 'rgba(251,191,36,.25)' : 'rgba(255,255,255,.05)'}`,
-                              transition: 'all .12s' }}>
-                            <span style={{ fontSize: 11, fontWeight: selectedSchool === sc ? 700 : 500,
-                              color: selectedSchool === sc ? C.yellow : C.subtle,
-                              fontFamily: "'JetBrains Mono',monospace" }}>{sc}</span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {[
-                                { k: 'not_submitted', n: (usersBySchool[sc] ?? []).filter(u => u.role === 'faculty' && pendingEmails.has(u.email)).length, c: C.red },
-                                { k: 'vc', n: sCounts['vc'] ?? 0, c: '#f472b6' },
-                              ].filter(x => x.n > 0).map(x => (
-                                <span key={x.k} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px',
-                                  borderRadius: 8, background: `${x.c}15`, color: x.c,
-                                  fontFamily: "'JetBrains Mono',monospace" }}>{x.n}</span>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
+                      {schoolQueueRow('CISR', C.yellow)}
                     </div>
                   </Card>
 
-                  {/* Transparency reference */}
+                  {/* Transparency Rules */}
                   <Card title="Transparency Rules" sub={`Score visibility · ${selectedSchool}`} delay={80}>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
                       {transRoles.map(r => {
@@ -857,12 +787,7 @@ export default function AppraisalCyclePage() {
                         );
                       })}
                     </div>
-                    <TransPanel
-                      nodes={transNodes}
-                      role={transRole}
-                      school={selectedSchool}
-                      route={transRoute}
-                    />
+                    <TransPanel nodes={transNodes} role={transRole} school={selectedSchool} route={transRoute} />
                   </Card>
                 </div>
               </div>
@@ -873,94 +798,64 @@ export default function AppraisalCyclePage() {
           {track === 'non_teaching' && (
             <>
               {/* Stats chips */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
                 {[
-                  { l: 'Total Staff',   v: ntUsers.length,           c: C.subtle  },
-                  { l: 'Submitted',     v: ntUsers.length - ntPending.length, c: C.green },
-                  { l: 'Not Submitted', v: ntPending.length,         c: C.red     },
-                  { l: 'Approved',      v: ntCounts['done'] ?? 0,    c: C.accent  },
+                  { l: 'Total Staff',    v: ntUsers.length,                      c: C.subtle },
+                  { l: 'Submitted',      v: ntUsers.length - ntPending.length,   c: C.green  },
+                  { l: 'Not Submitted',  v: ntPending.length,                    c: C.red    },
+                  { l: 'Approved',       v: ntCounts['done'] ?? 0,               c: C.accent },
                 ].map((s, i) => (
-                  <div key={s.l} className="glass card-appear"
-                    style={{ padding: '14px 18px', animationDelay: `${i * 45}ms` }}>
+                  <div key={s.l} className="glass card-appear" style={{ padding: '14px 18px', animationDelay: `${i * 45}ms` }}>
                     <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: .7, marginBottom: 6 }}>{s.l}</div>
                     <div style={{ fontSize: 26, fontWeight: 800, color: s.c, fontFamily: "'JetBrains Mono',monospace" }}>{s.v}</div>
                   </div>
                 ))}
               </div>
 
-              {/* NT pipeline strip */}
-              <PipelineStrip stages={NT_STAGES} counts={ntCounts} active={activeStage} onSelect={setActiveStage} />
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 268px', gap: 14, alignItems: 'start' }}>
 
-                {/* NT pipeline stage cards */}
+                {/* NT Pipeline card */}
                 <div className="glass" style={{ padding: '20px 22px' }}>
-                  <SectionLabel>Non-Teaching Pipeline</SectionLabel>
+                  <SectionLabel>Non-Teaching Appraisal Pipeline</SectionLabel>
 
-                  {/* Stage breakdown */}
-                  {NT_STAGES.filter(s => s.key !== 'not_submitted').map(s => {
-                    const n = ntCounts[s.key] ?? 0;
-                    return (
-                      <div key={s.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '12px 16px', borderRadius: 10, marginBottom: 8,
-                        background: n > 0 ? `${s.color}0a` : 'rgba(255,255,255,.02)',
-                        border: `1px solid ${activeStage === s.key ? s.color : n > 0 ? `${s.color}22` : 'rgba(255,255,255,.05)'}` }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: n > 0 ? s.color : 'rgba(255,255,255,.12)',
-                            boxShadow: n > 0 ? `0 0 6px ${s.color}60` : 'none' }} />
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: n > 0 ? C.text : C.muted }}>{s.label}</div>
-                            <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>
-                              {s.key === 'ro'        && 'Submitted by staff, awaiting Reporting Officer review'}
-                              {s.key === 'registrar' && 'RO reviewed, awaiting Registrar review'}
-                              {s.key === 'vc'        && 'Registrar reviewed, awaiting VC sign-off'}
-                              {s.key === 'done'      && 'Fully approved by VC'}
-                            </div>
-                          </div>
+                  {ntUsers.length === 0 ? (
+                    <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
+                      No non-teaching staff registered
+                    </div>
+                  ) : (
+                    <>
+                      <PipelineTimeline
+                        stages={NT_STAGES}
+                        stgCounts={ntCounts}
+                        stageGroups={ntStageGroups}
+                        hasFacultyStatus={hasFacultyStatusNT}
+                        isDept={false}
+                        stageDesc={NT_STAGE_DESC}
+                      />
+
+                      {!hasFacultyStatusNT && ntSubs.length > 0 && (
+                        <div style={{
+                          marginTop: 12, padding: '10px 13px', borderRadius: 8, fontSize: 11, lineHeight: 1.6,
+                          color: C.muted, background: 'rgba(255,255,255,.025)',
+                          border: '1px solid rgba(255,255,255,.06)',
+                        }}>
+                          Individual staff names per stage will appear once the backend exposes{' '}
+                          <code style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: C.subtle }}>
+                            GET /api/v1/admin/submissions
+                          </code>
                         </div>
-                        <span style={{ fontSize: 26, fontWeight: 800,
-                          color: n > 0 ? s.color : 'rgba(255,255,255,.1)',
-                          fontFamily: "'JetBrains Mono',monospace" }}>{n}</span>
-                      </div>
-                    );
-                  })}
-
-                  {/* Not submitted NT staff */}
-                  {ntPending.length > 0 && (
-                    <div style={{ marginTop: 18 }}>
-                      <SectionLabel>Not Yet Submitted — {ntPending.length} staff</SectionLabel>
-                      <FacList
-                        title="Not Submitted"
-                        color={C.red}
-                        people={ntPending}
-                        badge="Pending"
-                        badgeColor={C.red}
-                      />
-                    </div>
-                  )}
-
-                  {/* Submitted NT staff */}
-                  {ntUsers.filter(u => !pendingEmails.has(u.email)).length > 0 && (
-                    <div style={{ marginTop: 18 }}>
-                      <SectionLabel>Submitted Staff</SectionLabel>
-                      <FacList
-                        title="Submitted — In Review"
-                        color={C.accent}
-                        people={ntUsers.filter(u => !pendingEmails.has(u.email))}
-                        badge="Submitted"
-                        badgeColor={C.accent}
-                      />
-                    </div>
+                      )}
+                    </>
                   )}
                 </div>
 
-                {/* NT Transparency reference */}
+                {/* NT Transparency card */}
                 <Card title="Transparency Rules" sub="Score visibility · Non-Teaching" delay={60}>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
                     {[
-                      { k: 'non_teaching_staff', label: 'Staff'   },
+                      { k: 'non_teaching_staff', label: 'Staff'        },
                       { k: 'reporting_officer',  label: 'Rep. Officer' },
-                      { k: 'registrar',          label: 'Registrar' },
+                      { k: 'registrar',          label: 'Registrar'    },
                     ].map(r => {
                       const col = { non_teaching_staff: C.accent, reporting_officer: '#a78bfa', registrar: C.yellow }[r.k] ?? C.muted;
                       const isAct = ntTransRole === r.k;
