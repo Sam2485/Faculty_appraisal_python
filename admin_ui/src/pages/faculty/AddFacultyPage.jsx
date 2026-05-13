@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
@@ -350,19 +351,677 @@ function ReportingToggle({ checked, onChange }) {
   );
 }
 
+// ── CSV import helpers ─────────────────────────────────────────────────────────
+
+const TEMPLATE_HEADERS = [
+  'full_name', 'email', 'password', 'appraisal_role',
+  'school', 'department', 'designation', 'phone', 'qualification', 'teaching_experience',
+];
+
+const REQUIRED_FIELDS = ['email', 'password', 'full_name', 'school', 'department', 'appraisal_role'];
+
+const VALID_ROLES = [
+  'faculty','hod','director','dean','vc','registrar',
+  'non_teaching_staff','reporting_officer','center_head','section_head','staff',
+];
+
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    // handle quoted fields
+    const cols = [];
+    let cur = '', inQ = false;
+    for (const ch of line + ',') {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    const row = {};
+    headers.forEach((h, i) => { row[h] = cols[i] ?? ''; });
+    return row;
+  });
+}
+
+function downloadTemplate() {
+  const sample = [
+    'Dr. Priya Sharma,priya.sharma@dypatil.edu,Pass@123,faculty,SoCSEA,Computer Science,Assistant Professor,9876543201,Ph.D Computer Science,8 Years',
+    'Mr. Ravi Shinde,ravi.shinde@dypatil.edu,Pass@123,non_teaching_staff,Admin,Administration,Lab Assistant,9876543202,B.Sc,7 Years',
+  ];
+  const csv = [TEMPLATE_HEADERS.join(','), ...sample].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'faculty_import_template.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Import Modal ──────────────────────────────────────────────────────────────
+
+const IMPORT_STEPS = ['Upload', 'Preview', 'Importing', 'Done'];
+const PHASE_INDEX  = { upload: 0, preview: 1, importing: 2, done: 3 };
+
+function ImportModal({ onClose }) {
+  const [phase,    setPhase]    = useState('upload');
+  const [rows,     setRows]     = useState([]);
+  const [fileName, setFileName] = useState('');
+  const [parseErr, setParseErr] = useState(null);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [results,  setResults]  = useState([]);
+  const [dragging, setDragging] = useState(false);
+
+  const handleFile = (file) => {
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) { setParseErr('Only .csv files are supported.'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = parseCSV(e.target.result);
+        if (!parsed.length) { setParseErr('No data rows found — check the file has at least one row below the header.'); return; }
+        setRows(parsed);
+        setFileName(file.name);
+        setParseErr(null);
+        setPhase('preview');
+      } catch {
+        setParseErr('Could not parse the file. Make sure it is a valid CSV.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault(); setDragging(false);
+    handleFile(e.dataTransfer.files[0]);
+  };
+
+  const rowIsValid  = r => REQUIRED_FIELDS.every(f => r[f]?.trim());
+  const validRows   = rows.filter(rowIsValid);
+  const skippedRows = rows.filter(r => !rowIsValid(r));
+
+  const handleImport = async () => {
+    setPhase('importing');
+    setProgress({ done: 0, total: validRows.length });
+    const res = [];
+    for (const row of validRows) {
+      const payload = {
+        full_name:           row.full_name,
+        email:               row.email,
+        password:            row.password,
+        appraisal_role:      row.appraisal_role,
+        school:              row.school,
+        department:          row.department,
+        designation:         row.designation         || undefined,
+        phone:               row.phone               || undefined,
+        qualification:       row.qualification       || undefined,
+        teaching_experience: row.teaching_experience || undefined,
+      };
+      try {
+        await api.users.create(payload);
+        res.push({ email: row.email, name: row.full_name, ok: true });
+      } catch (e) {
+        res.push({ email: row.email, name: row.full_name, ok: false, err: e.message });
+      }
+      setProgress(p => ({ ...p, done: p.done + 1 }));
+    }
+    setResults(res);
+    setPhase('done');
+  };
+
+  const successCount = results.filter(r => r.ok).length;
+  const failCount    = results.filter(r => !r.ok).length;
+  const pct          = progress.total ? Math.round(progress.done / progress.total * 100) : 0;
+
+  /* ── Shared styles ── */
+  const cancelBtn = {
+    padding: '9px 18px', background: 'transparent', color: C.muted,
+    border: '1px solid var(--c-btn-border)', borderRadius: 8,
+    cursor: 'pointer', fontSize: 13, fontWeight: 600,
+  };
+
+  return createPortal(
+    <>
+      {/* Backdrop */}
+      <div onClick={phase === 'importing' ? undefined : onClose} style={{
+        position: 'fixed', inset: 0, zIndex: 900,
+        background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(6px)',
+      }} />
+
+      {/* Centering wrapper — owns transform:translate so animation can't override it */}
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%', zIndex: 901,
+        transform: 'translate(-50%, -50%)',
+        width: 680, maxWidth: 'calc(100vw - 32px)',
+      }}>
+
+      {/* Modal shell — owns animation (scaleIn uses transform:scale, separate element) */}
+      <div style={{
+        maxHeight: 'calc(100vh - 48px)',
+        background: 'var(--c-surf)', borderRadius: 16,
+        border: '1px solid var(--c-border)',
+        boxShadow: '0 32px 80px rgba(0,0,0,.6)',
+        display: 'flex', flexDirection: 'column',
+        animation: 'scaleIn .22s cubic-bezier(.22,1,.36,1) both',
+      }}>
+
+        {/* ── Header ── */}
+        <div style={{
+          padding: '20px 24px 0', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: `${C.accent}18`, border: `1px solid ${C.accent}30`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <I.dl size={18} style={{ color: C.accent }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>
+                  Import Faculty List
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+                  Bulk-create accounts from a CSV file
+                </div>
+              </div>
+            </div>
+            {phase !== 'importing' && (
+              <button className="act-btn" onClick={onClose} style={{
+                width: 32, height: 32, borderRadius: 8, border: '1px solid var(--c-border)',
+                background: 'var(--c-soft-bg)', cursor: 'pointer', color: C.muted,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 17, lineHeight: 1, flexShrink: 0,
+              }}>×</button>
+            )}
+          </div>
+
+          {/* Step indicator */}
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            borderBottom: '1px solid var(--c-divider)', paddingBottom: 0,
+          }}>
+            {IMPORT_STEPS.map((label, i) => {
+              const cur  = PHASE_INDEX[phase];
+              const done = i < cur;
+              const active = i === cur;
+              return (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < IMPORT_STEPS.length - 1 ? 1 : 'none' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 7, paddingBottom: 12,
+                    borderBottom: `2px solid ${active ? C.accent : done ? C.green : 'transparent'}`,
+                    marginBottom: -1,
+                  }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, fontWeight: 800,
+                      background: done ? C.green : active ? C.accent : 'var(--c-soft-bg)',
+                      color: (done || active) ? '#fff' : C.muted,
+                      border: `1.5px solid ${done ? C.green : active ? C.accent : 'var(--c-border)'}`,
+                    }}>
+                      {done ? '✓' : i + 1}
+                    </div>
+                    <span style={{
+                      fontSize: 11, fontWeight: active ? 700 : 500,
+                      color: active ? C.text : done ? C.green : C.muted,
+                      whiteSpace: 'nowrap',
+                    }}>{label}</span>
+                  </div>
+                  {i < IMPORT_STEPS.length - 1 && (
+                    <div style={{
+                      flex: 1, height: 1, margin: '0 10px', marginBottom: 12,
+                      background: done ? `${C.green}40` : 'var(--c-divider)',
+                    }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Body ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '22px 24px' }}>
+
+          {/* ══ UPLOAD ══ */}
+          {phase === 'upload' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Drop zone */}
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                style={{
+                  border: `2px dashed ${dragging ? C.accent : parseErr ? C.red : 'var(--c-border)'}`,
+                  borderRadius: 12, padding: '32px 20px', textAlign: 'center',
+                  background: dragging ? `${C.accent}08` : parseErr ? 'rgba(248,113,113,.04)' : 'var(--c-soft-bg)',
+                  transition: 'all .18s',
+                }}>
+                {/* Upload icon */}
+                <div style={{
+                  width: 52, height: 52, borderRadius: '50%', margin: '0 auto 14px',
+                  background: `${C.accent}12`, border: `1px solid ${C.accent}25`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <I.dl size={22} style={{ color: C.accent }} />
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 5 }}>
+                  {dragging ? 'Release to upload' : 'Drop your CSV file here'}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>
+                  Supports .csv format only
+                </div>
+                <label style={{ cursor: 'pointer', display: 'inline-block' }}>
+                  <input type="file" accept=".csv" style={{ display: 'none' }}
+                    onChange={e => handleFile(e.target.files[0])} />
+                  <span className="act-btn" style={{ ...pBtn, display: 'inline-flex', cursor: 'pointer' }}>
+                    Browse File
+                  </span>
+                </label>
+                {parseErr && (
+                  <div style={{ marginTop: 14, fontSize: 12, color: C.red, fontWeight: 500 }}>
+                    ⚠ {parseErr}
+                  </div>
+                )}
+              </div>
+
+              {/* CSV spec */}
+              <div style={{ borderRadius: 12, border: '1px solid var(--c-border)', overflow: 'hidden' }}>
+                {/* Section: Required */}
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--c-divider)' }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: .8, textTransform: 'uppercase',
+                    color: C.accent, marginBottom: 10,
+                  }}>
+                    Required columns
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                    {REQUIRED_FIELDS.map(h => (
+                      <div key={h} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{
+                          width: 5, height: 5, borderRadius: '50%',
+                          background: C.accent, flexShrink: 0,
+                        }} />
+                        <code style={{
+                          fontSize: 11.5, fontFamily: "'JetBrains Mono',monospace",
+                          color: C.text, fontWeight: 600,
+                        }}>{h}</code>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Section: Optional */}
+                <div style={{ padding: '12px 16px', background: 'var(--c-soft-bg)' }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: .8, textTransform: 'uppercase',
+                    color: C.muted, marginBottom: 8,
+                  }}>
+                    Optional columns
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 10px' }}>
+                    {TEMPLATE_HEADERS.filter(h => !REQUIRED_FIELDS.includes(h)).map(h => (
+                      <code key={h} style={{
+                        fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: C.muted,
+                      }}>{h}</code>
+                    ))}
+                  </div>
+                </div>
+                {/* Section: Roles */}
+                <div style={{ padding: '12px 16px', borderTop: '1px solid var(--c-divider)' }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: .8, textTransform: 'uppercase',
+                    color: C.muted, marginBottom: 7,
+                  }}>
+                    Valid appraisal_role values
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {VALID_ROLES.map(r => (
+                      <span key={r} style={{
+                        padding: '2px 8px', borderRadius: 20, fontSize: 10,
+                        fontFamily: "'JetBrains Mono',monospace",
+                        background: 'var(--c-card)', border: '1px solid var(--c-border)',
+                        color: C.subtle,
+                      }}>{r}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Template download */}
+              <button className="act-btn" onClick={downloadTemplate} style={{
+                padding: '11px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                border: '1px solid var(--c-btn-border)', background: 'var(--c-soft-bg)', color: C.subtle,
+              }}>
+                <I.dl size={13} />
+                Download CSV Template with sample rows
+              </button>
+            </div>
+          )}
+
+          {/* ══ PREVIEW ══ */}
+          {phase === 'preview' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Stats bar */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {[
+                  { label: 'Total Rows',   val: rows.length,         col: C.accent, bg: `${C.accent}0d` },
+                  { label: 'Will Import',  val: validRows.length,    col: C.green,  bg: `${C.green}0d`  },
+                  { label: 'Will Skip',    val: skippedRows.length,  col: skippedRows.length ? C.red : C.muted,
+                    bg: skippedRows.length ? 'rgba(248,113,113,.07)' : 'var(--c-soft-bg)' },
+                ].map(s => (
+                  <div key={s.label} style={{
+                    padding: '12px 14px', borderRadius: 10, textAlign: 'center',
+                    background: s.bg,
+                    border: `1px solid ${s.col}22`,
+                  }}>
+                    <div style={{
+                      fontSize: 22, fontWeight: 800, color: s.col,
+                      fontFamily: "'JetBrains Mono',monospace", lineHeight: 1,
+                    }}>{s.val}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 4, fontWeight: 600,
+                      letterSpacing: .4, textTransform: 'uppercase' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* File info pill */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px',
+                borderRadius: 8, background: 'var(--c-soft-bg)', border: '1px solid var(--c-border)',
+              }}>
+                <div style={{ fontSize: 14 }}>📄</div>
+                <span style={{
+                  fontSize: 12, color: C.subtle, flex: 1,
+                  fontFamily: "'JetBrains Mono',monospace", overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{fileName}</span>
+                <button className="act-btn" onClick={() => { setRows([]); setPhase('upload'); }} style={{
+                  fontSize: 11, color: C.accent, background: 'transparent', border: 'none',
+                  cursor: 'pointer', fontWeight: 600, flexShrink: 0, padding: '2px 0',
+                }}>
+                  Change file
+                </button>
+              </div>
+
+              {/* Preview table */}
+              <div style={{ borderRadius: 10, border: '1px solid var(--c-border)', overflow: 'hidden' }}>
+                <div style={{
+                  overflowX: 'auto', maxHeight: 260, overflowY: 'auto',
+                }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                      <tr style={{ background: 'var(--c-soft-bg)' }}>
+                        {['#', 'Full Name', 'Email', 'Role', 'School', 'Department', 'Status'].map(h => (
+                          <th key={h} style={{
+                            padding: '9px 10px', textAlign: 'left', fontWeight: 700,
+                            color: C.muted, borderBottom: '1px solid var(--c-border)',
+                            whiteSpace: 'nowrap', fontSize: 10, letterSpacing: .4,
+                            textTransform: 'uppercase',
+                          }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r, i) => {
+                        const isOk = rowIsValid(r);
+                        const miss = f => !r[f]?.trim();
+                        return (
+                          <tr key={i} className="tr-row" style={{
+                            borderBottom: '1px solid var(--c-row-border)',
+                            background: isOk ? 'transparent' : 'rgba(248,113,113,.035)',
+                          }}>
+                            <td style={{ padding: '8px 10px', color: C.muted, fontSize: 10 }}>{i + 1}</td>
+                            <td style={{ padding: '8px 10px', fontWeight: 600,
+                              color: miss('full_name') ? C.red : C.text, maxWidth: 120,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.full_name || <span style={{ fontWeight: 400 }}>missing</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', color: miss('email') ? C.red : C.accent,
+                              fontFamily: "'JetBrains Mono',monospace", fontSize: 10,
+                              maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.email || 'missing'}
+                            </td>
+                            <td style={{ padding: '8px 10px' }}>
+                              <span style={{
+                                padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600,
+                                background: r.appraisal_role ? `${C.accent}12` : 'rgba(248,113,113,.12)',
+                                color: r.appraisal_role ? C.accent : C.red,
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {r.appraisal_role || 'missing'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 10px', fontSize: 10,
+                              fontFamily: "'JetBrains Mono',monospace",
+                              color: miss('school') ? C.red : C.subtle }}>
+                              {r.school || 'missing'}
+                            </td>
+                            <td style={{ padding: '8px 10px', fontSize: 10,
+                              color: miss('department') ? C.red : C.muted }}>
+                              {r.department || 'missing'}
+                            </td>
+                            <td style={{ padding: '8px 10px' }}>
+                              {isOk
+                                ? <span style={{ fontSize: 10, color: C.green, fontWeight: 600 }}>✓ ready</span>
+                                : <span style={{ fontSize: 10, color: C.red,  fontWeight: 600 }}>⚠ skip</span>
+                              }
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {skippedRows.length > 0 && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8, fontSize: 11, lineHeight: 1.6,
+                  color: '#fb923c', background: 'rgba(251,146,60,.08)',
+                  border: '1px solid rgba(251,146,60,.2)',
+                }}>
+                  <strong>{skippedRows.length} row{skippedRows.length > 1 ? 's' : ''}</strong> will be skipped because they are missing one or more required fields.
+                  Fix the CSV and re-upload, or proceed to import only the {validRows.length} valid rows.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══ IMPORTING ══ */}
+          {phase === 'importing' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 0 16px' }}>
+              {/* Animated ring */}
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%', marginBottom: 22,
+                background: `conic-gradient(${C.accent} ${pct * 3.6}deg, var(--c-track) 0deg)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                position: 'relative',
+              }}>
+                <div style={{
+                  width: 60, height: 60, borderRadius: '50%',
+                  background: 'var(--c-surf)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 800, color: C.accent,
+                  fontFamily: "'JetBrains Mono',monospace",
+                }}>
+                  {pct}%
+                </div>
+              </div>
+
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>
+                Importing accounts…
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 24 }}>
+                {progress.done} of {progress.total} records processed
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ width: '100%', maxWidth: 360, height: 6, borderRadius: 6,
+                background: 'var(--c-track)', overflow: 'hidden' }}>
+                <div className="progress-fill" style={{
+                  height: '100%', borderRadius: 6,
+                  background: `linear-gradient(90deg, ${C.accent}, #818cf8)`,
+                  width: `${pct}%`,
+                }} />
+              </div>
+
+              <div style={{ marginTop: 20, fontSize: 11, color: C.muted }}>
+                Please wait — do not close this window
+              </div>
+            </div>
+          )}
+
+          {/* ══ DONE ══ */}
+          {phase === 'done' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Banner */}
+              <div style={{
+                padding: '18px 20px', borderRadius: 12, textAlign: 'center',
+                background: failCount === 0 ? `${C.green}0d` : 'rgba(251,146,60,.07)',
+                border: `1px solid ${failCount === 0 ? `${C.green}25` : 'rgba(251,146,60,.2)'}`,
+              }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>
+                  {failCount === 0 ? '🎉' : '⚠️'}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+                  {failCount === 0
+                    ? `All ${successCount} accounts created successfully`
+                    : `${successCount} created, ${failCount} failed`}
+                </div>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  {failCount === 0
+                    ? 'Faculty members can now log in with the credentials from the CSV.'
+                    : 'Failed rows are listed below. Fix the errors and re-import those rows.'}
+                </div>
+              </div>
+
+              {/* Summary pills */}
+              <div style={{ display: 'grid', gridTemplateColumns: failCount > 0 ? '1fr 1fr' : '1fr', gap: 10 }}>
+                <div style={{ padding: '14px 16px', borderRadius: 10, textAlign: 'center',
+                  background: `${C.green}0d`, border: `1px solid ${C.green}22` }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: C.green,
+                    fontFamily: "'JetBrains Mono',monospace" }}>{successCount}</div>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4, fontWeight: 600,
+                    letterSpacing: .5, textTransform: 'uppercase' }}>Accounts Created</div>
+                </div>
+                {failCount > 0 && (
+                  <div style={{ padding: '14px 16px', borderRadius: 10, textAlign: 'center',
+                    background: 'rgba(248,113,113,.07)', border: '1px solid rgba(248,113,113,.2)' }}>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: C.red,
+                      fontFamily: "'JetBrains Mono',monospace" }}>{failCount}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 4, fontWeight: 600,
+                      letterSpacing: .5, textTransform: 'uppercase' }}>Failed</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Per-row results */}
+              <div style={{ borderRadius: 10, border: '1px solid var(--c-border)', overflow: 'hidden' }}>
+                <div style={{
+                  padding: '9px 14px', borderBottom: '1px solid var(--c-divider)',
+                  background: 'var(--c-soft-bg)', fontSize: 10, fontWeight: 700,
+                  color: C.muted, letterSpacing: .5, textTransform: 'uppercase',
+                }}>
+                  Import Log
+                </div>
+                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {results.map((r, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px',
+                      borderBottom: i < results.length - 1 ? '1px solid var(--c-row-border)' : 'none',
+                      background: r.ok ? 'transparent' : 'rgba(248,113,113,.04)',
+                    }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10,
+                        background: r.ok ? `${C.green}15` : 'rgba(248,113,113,.15)',
+                        color: r.ok ? C.green : C.red,
+                        fontWeight: 800,
+                      }}>
+                        {r.ok ? '✓' : '✕'}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.text,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.name || r.email}
+                        </div>
+                        <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace",
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.email}
+                        </div>
+                      </div>
+                      {!r.ok && (
+                        <div style={{ fontSize: 10, color: C.red, maxWidth: 180, textAlign: 'right',
+                          lineHeight: 1.4, flexShrink: 0 }}>{r.err}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        <div style={{
+          padding: '14px 24px', borderTop: '1px solid var(--c-divider)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexShrink: 0, background: 'var(--c-soft-bg)', borderRadius: '0 0 16px 16px',
+        }}>
+          {/* Left hint */}
+          <div style={{ fontSize: 11, color: C.muted }}>
+            {phase === 'upload'   && 'Upload a .csv file to continue'}
+            {phase === 'preview'  && `${validRows.length} of ${rows.length} rows will be imported`}
+            {phase === 'importing'&& `Processing… ${progress.done} / ${progress.total}`}
+            {phase === 'done'     && `Import complete · ${new Date().toLocaleTimeString()}`}
+          </div>
+
+          {/* Right actions */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {phase === 'upload' && (
+              <button className="act-btn" onClick={onClose} style={cancelBtn}>Cancel</button>
+            )}
+            {phase === 'preview' && (
+              <>
+                <button className="act-btn" onClick={onClose} style={cancelBtn}>Cancel</button>
+                <button className="act-btn" style={pBtn}
+                  onClick={handleImport} disabled={validRows.length === 0}>
+                  Import {validRows.length} Record{validRows.length !== 1 ? 's' : ''} →
+                </button>
+              </>
+            )}
+            {phase === 'done' && (
+              <button className="act-btn" style={pBtn} onClick={onClose}>
+                Done
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AddFacultyPage() {
   const navigate = useNavigate();
 
-  const [step,      setStep]      = useState(0);
-  const [staffType, setStaffType] = useState('');   // 'teaching' | 'non_teaching'
-  const [track,     setTrack]     = useState('');   // 'engineering' | 'non_engineering' | 'cisr'
-  const [form,      setForm]      = useState(EMPTY);
-  const [saving,    setSaving]    = useState(false);
-  const [err,       setErr]       = useState(null);
-  const [success,   setSuccess]   = useState(null);
-  const [receipt,   setReceipt]   = useState(null);
+  const [step,        setStep]        = useState(0);
+  const [staffType,   setStaffType]   = useState('');   // 'teaching' | 'non_teaching'
+  const [track,       setTrack]       = useState('');   // 'engineering' | 'non_engineering' | 'cisr'
+  const [form,        setForm]        = useState(EMPTY);
+  const [saving,      setSaving]      = useState(false);
+  const [err,         setErr]         = useState(null);
+  const [success,     setSuccess]     = useState(null);
+  const [receipt,     setReceipt]     = useState(null);
+  const [importModal, setImportModal] = useState(false);
 
   const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -846,7 +1505,10 @@ export default function AddFacultyPage() {
   ].filter(Boolean) : [];
 
   return (
-    <div className="page-enter">
+    <div className="page-enter" style={{ overflow: 'hidden' }}>
+
+      {/* ── Import modal ──────────────────────────────────────────── */}
+      {importModal && <ImportModal onClose={() => setImportModal(false)} />}
 
       {/* ── Receipt modal ─────────────────────────────────────────── */}
       {receipt && (
@@ -911,6 +1573,15 @@ export default function AddFacultyPage() {
       <PageHead
         title="Add User"
         sub="The appraisal routing is determined automatically from the role assigned here"
+        action={
+          <button
+            className="act-btn"
+            style={oBtn}
+            onClick={() => setImportModal(true)}
+          >
+            <I.dl size={13} style={{ marginRight: 5 }} /> Import Faculty List
+          </button>
+        }
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
