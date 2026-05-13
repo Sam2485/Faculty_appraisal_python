@@ -52,9 +52,9 @@ main.py                  # Gunicorn entrypoint (proxies src/main.py)
 Implemented in `src/setup/dependencies.py` via `has_authority_over()`. Use `CurrentUser` dependency on all protected routes.
 
 ## Form Types
-- **Standard**: SoCSEA, SoBB, SoCE, SoEMR, SoC, CISR
+- **Standard**: SoCSEA, SoBB, SoCE, SoEMR, SoCM, CISR
 - **Media**: SoMCS
-- **Design**: CioD, SoAA
+- **Design**: SoD, SoAA
 - **SoEMR special case**: Uses the standard form, but the HOD score is visible alongside Director/Dean/VC scores in the review dashboard. All other standard schools do not show a HOD score column.
 - Mapped in `get_form_family()` in `src/setup/dependencies.py`
 

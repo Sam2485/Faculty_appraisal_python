@@ -15,7 +15,7 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 # A dean's `school` field must be set to "engineering" or "non_engineering" on registration.
 # CISR is outside both divisions; only VC/Admin can review CISR faculty.
 ENGINEERING_SCHOOLS = frozenset({"SoCSEA", "SoBB", "SoCE", "SoEMR"})
-NON_ENGINEERING_SCHOOLS = frozenset({"SoC", "SoMCS", "CioD", "SoAA"})
+NON_ENGINEERING_SCHOOLS = frozenset({"SoCM", "SoMCS", "SoD", "SoAA"})
 
 class User:
     def __init__(self, id: str, email: str, roles: List[str], department: Optional[str] = None, school: Optional[str] = None):
@@ -89,10 +89,10 @@ def get_form_family(school: str) -> str:
         
     s = school.strip()
     school_map = {
-        "SoCSEA": "standard", "SoBB": "standard", "SoCE": "standard", 
-        "SoEMR": "standard", "SoC": "standard", "CISR": "standard",
+        "SoCSEA": "standard", "SoBB": "standard", "SoCE": "standard",
+        "SoEMR": "standard", "SoCM": "standard", "CISR": "standard",
         "SoMCS": "media",
-        "CioD": "design", "SoAA": "design"
+        "SoD": "design", "SoAA": "design"
     }
     return school_map.get(s, "standard")
 
