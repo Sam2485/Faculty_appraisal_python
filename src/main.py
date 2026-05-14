@@ -41,6 +41,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000",
+    "https://facultyappraisal-495011.web.app",
     "https://faculty-appraisal-frontend-376777978967.asia-south1.run.app",
 ]
 
