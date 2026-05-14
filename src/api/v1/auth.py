@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,7 +10,9 @@ from src.models.core import FacultyProfile, PasswordResetToken
 from src.schema.core import FacultyProfileCreate, FacultyProfileUpdate
 from src.crud.core import get_faculty_by_email
 from src.setup.email_utils import send_verification_email, send_reset_email
+from src.setup.rate_limit import check_rate_limit
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 import hashlib
 import secrets
 import os
@@ -45,6 +47,7 @@ def _profile_dict(user: FacultyProfile) -> dict:
 
 @router.post("/login", response_model=LoginResponse)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    await check_rate_limit(f"login:{data.email.lower()}", max_requests=5, window_seconds=60)
     user = await get_faculty_by_email(db, data.email)
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -86,7 +89,10 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
     await db.commit()
     await db.refresh(new_user)
 
-    verify_token = create_access_token({"sub": str(new_user.id), "email": new_user.email})
+    verify_token = create_access_token(
+        {"sub": str(new_user.id), "email": new_user.email, "purpose": "email_verification"},
+        expires_delta=timedelta(hours=24),
+    )
     try:
         await send_verification_email(new_user.email, verify_token)
     except Exception as e:
@@ -162,7 +168,8 @@ async def change_password(data: ChangePasswordRequest, current_user: CurrentUser
     return {"message": "Password changed successfully"}
 
 @router.post("/forgot-password")
-async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
+async def forgot_password(request: Request, data: dict, db: AsyncSession = Depends(get_db)):
+    await check_rate_limit(f"forgot:{request.client.host}", max_requests=1, window_seconds=60)
     email = data.get("email", "").strip().lower()
     # Always return 200 — no email enumeration
     if not email:
@@ -178,6 +185,10 @@ async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
         await db.commit()
 
         redirect_url = data.get("redirect_url", "").strip().rstrip("/")
+        if redirect_url:
+            allowed_host = urlparse(os.getenv("FRONTEND_URL", "http://localhost:5173")).netloc
+            if urlparse(redirect_url).netloc != allowed_host:
+                redirect_url = ""
         if not redirect_url:
             redirect_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/reset-password"
         reset_url = f"{redirect_url}?token={raw_token}"

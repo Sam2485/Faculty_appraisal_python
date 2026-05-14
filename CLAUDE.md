@@ -3,11 +3,11 @@
 ## Project Overview
 Async FastAPI backend for a multi-school faculty appraisal system at DYP University. Supports 8 schools, 5-level role hierarchy, two appraisal form types (teaching + non-teaching), and dual cloud/on-premise deployment.
 
-- **Frontend**: React/Vite on Netlify (`https://dypfacultyappraisal.netlify.app`)
+- **Frontend**: React/Vite on Firebase Hosting (`https://facultyappraisal-495011.web.app`)
 - **Backend**: FastAPI on GCP Cloud Run (`asia-south1`, project `facultyappraisal-495011`, service `faculty-appraisal-git`)
-- **Database**: GCP Cloud SQL PostgreSQL (`faculty-appraisal-db`). Originally Supabase but migrated due to auth limits. `supabase_client.py` is dead code pending removal.
+- **Database**: GCP Cloud SQL PostgreSQL (`faculty-appraisal-db`). Originally Supabase but migrated due to auth limits.
 - **Storage**: Google Cloud Storage (`GCP_STORAGE_BUCKET`) with local `./uploads` fallback
-- **Auth**: Local JWT + bcrypt (`USE_LOCAL_AUTH=true` in prod). Supabase Auth path exists in code but is not used.
+- **Auth**: Local JWT + bcrypt. Supabase auth code has been fully removed.
 
 ---
 
@@ -155,7 +155,7 @@ async def my_route(current_user: CurrentUser):
 ## CORS Allowed Origins
 Configured in `src/main.py`. Currently hardcoded — add new frontend URLs to the `origins` list there.
 
-Current allowed: `localhost:5173/3000/8000`, `https://dypfacultyappraisal.netlify.app`, one preview Netlify URL.
+Current allowed: `localhost:5173/3000/8000/5174`, `https://facultyappraisal-495011.web.app`, old Cloud Run frontend URL (can be removed once traffic is fully on Firebase).
 
 ---
 
@@ -191,7 +191,8 @@ Use the long form when the change touches multiple files or needs context that w
 ## Known Issues / Gotchas
 - `--timeout 0` in Gunicorn CMD disables worker timeout — intentional for long async operations but watch for hung requests
 - `statement_cache_size: 0` in database engine was originally required for Supabase/PgBouncer. Cloud SQL does not use PgBouncer so this is no longer strictly needed, but it is harmless to keep.
-- Docker image runs as root (no non-root user configured) — acceptable for Cloud Run but worth fixing before on-premise deployment
-- `pool_size=5, max_overflow=10` — up to 15 DB connections per container instance. Cloud SQL default max connections is ~100; keep this in mind when scaling Cloud Run instances.
-- On-premise deployment is the long-term target. GCP is temporary for client testing. Remove `supabase_client.py` and all Supabase env var references before packaging for on-premise.
+- Docker image runs as root (no non-root user configured) — acceptable for Cloud Run but **must be fixed before local server deployment** (add a non-root user in Dockerfile)
+- `pool_size=5, max_overflow=10` — up to 15 DB connections per container instance. Cloud SQL default max connections is ~100; keep this in mind when scaling Cloud Run instances. For local server, tune this based on available RAM.
+- `supabase_client.py` is dead code — safe to delete. All Supabase auth code has been removed from `dependencies.py` and `pyproject.toml`.
+- Local server deployment: replace Cloud SQL Unix socket `DATABASE_URL` with a standard TCP connection string (`postgresql+asyncpg://user:pass@host:5432/db`). Remove all GCP-specific env vars (`GCP_STORAGE_BUCKET`, Cloud SQL instance strings). Set `USE_LOCAL_STORAGE=true`.
 - Schema migrations are manual SQL files in `migrations/`. There is no Alembic. Run them in order against the DB when deploying.

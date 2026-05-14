@@ -59,9 +59,11 @@ app.add_middleware(
 )
 
 # SessionMiddleware is required by sqladmin for its /admin web UI login flow.
+_is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("JWT_SECRET_KEY", "fallback-secret-change-in-production"),
+    https_only=_is_production,
 )
 
 def _cors_headers(request: Request) -> dict:
@@ -200,7 +202,10 @@ if _ADMIN_DIST.exists():
     async def serve_admin_panel(path: str = ""):
         # Serve real files (assets, favicon, etc.) directly;
         # everything else returns index.html so React Router handles the path.
-        candidate = _ADMIN_DIST / path
+        # Resolve to prevent path traversal (e.g. /panel/../../etc/passwd).
+        candidate = (_ADMIN_DIST / path).resolve()
+        if not str(candidate).startswith(str(_ADMIN_DIST.resolve())):
+            raise HTTPException(status_code=404)
         if candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(_ADMIN_DIST / "index.html")

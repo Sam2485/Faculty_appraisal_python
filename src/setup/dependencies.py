@@ -3,13 +3,9 @@ from fastapi import Depends, HTTPException, status, Header
 from .database import get_db
 from typing import List, Optional, Annotated
 import os
-from supabase import create_async_client, AsyncClient
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 # Dean division membership — used by has_authority_over and dashboard filtering.
 # A dean's `school` field must be set to "engineering" or "non_engineering" on registration.
@@ -50,7 +46,7 @@ class User:
             "super_admin": 6,
         }
 
-        if "admin" in self.roles or "super_admin" in self.roles:
+        if any(r in self.roles for r in ("admin", "super_admin", "hr")):
             return True
 
         user_weight = max([role_weights.get(r, 0) for r in self.roles])
@@ -98,60 +94,43 @@ def get_form_family(school: str) -> str:
 
 async def get_current_user(authorization: Annotated[Optional[str], Header()] = None) -> User:
     """
-    Verifies the JWT from the frontend and returns user data + role.
+    Verifies the JWT from the Authorization header and returns the resolved User.
     """
     if not authorization:
         if os.getenv("ALLOW_MOCK_USER", "false").lower() == "true":
             return User(
-                id="00000000-0000-0000-0000-000000000001", 
+                id="00000000-0000-0000-0000-000000000001",
                 email="admin@example.com",
-                roles=["admin", "faculty"], 
+                roles=["admin", "faculty"],
                 department="Computer Science",
                 school="SoCSEA"
             )
-        else:
-            raise HTTPException(status_code=401, detail="Authorization header missing.")
-    
+        raise HTTPException(status_code=401, detail="Authorization header missing.")
+
     try:
-        token = authorization.split(" ")[1]
-        
-        if os.getenv("USE_LOCAL_AUTH", "false").lower() == "true":
-            from .local_auth import decode_access_token
-            payload = decode_access_token(token)
-            
-            role = payload.get("appraisal_role") or payload.get("role", "faculty")
-            dept = payload.get("department")
-            school = payload.get("school")
-            email = payload.get("email")
-            
-            roles = [role] if isinstance(role, str) else role
-            
-            return User(
-                id=payload.get("sub"), 
-                email=email,
-                roles=roles, 
-                department=dept, 
-                school=school
-            )
-        else:
-            async with create_async_client(SUPABASE_URL, SUPABASE_ANON_KEY) as supabase:
-                user_response = await supabase.auth.get_user(token)
-                user = user_response.user
-                
-                role = user.app_metadata.get("appraisal_role") or user.app_metadata.get("role") or \
-                       user.user_metadata.get("appraisal_role") or user.user_metadata.get("role") or "faculty"
-                dept = user.user_metadata.get("department")
-                school = user.user_metadata.get("school")
-                
-                roles = [role] if isinstance(role, str) else role
-                
-                return User(
-                    id=user.id, 
-                    email=user.email,
-                    roles=roles, 
-                    department=dept, 
-                    school=school
-                )
+        parts = authorization.split(" ", 1)
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid authorization header format.")
+        token = parts[1]
+
+        from .local_auth import decode_access_token
+        payload = decode_access_token(token)
+
+        if payload.get("purpose"):
+            raise HTTPException(status_code=401, detail="This token is not valid for API access.")
+
+        role = payload.get("appraisal_role") or payload.get("role", "faculty")
+        roles = [role] if isinstance(role, str) else role
+
+        return User(
+            id=payload.get("sub"),
+            email=payload.get("email"),
+            roles=roles,
+            department=payload.get("department"),
+            school=payload.get("school"),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
