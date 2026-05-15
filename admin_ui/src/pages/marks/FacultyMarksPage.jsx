@@ -3,6 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { C } from '../../constants/colors';
 import { SCHOOLS } from '../../constants/schools';
 import { api } from '../../api/client';
+import { normalizeStats } from '../../api/normalizers';
+import { useFetch } from '../../hooks/useFetch';
 import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
 
@@ -26,6 +28,8 @@ function getAuthorities(school, appraisalRole) {
 
   if (role === 'non_teaching_staff' || role === 'staff')
     return [A.self, A.ro, A.reg, A.vc];
+  if (role === 'reporting_officer') return [A.self, A.reg, A.vc];
+  if (role === 'registrar')         return [A.self, A.vc];
 
   if (school === 'CISR')
     return role === 'center_head' ? [A.self, A.vc] : [A.self, A.ctr, A.vc];
@@ -365,23 +369,27 @@ export default function FacultyMarksPage() {
   const profile = api.getProfile();
   if (profile?.appraisal_role !== 'super_admin') return <Navigate to="/" replace />;
 
-  const [year,    setYear]    = useState('2024-25');
-  const [school,  setSchool]  = useState('');
-  const [search,  setSearch]  = useState('');
-  const [rows,    setRows]    = useState([]);
+  const [school, setSchool] = useState('');
+  const [search, setSearch] = useState('');
+  const [rows,   setRows]   = useState([]);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
+  // Always use the latest year from the DB — no manual selection
+  const { data: rawStats } = useFetch(() => api.stats.get(), []);
+  const effectiveYear = useMemo(() => normalizeStats(rawStats).availableYears[0] ?? null, [rawStats]);
+
   useEffect(() => {
+    if (!effectiveYear) return;
     setLoading(true);
     setError(null);
     // NT staff span multiple schools — fetch all and filter client-side
     const schoolParam = school === '__nt__' ? '' : school;
-    api.marks.list(year, schoolParam)
+    api.marks.list(effectiveYear, schoolParam)
       .then(data => setRows(Array.isArray(data) ? data : []))
       .catch(e  => setError(e.message))
       .finally(() => setLoading(false));
-  }, [year, school]);
+  }, [effectiveYear, school]);
 
   const filtered = useMemo(() => {
     let result = rows;
@@ -400,23 +408,11 @@ export default function FacultyMarksPage() {
     <div className="page-enter">
       <PageHead
         title="Faculty Marks"
-        sub="Teaching & non-teaching scores — pipeline adapts per school and role"
+        sub={`Teaching & non-teaching scores — ${effectiveYear ?? 'loading…'}`}
       />
 
       <Card delay={0} style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: .6,
-              textTransform: 'uppercase', color: C.muted, marginBottom: 6 }}>
-              Academic Year
-            </label>
-            <select className="ifield" value={year} onChange={e => setYear(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, fontSize: 13,
-                background: 'var(--c-soft-bg)', border: '1px solid var(--c-border)', color: C.text }}>
-              {['2024-25', '2023-24', '2022-23'].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-
           <div>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: .6,
               textTransform: 'uppercase', color: C.muted, marginBottom: 6 }}>

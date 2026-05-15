@@ -3,6 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { C } from '../../constants/colors';
 import { SCHOOLS } from '../../constants/schools';
 import { api } from '../../api/client';
+import { normalizeStats } from '../../api/normalizers';
+import { useFetch } from '../../hooks/useFetch';
 import Card from '../../components/Card';
 import PageHead from '../../components/PageHead';
 
@@ -241,20 +243,26 @@ export default function PendingReviewsPage() {
   const profile = api.getProfile();
   if (profile?.appraisal_role !== 'super_admin') return <Navigate to="/" replace />;
 
-  const [year,    setYear]    = useState('2024-25');
-  const [school,  setSchool]  = useState('');
-  const [rows,    setRows]    = useState([]);
+  const [year,   setYear]   = useState('');
+  const [school, setSchool] = useState('');
+  const [rows,   setRows]   = useState([]);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
+  // Fetch available years from the DB (same source as Overview)
+  const { data: rawStats } = useFetch(() => api.stats.get(), []);
+  const availableYears = useMemo(() => normalizeStats(rawStats).availableYears, [rawStats]);
+  const effectiveYear  = year || availableYears[0] || null;
+
   useEffect(() => {
+    if (!effectiveYear) return;
     setLoading(true);
     setError(null);
-    api.marks.list(year, school)
+    api.marks.list(effectiveYear, school)
       .then(data => setRows(Array.isArray(data) ? data : []))
       .catch(e  => setError(e.message))
       .finally(() => setLoading(false));
-  }, [year, school]);
+  }, [effectiveYear, school]);
 
   /* ── Build queue buckets ── */
   const queues = useMemo(() => {
@@ -286,10 +294,13 @@ export default function PendingReviewsPage() {
               textTransform: 'uppercase', color: C.muted, marginBottom: 6 }}>
               Academic Year
             </label>
-            <select className="ifield" value={year} onChange={e => setYear(e.target.value)}
+            <select className="ifield" value={effectiveYear || ''} onChange={e => setYear(e.target.value)}
               style={{ padding: '8px 12px', borderRadius: 8, fontSize: 13,
                 background: 'var(--c-soft-bg)', border: '1px solid var(--c-border)', color: C.text }}>
-              {['2024-25', '2023-24', '2022-23'].map(y => <option key={y} value={y}>{y}</option>)}
+              {availableYears.length === 0
+                ? <option value="">Loading…</option>
+                : availableYears.map(y => <option key={y} value={y}>{y}</option>)
+              }
             </select>
           </div>
 
