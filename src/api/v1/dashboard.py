@@ -36,7 +36,11 @@ async def get_subordinates(
     )
 
     # Authority-based filtering (security comes from current_user, not query params)
-    if "vc" in current_user.roles or "registrar" in current_user.roles:
+    if any(r in current_user.roles for r in ("super_admin", "admin")):
+        if schools:
+            school_list = [s.strip() for s in schools.split(",")]
+            query = query.where(FacultyProfile.school.in_(school_list))
+    elif "vc" in current_user.roles or "registrar" in current_user.roles:
         if schools:
             school_list = [s.strip() for s in schools.split(",")]
             query = query.where(FacultyProfile.school.in_(school_list))
