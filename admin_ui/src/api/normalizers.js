@@ -70,6 +70,7 @@ export function normalizeUsers(raw) {
       status:      u.is_verified === false ? 'Unverified' : 'Active',
       yr:          u.created_at ? new Date(u.created_at).getFullYear().toString() : '—',
       sub:         false,
+      reports_to_registrar: u.reports_to_registrar ?? false,
     }));
 }
 

@@ -428,14 +428,24 @@ export default function AppraisalCyclePage() {
     counts['not_submitted'] = pend.length;
     const subs      = users.filter(u => !pendingEmails.has(u.email));
     const hasStatus = subs.some(u => subStatusMap[u.email]);
+    // Staff with reports_to_registrar=true skip RO entirely — their 'Draft' status means
+    // they're waiting at Registrar, not RO.
+    const directToRegistrar = new Set(users.filter(u => u.reports_to_registrar).map(u => u.email));
     return {
       ntCounts: counts, ntUsers: users, ntPending: pend, hasFacultyStatusNT: hasStatus,
       ntStageGroups: {
         not_submitted: pend,
-        ro:        hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Draft') : [],
-        registrar: hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Reporting Officer Reviewed') : [],
-        vc:        hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Registrar Reviewed') : [],
-        done:      hasStatus ? subs.filter(u => subStatusMap[u.email] === 'VC Approved') : [],
+        ro: hasStatus
+          ? subs.filter(u => subStatusMap[u.email] === 'Draft' && !directToRegistrar.has(u.email))
+          : [],
+        registrar: hasStatus
+          ? subs.filter(u =>
+              subStatusMap[u.email] === 'Reporting Officer Reviewed' ||
+              (subStatusMap[u.email] === 'Draft' && directToRegistrar.has(u.email))
+            )
+          : [],
+        vc:   hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Registrar Reviewed') : [],
+        done: hasStatus ? subs.filter(u => subStatusMap[u.email] === 'VC Approved')        : [],
       },
     };
   }, [allUsers, pendingEmails, stats.nonTeachingPipeline, subStatusMap]);
