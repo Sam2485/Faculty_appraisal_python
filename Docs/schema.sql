@@ -681,6 +681,8 @@ create table public.non_teaching_appraisals (
     status in (
       'Draft',
       'Submitted',
+      'Pending RO Review',
+      'Pending Registrar Review',
       'Reporting Officer Reviewed',
       'Registrar Reviewed',
       'VC Approved'
