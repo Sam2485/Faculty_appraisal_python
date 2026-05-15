@@ -103,7 +103,7 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
     target = target_res.scalar_one_or_none()
     if not target:
         raise HTTPException(status_code=404, detail="Faculty not found")
-    
+
     if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school):
         raise HTTPException(status_code=403, detail="Not authorized to update remarks for this faculty")
 
@@ -111,6 +111,20 @@ async def handle_review(role: str, email: str, data: Dict[str, Any], current_use
     academic_year = data.get('academic_year')
     if not academic_year:
         raise HTTPException(status_code=422, detail="academic_year is required")
+
+    # Lock all non-VC reviewers once the VC has submitted their final review.
+    # Only the VC can re-edit after status = "Reviewed".
+    if role != "vc":
+        decl_check = await db.execute(select(Declaration).where(
+            Declaration.faculty_email == email,
+            Declaration.academic_year == academic_year
+        ))
+        existing_decl = decl_check.scalar_one_or_none()
+        if existing_decl and existing_decl.status == "Reviewed":
+            raise HTTPException(
+                status_code=403,
+                detail="This appraisal has been finalised by the VC and can no longer be modified."
+            )
 
     review_in = AppraisalReviewBase(
         faculty_email=email,
