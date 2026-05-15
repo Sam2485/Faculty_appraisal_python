@@ -1,29 +1,32 @@
+import { lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import MainLayout from './layout/MainLayout'
 import RequireAuth from './components/RequireAuth'
 import Login from './pages/Login'
 
-import OverviewPage        from './pages/dashboard/OverviewPage'
-import AppraisalCyclePage  from './pages/dashboard/AppraisalCyclePage'
+// ── Lazy-loaded pages — each splits into its own JS chunk ──────────────────────
+const OverviewPage          = lazy(() => import('./pages/dashboard/OverviewPage'))
+const AppraisalCyclePage    = lazy(() => import('./pages/dashboard/AppraisalCyclePage'))
 
-import FacultyListPage     from './pages/faculty/FacultyListPage'
-import AddFacultyPage      from './pages/faculty/AddFacultyPage'
+const FacultyListPage       = lazy(() => import('./pages/faculty/FacultyListPage'))
+const AddFacultyPage        = lazy(() => import('./pages/faculty/AddFacultyPage'))
 
-import SubmissionWindowPage   from './pages/appraisal/SubmissionWindowPage'
-import SubmissionStatusPage   from './pages/appraisal/SubmissionStatusPage'
+const SubmissionWindowPage  = lazy(() => import('./pages/appraisal/SubmissionWindowPage'))
+const SubmissionStatusPage  = lazy(() => import('./pages/appraisal/SubmissionStatusPage'))
 
-import SubmittedFacultyPage  from './pages/tracking/SubmittedFacultyPage'
-import PendingFacultyPage    from './pages/tracking/PendingFacultyPage'
-import SchoolStatisticsPage  from './pages/tracking/SchoolStatisticsPage'
+const SubmittedFacultyPage  = lazy(() => import('./pages/tracking/SubmittedFacultyPage'))
+const PendingFacultyPage    = lazy(() => import('./pages/tracking/PendingFacultyPage'))
+const SchoolStatisticsPage  = lazy(() => import('./pages/tracking/SchoolStatisticsPage'))
 
-import CredentialDetailsPage from './pages/credentials/CredentialDetailsPage'
+const CredentialDetailsPage = lazy(() => import('./pages/credentials/CredentialDetailsPage'))
 
-import AnalyticsPage     from './pages/analytics/AnalyticsPage'
-import FeedbackPage      from './pages/feedback/FeedbackPage'
-import AnnouncementsPage from './pages/announcements/AnnouncementsPage'
-import SettingsPage      from './pages/settings/SettingsPage'
-import SecurityPage      from './pages/settings/SecurityPage'
-import FacultyMarksPage  from './pages/marks/FacultyMarksPage'
+const FeedbackPage          = lazy(() => import('./pages/feedback/FeedbackPage'))
+const AnnouncementsPage     = lazy(() => import('./pages/announcements/AnnouncementsPage'))
+const SettingsPage          = lazy(() => import('./pages/settings/SettingsPage'))
+const SecurityPage          = lazy(() => import('./pages/settings/SecurityPage'))
+
+const FacultyMarksPage      = lazy(() => import('./pages/marks/FacultyMarksPage'))
+const PendingReviewsPage    = lazy(() => import('./pages/marks/PendingReviewsPage'))
 
 export default function App() {
   return (
@@ -31,44 +34,35 @@ export default function App() {
       <Route path="/login" element={<Login />} />
 
       <Route element={<RequireAuth />}>
+        {/* MainLayout contains the Suspense boundary for all lazy pages */}
         <Route path="/" element={<MainLayout />}>
-        {/* Dashboard */}
-        <Route index                  element={<OverviewPage />}        />
-        <Route path="cycle"           element={<AppraisalCyclePage />}  />
+          <Route index                      element={<OverviewPage />}         />
+          <Route path="cycle"               element={<AppraisalCyclePage />}   />
 
-        {/* Faculty */}
-        <Route path="faculty"     element={<FacultyListPage />} />
-        <Route path="faculty/add" element={<AddFacultyPage />} />
+          <Route path="faculty"             element={<FacultyListPage />}      />
+          <Route path="faculty/add"         element={<AddFacultyPage />}       />
 
-        {/* Appraisal */}
-        <Route path="appraisal/window"   element={<SubmissionWindowPage />} />
-        <Route path="appraisal/status"   element={<SubmissionStatusPage />} />
+          <Route path="appraisal/window"    element={<SubmissionWindowPage />} />
+          <Route path="appraisal/status"    element={<SubmissionStatusPage />} />
 
-        {/* Tracking */}
-        <Route path="tracking/submitted" element={<SubmittedFacultyPage />}  />
-        <Route path="tracking/pending"   element={<PendingFacultyPage />}    />
-        <Route path="tracking/schools"   element={<SchoolStatisticsPage />}  />
+          <Route path="tracking/submitted"  element={<SubmittedFacultyPage />} />
+          <Route path="tracking/pending"    element={<PendingFacultyPage />}   />
+          <Route path="tracking/schools"    element={<SchoolStatisticsPage />} />
 
-        {/* Credentials */}
-        <Route path="credentials/reset" element={<CredentialDetailsPage />} />
+          <Route path="credentials/reset"   element={<CredentialDetailsPage />} />
 
-        {/* Analytics merged into Overview */}
-        <Route path="analytics" element={<Navigate to="/" replace />} />
+          <Route path="analytics"           element={<Navigate to="/" replace />} />
 
-        {/* Feedback */}
-        <Route path="feedback" element={<FeedbackPage />} />
+          <Route path="feedback"            element={<FeedbackPage />}         />
+          <Route path="announcements"       element={<AnnouncementsPage />}    />
 
-        {/* Announcements */}
-        <Route path="announcements" element={<AnnouncementsPage />} />
+          <Route path="settings"            element={<SettingsPage />}         />
+          <Route path="settings/security"   element={<SecurityPage />}         />
 
-        {/* Settings */}
-        <Route path="settings"          element={<SettingsPage />} />
-        <Route path="settings/security" element={<SecurityPage />} />
+          <Route path="marks"               element={<FacultyMarksPage />}     />
+          <Route path="marks/pending"       element={<PendingReviewsPage />}   />
 
-        {/* Super Admin — Faculty Marks */}
-        <Route path="marks" element={<FacultyMarksPage />} />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*"                   element={<Navigate to="/" replace />} />
         </Route>
       </Route>
     </Routes>

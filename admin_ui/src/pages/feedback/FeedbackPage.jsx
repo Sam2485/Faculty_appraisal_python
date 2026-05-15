@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeFeedback } from '../../api/normalizers';
@@ -20,8 +20,8 @@ export default function FeedbackPage() {
   const [detailErr, setDetailErr] = useState(null);
 
   const { data: raw, loading, error } = useFetch(() => api.feedback.list(), []);
-  const items = normalizeFeedback(raw);
-  const open  = items.filter(b => b.status === 'Open');
+  const items = useMemo(() => normalizeFeedback(raw), [raw]);
+  const open  = useMemo(() => items.filter(b => b.status === 'Open'), [items]);
 
   const openDetail = async (id) => {
     setViewing(null); setDetailLoading(true); setDetailErr(null);

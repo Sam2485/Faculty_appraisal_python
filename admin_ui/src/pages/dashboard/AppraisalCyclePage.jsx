@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeStats, normalizeUsers } from '../../api/normalizers';
@@ -159,6 +159,16 @@ function getNTTransparency(role) {
   ];
   return [];
 }
+
+// ── Module-level constants (stable references, never recreated) ───────────────
+
+const TEACHING_ROLES_SET = new Set(['faculty', 'hod', 'director', 'dean', 'center_head']);
+const NT_ROLES_SET        = new Set(['non_teaching_staff', 'reporting_officer', 'registrar']);
+const TRACK_TABS = [
+  { k: 'teaching',     label: 'Teaching Staff'     },
+  { k: 'non_teaching', label: 'Non-Teaching Staff' },
+];
+const ROLE_COLORS = { faculty: C.accent, hod: '#a78bfa', director: C.yellow, dean: C.green };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -374,106 +384,119 @@ export default function AppraisalCyclePage() {
     { interval: AUTO_REFRESH_INTERVAL },
   );
 
-  const stats    = normalizeStats(raw);
-  const allUsers = normalizeUsers(rawUsers ?? []);
+  const stats    = useMemo(() => normalizeStats(raw),            [raw]);
+  const allUsers = useMemo(() => normalizeUsers(rawUsers ?? []), [rawUsers]);
   const loading  = sL || uL || pL;
 
-  // Build per-email status map from submissions endpoint (when available)
-  const subStatusMap = {};
-  if (Array.isArray(rawSubs)) {
-    rawSubs.forEach(s => { if (s.email) subStatusMap[s.email] = s.status; });
-  }
+  const subStatusMap = useMemo(() => {
+    const map = {};
+    if (Array.isArray(rawSubs)) rawSubs.forEach(s => { if (s.email) map[s.email] = s.status; });
+    return map;
+  }, [rawSubs]);
 
-  const bySchoolPipeline = raw?.by_school_submitted  ?? {};
-  const bySchoolReg      = raw?.by_school_registered ?? {};
-  const byDept           = raw?.by_department_submitted ?? {};
+  const bySchoolPipeline = useMemo(() => raw?.by_school_submitted    ?? {}, [raw]);
+  const bySchoolReg      = useMemo(() => raw?.by_school_registered   ?? {}, [raw]);
+  const byDept           = useMemo(() => raw?.by_department_submitted ?? {}, [raw]);
 
-  const TEACHING_ROLES_SET = new Set(['faculty', 'hod', 'director', 'dean', 'center_head']);
-  const pendingArr = rawPending === null
-    ? allUsers.filter(u => TEACHING_ROLES_SET.has(u.role))
-    : (Array.isArray(rawPending) ? rawPending : []);
-  const pendingEmails = new Set(pendingArr.map(f => f.email));
+  const pendingEmails = useMemo(() => {
+    const arr = rawPending === null
+      ? allUsers.filter(u => TEACHING_ROLES_SET.has(u.role))
+      : (Array.isArray(rawPending) ? rawPending : []);
+    return new Set(arr.map(f => f.email));
+  }, [rawPending, allUsers]);
 
-  // Group users by school
-  const usersBySchool = {};
-  allUsers.forEach(u => {
-    const sc = u.school !== '—' ? u.school : '__none__';
-    if (!usersBySchool[sc]) usersBySchool[sc] = [];
-    usersBySchool[sc].push(u);
-  });
+  const usersBySchool = useMemo(() => {
+    const map = {};
+    allUsers.forEach(u => {
+      const sc = u.school !== '—' ? u.school : '__none__';
+      if (!map[sc]) map[sc] = [];
+      map[sc].push(u);
+    });
+    return map;
+  }, [allUsers]);
 
-  // ── Teaching pipeline totals ──────────────────────────────────────────────────
-  const tCounts = stageCounts(stats.pipeline, STAGE_KEY);
-  tCounts['not_submitted'] = stats.pending;
+  const tCounts = useMemo(() => {
+    const tc = stageCounts(stats.pipeline, STAGE_KEY);
+    tc['not_submitted'] = stats.pending;
+    return tc;
+  }, [stats]);
 
-  // ── Non-teaching pipeline totals ─────────────────────────────────────────────
-  const ntCounts = stageCounts(stats.nonTeachingPipeline, NT_STAGE_KEY);
-  const ntUsers  = allUsers.filter(u => ['non_teaching_staff', 'reporting_officer', 'registrar'].includes(u.role));
-  const ntPending = ntUsers.filter(u => pendingEmails.has(u.email));
-  ntCounts['not_submitted'] = ntPending.length;
+  const { ntCounts, ntUsers, ntPending, ntStageGroups, hasFacultyStatusNT } = useMemo(() => {
+    const users   = allUsers.filter(u => NT_ROLES_SET.has(u.role));
+    const pend    = users.filter(u => pendingEmails.has(u.email));
+    const counts  = stageCounts(stats.nonTeachingPipeline, NT_STAGE_KEY);
+    counts['not_submitted'] = pend.length;
+    const subs      = users.filter(u => !pendingEmails.has(u.email));
+    const hasStatus = subs.some(u => subStatusMap[u.email]);
+    return {
+      ntCounts: counts, ntUsers: users, ntPending: pend, hasFacultyStatusNT: hasStatus,
+      ntStageGroups: {
+        not_submitted: pend,
+        ro:        hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Draft') : [],
+        registrar: hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Reporting Officer Reviewed') : [],
+        vc:        hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Registrar Reviewed') : [],
+        done:      hasStatus ? subs.filter(u => subStatusMap[u.email] === 'VC Approved') : [],
+      },
+    };
+  }, [allUsers, pendingEmails, stats.nonTeachingPipeline, subStatusMap]);
 
-  // ── Selected school data ──────────────────────────────────────────────────────
-  const selMeta    = SCHOOL_META[selectedSchool] ?? {};
-  const selUsers   = usersBySchool[selectedSchool] ?? [];
-  const selFaculty = selUsers.filter(u => u.role === 'faculty');
-  const selHODs    = selUsers.filter(u => u.role === 'hod');
-  const selDirs    = selUsers.filter(u => u.role === 'director');
+  const {
+    selMeta, selUsers, selFaculty, selHODs, selDirs,
+    selNotSubmitted, selSubmitted,
+    selPipeline, selSchoolStages, selStgCounts,
+    selReg, selSub, selPct, barCol,
+    hasFacultyStatus, isSoEMR, stageGroups,
+  } = useMemo(() => {
+    const meta     = SCHOOL_META[selectedSchool] ?? {};
+    const users    = usersBySchool[selectedSchool] ?? [];
+    const faculty  = users.filter(u => u.role === 'faculty');
+    const hods     = users.filter(u => u.role === 'hod');
+    const dirs     = users.filter(u => u.role === 'director');
+    const notSub   = faculty.filter(f =>  pendingEmails.has(f.email));
+    const subm     = faculty.filter(f => !pendingEmails.has(f.email));
+    const pipeline = bySchoolPipeline[selectedSchool] ?? {};
+    const schoolKey   = getSchoolStageKey(selectedSchool);
+    const schoolStages = getSchoolStages(selectedSchool);
+    const stgCounts   = stageCounts(pipeline, schoolKey);
+    stgCounts['not_submitted'] = notSub.length;
+    const reg    = bySchoolReg[selectedSchool] ?? faculty.length;
+    const sub    = Object.values(pipeline).reduce((s, n) => s + n, 0);
+    const pct    = reg ? Math.round(sub / reg * 100) : 0;
+    const col    = pct >= 80 ? `linear-gradient(90deg,${C.green},#059669)`
+                 : pct >= 60 ? `linear-gradient(90deg,${C.accent},#2563eb)`
+                 :             `linear-gradient(90deg,${C.yellow},#d97706)`;
+    const hasStatus = faculty.some(f => subStatusMap[f.email]);
+    const isEMR     = selectedSchool === 'SoEMR';
+    return {
+      selMeta: meta, selUsers: users, selFaculty: faculty, selHODs: hods, selDirs: dirs,
+      selNotSubmitted: notSub, selSubmitted: subm,
+      selPipeline: pipeline, selSchoolStages: schoolStages,
+      selStgCounts: stgCounts, selReg: reg, selSub: sub, selPct: pct, barCol: col,
+      hasFacultyStatus: hasStatus, isSoEMR: isEMR,
+      stageGroups: {
+        not_submitted: notSub,
+        hod: isEMR && hasStatus
+          ? subm.filter(f => ['Pending Review', 'Submitted'].includes(subStatusMap[f.email]))
+          : [],
+        director: hasStatus
+          ? subm.filter(f => isEMR
+              ? subStatusMap[f.email] === 'Pending Director Review'
+              : ['Pending Review', 'Submitted', 'Pending Director Review'].includes(subStatusMap[f.email]))
+          : [],
+        dean: hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Pending Dean Review') : [],
+        vc:   hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Pending VC Review')   : [],
+        done: hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Reviewed')            : [],
+      },
+    };
+  }, [selectedSchool, usersBySchool, bySchoolPipeline, bySchoolReg, pendingEmails, subStatusMap]);
 
-  const selNotSubmitted = selFaculty.filter(f =>  pendingEmails.has(f.email));
-  const selSubmitted    = selFaculty.filter(f => !pendingEmails.has(f.email));
-
-  const selPipeline    = bySchoolPipeline[selectedSchool] ?? {};
-  const selSchoolKey   = getSchoolStageKey(selectedSchool);
-  const selSchoolStages = getSchoolStages(selectedSchool);
-  const selStgCounts   = stageCounts(selPipeline, selSchoolKey);
-  selStgCounts['not_submitted'] = selNotSubmitted.length;
-
-  const selReg = bySchoolReg[selectedSchool] ?? selFaculty.length;
-  const selSub = Object.values(selPipeline).reduce((s, n) => s + n, 0);
-  const selPct = selReg ? Math.round(selSub / selReg * 100) : 0;
-  const barCol = selPct >= 80 ? `linear-gradient(90deg,${C.green},#059669)`
-               : selPct >= 60 ? `linear-gradient(90deg,${C.accent},#2563eb)`
-               :                `linear-gradient(90deg,${C.yellow},#d97706)`;
-
-  // ── Per-faculty stage groups for selected school ──────────────────────────────
-  const hasFacultyStatus = selFaculty.some(f => subStatusMap[f.email]);
-  const isSoEMR = selectedSchool === 'SoEMR';
-  const stageGroups = {
-    not_submitted: selNotSubmitted,
-    // HOD stage only exists for SoEMR
-    hod: isSoEMR && hasFacultyStatus
-      ? selSubmitted.filter(f => ['Pending Review', 'Submitted'].includes(subStatusMap[f.email]))
-      : [],
-    // For SoEMR: 'Pending Director Review'; for others: 'Submitted'/'Pending Review'/'Pending Director Review'
-    director: hasFacultyStatus
-      ? selSubmitted.filter(f => isSoEMR
-          ? subStatusMap[f.email] === 'Pending Director Review'
-          : ['Pending Review', 'Submitted', 'Pending Director Review'].includes(subStatusMap[f.email]))
-      : [],
-    dean: hasFacultyStatus ? selSubmitted.filter(f => subStatusMap[f.email] === 'Pending Dean Review') : [],
-    vc:   hasFacultyStatus ? selSubmitted.filter(f => subStatusMap[f.email] === 'Pending VC Review')   : [],
-    done: hasFacultyStatus ? selSubmitted.filter(f => subStatusMap[f.email] === 'Reviewed')            : [],
-  };
-
-  // ── NT per-user stage groups ──────────────────────────────────────────────────
-  const ntSubs = ntUsers.filter(u => !pendingEmails.has(u.email));
-  const hasFacultyStatusNT = ntSubs.some(u => subStatusMap[u.email]);
-  const ntStageGroups = {
-    not_submitted: ntPending,
-    ro:        hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'Draft') : [],
-    registrar: hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'Reporting Officer Reviewed') : [],
-    vc:        hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'Registrar Reviewed') : [],
-    done:      hasFacultyStatusNT ? ntSubs.filter(u => subStatusMap[u.email] === 'VC Approved') : [],
-  };
-
-  // ── Transparency roles ────────────────────────────────────────────────────────
-  const transRoles = selectedSchool === 'SoEMR'
-    ? [{ k: 'faculty', label: 'Faculty' }, { k: 'hod', label: 'HOD' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }]
-    : [{ k: 'faculty', label: 'Faculty' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }];
-
-  const ROLE_COLORS = { faculty: C.accent, hod: '#a78bfa', director: C.yellow, dean: C.green };
-  const transNodes  = getTransparency(selectedSchool, transRole);
-  const transRoute  = routeLabel(selectedSchool, transRole);
+  const { transRoles, transNodes, transRoute } = useMemo(() => ({
+    transRoles: selectedSchool === 'SoEMR'
+      ? [{ k: 'faculty', label: 'Faculty' }, { k: 'hod', label: 'HOD' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }]
+      : [{ k: 'faculty', label: 'Faculty' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }],
+    transNodes: getTransparency(selectedSchool, transRole),
+    transRoute: routeLabel(selectedSchool, transRole),
+  }), [selectedSchool, transRole]);
 
   // ── Queue sidebar helper ──────────────────────────────────────────────────────
   const schoolQueueRow = (sc, col) => {
@@ -522,10 +545,7 @@ export default function AppraisalCyclePage() {
 
       {/* Track tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-        {[
-          { k: 'teaching',     label: 'Teaching Staff'     },
-          { k: 'non_teaching', label: 'Non-Teaching Staff' },
-        ].map(t => (
+        {TRACK_TABS.map(t => (
           <button key={t.k} className="act-btn" onClick={() => setTrack(t.k)} style={{
             padding: '8px 18px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600,
             background: track === t.k ? `${C.accent}14` : 'rgba(255,255,255,.03)',

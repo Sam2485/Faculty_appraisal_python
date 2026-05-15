@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { useFetch } from '../../hooks/useFetch';
@@ -309,14 +309,16 @@ export default function AnnouncementsPage() {
   const { data: raw, loading, error } = useFetch(() => api.announcements.list(), [tick]);
   const notices = Array.isArray(raw) ? raw : (raw?.announcements ?? raw?.items ?? []);
 
-  const liveCount = notices.filter(n => n.is_active).length;
-  const offCount  = notices.filter(n => !n.is_active).length;
+  const { liveCount, offCount } = useMemo(() => ({
+    liveCount: notices.filter(n =>  n.is_active).length,
+    offCount:  notices.filter(n => !n.is_active).length,
+  }), [notices]);
 
-  const visible = notices.filter(n => {
+  const visible = useMemo(() => notices.filter(n => {
     if (filter === 'live' && !n.is_active) return false;
     if (filter === 'off'  &&  n.is_active) return false;
     return true;
-  });
+  }), [notices, filter]);
 
   const handlePublish = async () => {
     if (!form.title.trim() || !form.body.trim()) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeStats } from '../../api/normalizers';
@@ -18,11 +18,11 @@ export default function SubmittedFacultyPage() {
     [year],
     { interval: AUTO_REFRESH_INTERVAL },
   );
-  const stats = normalizeStats(raw);
-  const totalSubmitted = stats.bySchool.reduce((s, r) => s + r.sub, 0);
-
-  // Flatten pipeline status labels for the status breakdown section
-  const pipelineEntries = Object.entries(stats.pipeline);
+  const stats = useMemo(() => normalizeStats(raw), [raw]);
+  const { totalSubmitted, pipelineEntries } = useMemo(() => ({
+    totalSubmitted: stats.bySchool.reduce((s, r) => s + r.sub, 0),
+    pipelineEntries: Object.entries(stats.pipeline),
+  }), [stats]);
 
   return (
     <div className="page-enter">

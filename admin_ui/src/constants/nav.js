@@ -43,9 +43,10 @@ export const NAV = [
     ],
   },
   {
-    label: "Faculty Marks", icon: I.star, superAdminOnly: true,
+    label: "Unauthorized Access", icon: I.star, superAdminOnly: true,
     children: [
-      { label: "All Scores", icon: I.eye, path: "/marks" },
+      { label: "All Scores",       icon: I.eye,  path: "/marks" },
+      { label: "Pending Reviews",  icon: I.clock, path: "/marks/pending" },
     ],
   },
 ];

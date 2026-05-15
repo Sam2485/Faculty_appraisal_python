@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
@@ -57,7 +57,7 @@ function RoleBadge({ role }) {
   );
 }
 
-function MultiSelectDropdown({ noun, options, selected, onChange }) {
+const MultiSelectDropdown = memo(function MultiSelectDropdown({ noun, options, selected, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -143,7 +143,7 @@ function MultiSelectDropdown({ noun, options, selected, onChange }) {
       )}
     </div>
   );
-}
+});
 
 // ── Pagination helpers ─────────────────────────────────────────────────────────
 
@@ -193,19 +193,27 @@ export default function FacultyListPage() {
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
   const { data: raw, loading, error } = useFetch(() => api.users.list(), [tick]);
-  const users = normalizeUsers(raw);
 
-  const rows = users.filter(f =>
-    (selectedSchools.size === 0 || selectedSchools.has(f.school)) &&
-    (selectedRoles.size   === 0 || selectedRoles.has(f.role))     &&
-    (statusFilter === 'All' || f.status === statusFilter)          &&
-    (f.name.toLowerCase().includes(search.toLowerCase()) ||
-     f.email.toLowerCase().includes(search.toLowerCase()))
-  );
+  // Memoize normalization — only re-runs when raw API data changes
+  const users = useMemo(() => normalizeUsers(raw), [raw]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const safePage   = Math.min(page, totalPages);
-  const pageRows   = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  // Memoize filtering — only re-runs when users or filter state changes
+  const rows = useMemo(() => {
+    const q = search.toLowerCase();
+    return users.filter(f =>
+      (selectedSchools.size === 0 || selectedSchools.has(f.school)) &&
+      (selectedRoles.size   === 0 || selectedRoles.has(f.role))     &&
+      (statusFilter === 'All'     || f.status === statusFilter)      &&
+      (!q || f.name.toLowerCase().includes(q) || f.email.toLowerCase().includes(q))
+    );
+  }, [users, selectedSchools, selectedRoles, statusFilter, search]);
+
+  // Memoize pagination — only re-runs when rows or page changes
+  const { totalPages, safePage, pageRows } = useMemo(() => {
+    const total = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    const safe  = Math.min(page, total);
+    return { totalPages: total, safePage: safe, pageRows: rows.slice((safe - 1) * PAGE_SIZE, safe * PAGE_SIZE) };
+  }, [rows, page]);
 
   // Reset to page 1 whenever filters change
   useEffect(() => { setPage(1); }, [search, selectedSchools, selectedRoles, statusFilter]);
@@ -272,12 +280,10 @@ export default function FacultyListPage() {
       `Permanently delete ${targets.length} user${targets.length > 1 ? 's' : ''}?\n\n${nameList}\n\nThis cannot be undone.`
     )) return;
     setBulkRemoving(true); setRemoveErr(null);
-    const errs = [];
-    for (const email of targets) {
-      try { await api.users.remove(email); } catch (e) { errs.push(e.message); }
-    }
+    const results = await Promise.allSettled(targets.map(email => api.users.remove(email)));
+    const failed  = results.filter(r => r.status === 'rejected');
     clearSelection();
-    if (errs.length) setRemoveErr(`${errs.length} deletion(s) failed: ${errs[0]}`);
+    if (failed.length) setRemoveErr(`${failed.length} deletion(s) failed: ${failed[0].reason?.message ?? ''}`);
     refresh(); setBulkRemoving(false);
   };
 
