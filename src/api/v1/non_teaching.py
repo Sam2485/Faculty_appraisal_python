@@ -24,7 +24,7 @@ async def upsert_my_appraisal(data: Dict[str, Any], current_user: CurrentUser, d
     # For direct-to-registrar staff, route Draft → Pending Registrar Review
     # so the registrar sees the form without an RO step.
     # Only promote when the form is still in a staff-editable state (not yet reviewed).
-    if data.get('status') in (None, 'Draft'):
+    if data.get('status') in (None, 'Draft', 'Pending RO Review'):
         profile_res = await db.execute(
             select(FacultyProfile).where(FacultyProfile.email == current_user.email)
         )
