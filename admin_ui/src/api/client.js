@@ -45,7 +45,7 @@ async function login(email, password) {
     body: JSON.stringify({ email, password }),
   })
   if (!data?.profile) throw new Error('Unexpected response from server.')
-  if (data.profile.appraisal_role !== 'admin') {
+  if (!['admin', 'super_admin'].includes(data.profile.appraisal_role)) {
     throw new Error('This account does not have admin access.')
   }
   localStorage.setItem('admin_token', data.token)
@@ -80,6 +80,17 @@ const stats = {
   get: (academic_year) => {
     const qs = academic_year ? `?academic_year=${academic_year}` : ''
     return request(`/admin/stats${qs}`)
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Faculty marks (super_admin only)
+// ---------------------------------------------------------------------------
+const marks = {
+  list: (academic_year, schools = '') => {
+    const qs = new URLSearchParams({ academic_year })
+    if (schools) qs.set('schools', schools)
+    return request(`/dashboard/subordinates?${qs}`)
   },
 }
 
@@ -161,4 +172,4 @@ const exportData = {
   faculty:     (params = {}) => downloadFile('/admin/export/faculty?' + new URLSearchParams(params)),
 }
 
-export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, submissions, announcements, ai, export: exportData }
+export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, submissions, announcements, ai, export: exportData, marks }

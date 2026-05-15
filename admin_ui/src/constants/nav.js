@@ -42,4 +42,10 @@ export const NAV = [
       { label: "Security",        icon: I.lock,    path: "/settings/security" },
     ],
   },
+  {
+    label: "Faculty Marks", icon: I.star, superAdminOnly: true,
+    children: [
+      { label: "All Scores", icon: I.eye, path: "/marks" },
+    ],
+  },
 ];

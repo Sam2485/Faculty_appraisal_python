@@ -106,9 +106,11 @@ function NavSection({ section, defaultOpen, colorIdx }) {
 }
 
 export default function Sidebar() {
-  const navigate = useNavigate();
-  const profile  = api.getProfile();
-  const initials = profile?.full_name?.split(' ').map(w => w[0]).slice(0, 2).join('') || 'AD';
+  const navigate    = useNavigate();
+  const profile     = api.getProfile();
+  const initials    = profile?.full_name?.split(' ').map(w => w[0]).slice(0, 2).join('') || 'AD';
+  const isSuperAdmin = profile?.appraisal_role === 'super_admin';
+  const visibleNav   = NAV.filter(s => !s.superAdminOnly || isSuperAdmin);
 
   function handleLogout() {
     api.logout();
@@ -168,7 +170,7 @@ export default function Sidebar() {
 
       {/* ── Nav ───────────────────────────────────────────────────────────── */}
       <nav style={{ flex: 1, overflowY: 'auto', padding: '4px 10px 8px', scrollbarWidth: 'none' }}>
-        {NAV.map((section, i) => (
+        {visibleNav.map((section, i) => (
           <NavSection key={section.label} section={section} defaultOpen={i === 0} colorIdx={i} />
         ))}
       </nav>
@@ -206,7 +208,9 @@ export default function Sidebar() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
               <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 5px ${C.green}80` }} />
-              <span style={{ fontSize: 10, color: 'var(--c-sidebar-muted)', letterSpacing: .3 }}>Administrator</span>
+              <span style={{ fontSize: 10, color: 'var(--c-sidebar-muted)', letterSpacing: .3 }}>
+                {isSuperAdmin ? 'Super Administrator' : 'Administrator'}
+              </span>
             </div>
           </div>
         </div>
