@@ -297,5 +297,69 @@ style.textContent = `
   .section-btn:hover{color:var(--c-section-hover)!important}
   .float{animation:float 4s ease-in-out infinite}
   .glow-pulse{animation:glowPulse 2.5s ease-in-out infinite}
+
+  /* ── Faculty Marks — premium card & block interactions ─────── */
+  .faculty-card{
+    transition:transform .32s cubic-bezier(.22,1,.36,1),
+               box-shadow .32s ease,
+               border-color .32s ease;
+    will-change:transform;
+  }
+  .faculty-card:hover{
+    transform:translateY(-5px);
+    box-shadow:0 32px 80px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06)!important;
+  }
+  [data-theme="light"] .faculty-card:hover{
+    box-shadow:0 20px 60px rgba(15,23,42,.14),0 0 0 1px rgba(59,130,246,.18)!important;
+  }
+  .score-block{
+    transition:transform .22s cubic-bezier(.22,1,.36,1),box-shadow .22s ease;
+    cursor:default;
+  }
+  .score-block:hover{
+    transform:translateY(-3px) scale(1.04);
+    box-shadow:0 12px 32px rgba(0,0,0,.35);
+  }
+
+  /* ── Gradient heading text ──────────────────────────────────── */
+  .gradient-title{
+    background:linear-gradient(135deg,#f1f5f9 0%,#cbd5e1 55%,#94a3b8 100%);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  [data-theme="light"] .gradient-title{
+    background:linear-gradient(135deg,#0f172a 0%,#1e40af 55%,#2563eb 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+  }
+
+  /* ── Decorative background orbs ────────────────────────────── */
+  @keyframes orbFloat{
+    0%,100%{transform:translate(0,0) scale(1)}
+    33%{transform:translate(22px,-18px) scale(1.08)}
+    66%{transform:translate(-16px,10px) scale(.93)}
+  }
+  .orb-float{animation:orbFloat 9s ease-in-out infinite}
+  .orb-float-alt{animation:orbFloat 12s ease-in-out infinite reverse}
+
+  /* ── Stat number glow ───────────────────────────────────────── */
+  @keyframes statEnter{
+    from{opacity:0;transform:translateY(14px) scale(.88)}
+    to{opacity:1;transform:translateY(0) scale(1)}
+  }
+  .stat-enter{animation:statEnter .5s cubic-bezier(.22,1,.36,1) both}
+
+  /* ── Pill badge pop ─────────────────────────────────────────── */
+  @keyframes pillPop{
+    0%{transform:scale(.75);opacity:0}
+    70%{transform:scale(1.08)}
+    100%{transform:scale(1);opacity:1}
+  }
+  .pill-pop{animation:pillPop .4s cubic-bezier(.34,1.56,.64,1) both}
+
+  /* ── Remarks expand ─────────────────────────────────────────── */
+  .remarks-expand{animation:expandDown .25s cubic-bezier(.22,1,.36,1) both}
 `;
+
 document.head.appendChild(style);
