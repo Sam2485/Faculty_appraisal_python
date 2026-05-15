@@ -9,6 +9,8 @@ from sqlalchemy import select
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
+_DRAFT_STATUSES = {'Draft', 'Pending Registrar Review'}
+
 router = APIRouter(prefix="/non-teaching", tags=["Non-Teaching"])
 
 @router.get("/appraisal")
@@ -18,6 +20,22 @@ async def get_my_appraisal(academic_year: str, current_user: CurrentUser, db: As
 @router.put("/appraisal")
 async def upsert_my_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     data['staff_email'] = current_user.email
+
+    # For direct-to-registrar staff, route Draft → Pending Registrar Review
+    # so the registrar sees the form without an RO step.
+    # Only promote when the form is still in a staff-editable state (not yet reviewed).
+    if data.get('status') in (None, 'Draft'):
+        profile_res = await db.execute(
+            select(FacultyProfile).where(FacultyProfile.email == current_user.email)
+        )
+        profile = profile_res.scalar_one_or_none()
+        if profile and profile.reports_to_registrar:
+            academic_year = data.get('academic_year')
+            if academic_year:
+                existing = await crud.get_non_teaching_appraisal(db, current_user.email, academic_year)
+                if not existing or existing.status in _DRAFT_STATUSES:
+                    data['status'] = 'Pending Registrar Review'
+
     return await crud.create_or_update_non_teaching_appraisal(db, data)
 
 @router.get("/subordinates")

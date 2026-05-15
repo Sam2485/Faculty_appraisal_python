@@ -67,9 +67,10 @@ export function normalizeUsers(raw) {
       phone:       u.phone ?? '—',
       qualification:      u.qualification ?? '—',
       teachingExperience: u.teaching_experience ?? '—',
-      status:      u.is_verified === false ? 'Unverified' : 'Active',
-      yr:          u.created_at ? new Date(u.created_at).getFullYear().toString() : '—',
-      sub:         false,
+      status:               u.is_verified === false ? 'Unverified' : 'Active',
+      yr:                   u.created_at ? new Date(u.created_at).getFullYear().toString() : '—',
+      sub:                  false,
+      reports_to_registrar: u.reports_to_registrar ?? false,
     }));
 }
 
