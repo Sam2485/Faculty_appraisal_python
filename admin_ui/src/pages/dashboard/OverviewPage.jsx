@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, memo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -62,7 +62,7 @@ function fmtRole(r) {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function KPI({ label, value, sub, color, icon: Icon }) {
+const KPI = memo(function KPI({ label, value, sub, color, icon: Icon }) {
   return (
     <div className="glass card-appear" style={{
       padding: '18px 20px', borderRadius: 12, position: 'relative', overflow: 'hidden',
@@ -85,9 +85,9 @@ function KPI({ label, value, sub, color, icon: Icon }) {
       </div>
     </div>
   );
-}
+});
 
-function PipelineList({ pipeline, stages }) {
+const PipelineList = memo(function PipelineList({ pipeline, stages }) {
   const total = Object.values(pipeline).reduce((s, n) => s + (n ?? 0), 0);
   if (total === 0) return (
     <div style={{ textAlign: 'center', padding: '28px 0', color: C.muted, fontSize: 13 }}>
@@ -116,9 +116,9 @@ function PipelineList({ pipeline, stages }) {
       </div>
     );
   });
-}
+});
 
-function InsightChip({ icon: Icon, label, value, color }) {
+const InsightChip = memo(function InsightChip({ icon: Icon, label, value, color }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px',
       borderRadius: 8, background: `${color}0d`, border: `1px solid ${color}22` }}>
@@ -128,7 +128,7 @@ function InsightChip({ icon: Icon, label, value, color }) {
         fontFamily: "'JetBrains Mono',monospace", marginLeft: 'auto' }}>{value}</span>
     </div>
   );
-}
+});
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
@@ -143,67 +143,85 @@ export default function OverviewPage() {
     [year],
     { interval: AUTO_REFRESH_INTERVAL },
   );
-  const stats = normalizeStats(raw);
+
+  // ── Memoized normalization — only re-runs when raw data changes ─────────────
+  const stats = useMemo(() => normalizeStats(raw), [raw]);
   const { bySchool, bySchoolSub, pipeline, nonTeachingPipeline, byRole } = stats;
 
-  // ── School-filtered derived values ──────────────────────────────────────────
+  const NT_KEY = '__nt__';
 
-  const NT_KEY  = '__nt__';
-  const isNT    = selectedSchool === NT_KEY;
-  const isSchool = selectedSchool && !isNT;
+  // ── All school-filtered derived values in one memo ──────────────────────────
+  const derived = useMemo(() => {
+    const isNT     = selectedSchool === NT_KEY;
+    const isSchool = !!(selectedSchool && !isNT);
+    const schoolRow = isSchool ? bySchool.find(s => s.name === selectedSchool) : null;
 
-  const ntRegistered = byRole?.non_teaching_staff ?? 0;
-  const ntSubmitted  = Object.values(nonTeachingPipeline).reduce((s, n) => s + (n ?? 0), 0);
+    const ntRegistered = byRole?.non_teaching_staff ?? 0;
+    const ntSubmitted  = Object.values(nonTeachingPipeline).reduce((s, n) => s + (n ?? 0), 0);
 
-  const schoolRow    = isSchool ? bySchool.find(s => s.name === selectedSchool) : null;
-  const filtPipeline = isNT  ? nonTeachingPipeline
-                     : isSchool ? (bySchoolSub?.[selectedSchool] ?? {})
-                     : pipeline;
+    const filtPipeline = isNT ? nonTeachingPipeline
+      : isSchool ? (bySchoolSub?.[selectedSchool] ?? {})
+      : pipeline;
 
-  const filtTotal    = isNT ? ntRegistered
-                     : schoolRow ? schoolRow.total : stats.total;
-  const filtSub      = isNT ? ntSubmitted
-                     : schoolRow ? schoolRow.sub   : stats.submitted;
-  const filtPend     = isNT ? (ntRegistered - ntSubmitted)
-                     : schoolRow ? schoolRow.pend  : stats.pending;
-  const filtRate     = filtTotal ? Math.round(filtSub / filtTotal * 100) : 0;
-  const filtTTotal   = Object.values(filtPipeline).reduce((s, n) => s + (n ?? 0), 0);
-  const ntTotal      = ntSubmitted;
+    const filtTotal = isNT ? ntRegistered : schoolRow ? schoolRow.total : stats.total;
+    const filtSub   = isNT ? ntSubmitted  : schoolRow ? schoolRow.sub   : stats.submitted;
+    const filtPend  = isNT ? (ntRegistered - ntSubmitted) : schoolRow ? schoolRow.pend : stats.pending;
+    const filtRate  = filtTotal ? Math.round(filtSub / filtTotal * 100) : 0;
+    const filtTTotal = Object.values(filtPipeline).reduce((s, n) => s + (n ?? 0), 0);
 
-  const filtApproved = isNT  ? (nonTeachingPipeline['VC Approved'] ?? 0)
-                     : isSchool ? (filtPipeline['Reviewed'] ?? 0)
-                     : (pipeline['Reviewed'] ?? 0) + (nonTeachingPipeline['VC Approved'] ?? 0);
+    const filtApproved = isNT ? (nonTeachingPipeline['VC Approved'] ?? 0)
+      : isSchool ? (filtPipeline['Reviewed'] ?? 0)
+      : (pipeline['Reviewed'] ?? 0) + (nonTeachingPipeline['VC Approved'] ?? 0);
 
-  const activeStages   = isNT ? NT_STAGES : T_STAGES;
-  const pipelineBarData = activeStages.map(({ key, label, color }) => ({
-    status: label, count: filtPipeline[key] ?? 0, color,
-  }));
+    const activeStages    = isNT ? NT_STAGES : T_STAGES;
+    const pipelineBarData = activeStages.map(({ key, label, color }) => ({
+      status: label, count: filtPipeline[key] ?? 0, color,
+    }));
+    const cycleDonut = [
+      { name: 'Submitted', value: filtSub,  color: C.green },
+      { name: 'Pending',   value: filtPend, color: C.red   },
+    ];
 
-  const cycleDonut = [
-    { name: 'Submitted', value: filtSub,  color: C.green },
-    { name: 'Pending',   value: filtPend, color: C.red   },
-  ];
+    return {
+      isNT, isSchool, filtPipeline, filtTotal, filtSub, filtPend, filtRate,
+      filtTTotal, ntTotal: ntSubmitted, filtApproved, activeStages,
+      pipelineBarData, cycleDonut, ntRegistered,
+    };
+  }, [stats, selectedSchool, bySchool, bySchoolSub, pipeline, nonTeachingPipeline, byRole]);
 
-  // School performance sorting — respects selected school (pins it to top)
-  const sortedSchools = [...bySchool].sort((a, b) => {
-    if (selectedSchool) {
-      if (a.name === selectedSchool) return -1;
-      if (b.name === selectedSchool) return 1;
-    }
-    return (b.total ? b.sub / b.total : 0) - (a.total ? a.sub / a.total : 0);
-  });
-  const topSchool    = [...bySchool].sort((a, b) =>
-    (b.total ? b.sub / b.total : 0) - (a.total ? a.sub / a.total : 0)
-  )[0];
-  const bottomSchool = [...bySchool].sort((a, b) =>
-    (a.total ? a.sub / a.total : 0) - (b.total ? b.sub / b.total : 0)
-  )[0];
+  const {
+    isNT, isSchool, filtPipeline, filtTotal, filtSub, filtPend, filtRate,
+    filtTTotal, ntTotal, filtApproved, activeStages, pipelineBarData, cycleDonut,
+    ntRegistered,
+  } = derived;
 
-  const roleData = Object.entries(byRole ?? {})
-    .filter(([role]) => role !== 'admin')
-    .map(([role, count]) => ({ name: fmtRole(role), value: count, color: ROLE_COLORS[role] ?? C.muted }))
-    .filter(r => r.value > 0)
-    .sort((a, b) => b.value - a.value);
+  // ── School performance — sort only when school data or selection changes ─────
+  const sortedSchools = useMemo(() =>
+    [...bySchool].sort((a, b) => {
+      if (selectedSchool) {
+        if (a.name === selectedSchool) return -1;
+        if (b.name === selectedSchool) return 1;
+      }
+      return (b.total ? b.sub / b.total : 0) - (a.total ? a.sub / a.total : 0);
+    }),
+    [bySchool, selectedSchool]
+  );
+
+  const [topSchool, bottomSchool] = useMemo(() => {
+    const s = [...bySchool].sort((a, b) =>
+      (b.total ? b.sub / b.total : 0) - (a.total ? a.sub / a.total : 0)
+    );
+    return [s[0], s[s.length - 1]];
+  }, [bySchool]);
+
+  const roleData = useMemo(() =>
+    Object.entries(byRole ?? {})
+      .filter(([role]) => role !== 'admin')
+      .map(([role, count]) => ({ name: fmtRole(role), value: count, color: ROLE_COLORS[role] ?? C.muted }))
+      .filter(r => r.value > 0)
+      .sort((a, b) => b.value - a.value),
+    [byRole]
+  );
 
   const handleExport = async (type) => {
     setDownloading(type); setDownloadErr(null);
@@ -361,8 +379,8 @@ export default function OverviewPage() {
                     <YAxis tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} />
                     <Tooltip content={<ChartTip />} />
                     <Bar dataKey="count" name="Submissions" radius={[4, 4, 0, 0]}>
-                      {pipelineBarData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
+                      {pipelineBarData.map((entry) => (
+                        <Cell key={entry.status} fill={entry.color} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -383,7 +401,7 @@ export default function OverviewPage() {
                   <PieChart>
                     <Pie data={cycleDonut} cx="50%" cy="50%" innerRadius={46} outerRadius={66}
                       strokeWidth={0} dataKey="value">
-                      {cycleDonut.map((e, i) => <Cell key={i} fill={e.color} />)}
+                      {cycleDonut.map((e) => <Cell key={e.name} fill={e.color} />)}
                     </Pie>
                     <Tooltip content={<ChartTip />} />
                   </PieChart>
@@ -450,16 +468,16 @@ export default function OverviewPage() {
                       axisLine={false} tickLine={false} />
                     <Tooltip content={<ChartTip />} />
                     <Bar dataKey="sub"  name="Submitted" radius={[0, 0, 0, 0]} stackId="a">
-                      {sortedSchools.map((s, i) => (
-                        <Cell key={i}
+                      {sortedSchools.map((s) => (
+                        <Cell key={s.name}
                           fill={s.name === selectedSchool ? C.accent : `${C.accent}60`}
                           opacity={selectedSchool && s.name !== selectedSchool ? 0.45 : 1}
                         />
                       ))}
                     </Bar>
                     <Bar dataKey="pend" name="Pending" radius={[0, 4, 4, 0]} stackId="a">
-                      {sortedSchools.map((s, i) => (
-                        <Cell key={i}
+                      {sortedSchools.map((s) => (
+                        <Cell key={s.name}
                           fill="rgba(248,113,113,.25)"
                           opacity={selectedSchool && s.name !== selectedSchool ? 0.45 : 1}
                         />
@@ -537,7 +555,7 @@ export default function OverviewPage() {
                     <PieChart>
                       <Pie data={roleData} cx="50%" cy="50%" innerRadius={42} outerRadius={70}
                         dataKey="value" strokeWidth={0} paddingAngle={2}>
-                        {roleData.map((r, i) => <Cell key={i} fill={r.color} />)}
+                        {roleData.map((r) => <Cell key={r.name} fill={r.color} />)}
                       </Pie>
                       <Tooltip content={<ChartTip />} />
                     </PieChart>

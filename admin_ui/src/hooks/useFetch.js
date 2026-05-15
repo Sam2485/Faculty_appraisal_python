@@ -3,33 +3,52 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 export const AUTO_REFRESH_INTERVAL = 15_000;
 
 export function useFetch(fetcher, deps = [], { interval } = {}) {
-  const [data, setData]               = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState(null);
+  const [data,        setData]        = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const intervalRef                   = useRef(null);
-  const fetcherRef                    = useRef(fetcher);
+
+  const intervalRef = useRef(null);
+  const fetcherRef  = useRef(fetcher);
   fetcherRef.current = fetcher;
 
   const run = useCallback((silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
-    return fetcherRef.current()
-      .then(d  => { setData(d); setLastUpdated(Date.now()); if (!silent) setLoading(false); })
-      .catch(e => { if (!silent) { setError(e.message || 'Failed to load data'); setLoading(false); } });
+
+    const controller = new AbortController();
+
+    fetcherRef.current()
+      .then(d => {
+        if (controller.signal.aborted) return;
+        setData(d);
+        setLastUpdated(Date.now());
+        if (!silent) setLoading(false);
+      })
+      .catch(e => {
+        if (controller.signal.aborted) return;
+        if (!silent) {
+          setError(e.message || 'Failed to load data');
+          setLoading(false);
+        }
+      });
+
+    return controller;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    let cancelled = false;
-    if (!cancelled) run(false);
+    const controller = run(false);
 
     if (interval) {
-      intervalRef.current = setInterval(() => { if (!cancelled) run(true); }, interval);
+      intervalRef.current = setInterval(() => run(true), interval);
     }
 
     return () => {
-      cancelled = true;
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      controller.abort();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
 

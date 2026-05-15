@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { normalizeUsers, normalizeStats } from '../../api/normalizers';
@@ -24,8 +24,7 @@ export default function PendingFacultyPage() {
 
   // Fetch stats first to get available years
   const { data: rawStats, loading: statsLoading } = useFetch(() => api.stats.get(), [], { interval: AUTO_REFRESH_INTERVAL });
-  const statsData      = normalizeStats(rawStats);
-  const availableYears = statsData.availableYears;
+  const availableYears = useMemo(() => normalizeStats(rawStats).availableYears, [rawStats]);
 
   // academic_year is REQUIRED by the backend — resolve to latest if user hasn't picked one
   const effectiveYear = year || availableYears[0] || null;
@@ -40,19 +39,23 @@ export default function PendingFacultyPage() {
   );
 
   const loading = statsLoading || pendingLoading;
-  const pending = normalizeUsers(rawPending ?? []);
+  const pending = useMemo(() => normalizeUsers(rawPending ?? []), [rawPending]);
 
-  const rows = pending.filter(f =>
-    (school === 'All' || f.school === school) &&
-    (f.name.toLowerCase().includes(search.toLowerCase()) ||
-     f.email.toLowerCase().includes(search.toLowerCase()) ||
-     f.dept.toLowerCase().includes(search.toLowerCase()))
-  );
+  const rows = useMemo(() => {
+    const q = search.toLowerCase();
+    return pending.filter(f =>
+      (school === 'All' || f.school === school) &&
+      (f.name.toLowerCase().includes(q) ||
+       f.email.toLowerCase().includes(q) ||
+       f.dept.toLowerCase().includes(q))
+    );
+  }, [pending, school, search]);
 
-  const bySchool = ALL_SCHOOL_CODES.map(s => ({
-    name: s,
-    count: pending.filter(f => f.school === s).length,
-  })).filter(s => s.count > 0);
+  const bySchool = useMemo(() =>
+    ALL_SCHOOL_CODES
+      .map(s => ({ name: s, count: pending.filter(f => f.school === s).length }))
+      .filter(s => s.count > 0),
+  [pending]);
 
   return (
     <div className="page-enter">

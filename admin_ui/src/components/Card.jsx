@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { C } from '../constants/colors';
 
-export default function Card({ title, sub, action, info, children, style = {}, delay = 0 }) {
+const Card = memo(function Card({ title, sub, action, info, children, style = {}, delay = 0 }) {
   const [tip, setTip] = useState(false);
 
   return (
@@ -24,7 +24,6 @@ export default function Card({ title, sub, action, info, children, style = {}, d
                 onMouseEnter={() => setTip(true)}
                 onMouseLeave={() => setTip(false)}
               >
-                {/* Info icon */}
                 <div style={{
                   width: 17, height: 17, borderRadius: '50%', cursor: 'help',
                   background: tip ? `${C.accent}18` : 'var(--c-soft-bg)',
@@ -38,7 +37,6 @@ export default function Card({ title, sub, action, info, children, style = {}, d
                   i
                 </div>
 
-                {/* Tooltip */}
                 {tip && (
                   <div style={{
                     position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 600,
@@ -50,7 +48,6 @@ export default function Card({ title, sub, action, info, children, style = {}, d
                     animation: 'fadeIn .12s ease',
                     pointerEvents: 'none',
                   }}>
-                    {/* Small arrow */}
                     <div style={{
                       position: 'absolute', top: -5, left: 7,
                       width: 8, height: 8, borderRadius: 1,
@@ -72,4 +69,6 @@ export default function Card({ title, sub, action, info, children, style = {}, d
       {children}
     </div>
   );
-}
+});
+
+export default Card;
