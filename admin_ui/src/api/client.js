@@ -72,6 +72,7 @@ const users = {
   update: (email, data) => request(`/admin/users/${encodeURIComponent(email)}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (email) => request(`/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' }),
   reportingOfficers: () => request('/admin/reporting-officers'),
+  registrars: () => request('/admin/registrars'),
 }
 
 // ---------------------------------------------------------------------------
