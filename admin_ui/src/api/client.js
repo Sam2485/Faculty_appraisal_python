@@ -71,6 +71,7 @@ const users = {
   create: (data) => request('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
   update: (email, data) => request(`/admin/users/${encodeURIComponent(email)}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (email) => request(`/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  reportingOfficers: () => request('/admin/reporting-officers'),
 }
 
 // ---------------------------------------------------------------------------

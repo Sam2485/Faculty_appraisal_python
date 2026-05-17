@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { C } from '../../constants/colors';
@@ -43,6 +43,7 @@ const EMPTY = {
   school: '', department: '', appraisal_role: '',
   designation: '', phone: '', qualification: '', teaching_experience: '',
   reports_to_registrar: false,
+  reporting_officer_email: '',
 };
 
 // ── Appraisal flow computation ─────────────────────────────────────────────────
@@ -1048,6 +1049,17 @@ export default function AddFacultyPage() {
   const [success,     setSuccess]     = useState(null);
   const [receipt,     setReceipt]     = useState(null);
   const [importModal, setImportModal] = useState(false);
+  const [ros,         setRos]         = useState([]);
+  const [rosLoading,  setRosLoading]  = useState(false);
+
+  useEffect(() => {
+    if (staffType !== 'non_teaching' || ros.length > 0) return;
+    setRosLoading(true);
+    api.users.reportingOfficers()
+      .then(data => setRos(data || []))
+      .catch(() => {})
+      .finally(() => setRosLoading(false));
+  }, [staffType]);
 
   const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -1135,7 +1147,7 @@ export default function AddFacultyPage() {
     setStaffType(type);
     setTrack('');
     setErr(null);
-    setForm(p => ({ ...p, appraisal_role: '', school: '', department: '', reports_to_registrar: false }));
+    setForm(p => ({ ...p, appraisal_role: '', school: '', department: '', reports_to_registrar: false, reporting_officer_email: '' }));
   };
   const handleTrack = (t) => {
     setTrack(t);
@@ -1153,7 +1165,7 @@ export default function AddFacultyPage() {
     }));
   };
   const handleRole = (val) => {
-    const update = { appraisal_role: val, department: '' };
+    const update = { appraisal_role: val, department: '', reporting_officer_email: '' };
     if (val === 'hod')  update.school = 'SoEMR';
     if (val === 'dean') update.school = track;
     if (val !== 'non_teaching_staff') update.reports_to_registrar = false;
@@ -1205,6 +1217,8 @@ export default function AddFacultyPage() {
         phone:              form.phone         || null,
         qualification:      form.qualification || null,
         teachingExperience: form.teaching_experience || null,
+        reportsToRegistrar: form.reports_to_registrar || false,
+        reportingOfficer:   selectedRO ? selectedRO.full_name : null,
         createdAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       };
       setReceipt(snap);
@@ -1324,8 +1338,52 @@ export default function AddFacultyPage() {
           <SL>Reporting Structure</SL>
           <ReportingToggle
             checked={form.reports_to_registrar}
-            onChange={() => setForm(p => ({ ...p, reports_to_registrar: !p.reports_to_registrar }))}
+            onChange={() => setForm(p => ({
+              ...p,
+              reports_to_registrar: !p.reports_to_registrar,
+              reporting_officer_email: p.reports_to_registrar ? p.reporting_officer_email : '',
+            }))}
           />
+
+          {/* RO picker — only when not skipping RO */}
+          {!form.reports_to_registrar && (
+            <div style={{ marginTop: 12, animation: 'fadeUp .18s ease both' }}>
+              <label style={lbl}>
+                Assign Reporting Officer
+                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10, marginLeft: 4 }}>
+                  (optional)
+                </span>
+              </label>
+              {rosLoading ? (
+                <div style={{
+                  fontSize: 11, color: C.muted, padding: '10px 14px', borderRadius: 8,
+                  background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+                }}>
+                  Loading reporting officers…
+                </div>
+              ) : (
+                <select
+                  className="ifield"
+                  value={form.reporting_officer_email}
+                  onChange={set('reporting_officer_email')}
+                  style={inp}
+                >
+                  <option value="">— No specific RO assigned —</option>
+                  {ros.map(ro => (
+                    <option key={ro.email} value={ro.email}>
+                      {ro.full_name}
+                      {ro.school ? ` (${ro.school}${ro.department ? ' / ' + ro.department : ''})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {!rosLoading && ros.length === 0 && (
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 5 }}>
+                  No reporting officers found. Add a user with the Reporting Officer role first.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1502,15 +1560,17 @@ export default function AddFacultyPage() {
 
   // ── Summary rows ─────────────────────────────────────────────────────────────
 
-  const roleMeta = availRoles.find(r => r.value === role);
+  const roleMeta   = availRoles.find(r => r.value === role);
+  const selectedRO = ros.find(r => r.email === form.reporting_officer_email);
   const summaryRows = [
-    { k: 'Category', v: staffType === 'teaching' ? 'Teaching' : staffType === 'non_teaching' ? 'Non-Teaching' : null },
-    { k: 'Track',    v: track === 'engineering' ? 'Engineering' : track === 'non_engineering' ? 'Non-Engineering' : track === 'cisr' ? 'CISR' : null },
-    { k: 'Role',     v: roleMeta?.label ?? null },
-    { k: 'School',   v: school || null },
-    { k: 'Dept',     v: dept   || null },
-    { k: 'Name',     v: form.full_name || null },
-    { k: 'Email',    v: form.email     || null },
+    { k: 'Category',   v: staffType === 'teaching' ? 'Teaching' : staffType === 'non_teaching' ? 'Non-Teaching' : null },
+    { k: 'Track',      v: track === 'engineering' ? 'Engineering' : track === 'non_engineering' ? 'Non-Engineering' : track === 'cisr' ? 'CISR' : null },
+    { k: 'Role',       v: roleMeta?.label ?? null },
+    { k: 'School',     v: school || null },
+    { k: 'Dept',       v: dept   || null },
+    { k: 'Name',       v: form.full_name || null },
+    { k: 'Email',      v: form.email     || null },
+    { k: 'Reports To', v: form.reports_to_registrar ? 'Registrar (skip RO)' : selectedRO ? selectedRO.full_name : null },
   ].filter(r => r.v);
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -1522,12 +1582,14 @@ export default function AddFacultyPage() {
     { k: 'Email',        v: receipt.email       },
     { k: 'Role',         v: receipt.role        },
     { k: 'Staff Type',   v: receipt.staffType   },
-    receipt.school             && { k: 'School',       v: receipt.school             },
-    receipt.department         && { k: 'Department',   v: receipt.department         },
-    receipt.designation        && { k: 'Designation',  v: receipt.designation        },
-    receipt.phone              && { k: 'Phone',        v: receipt.phone              },
-    receipt.qualification      && { k: 'Qualification',v: receipt.qualification      },
-    receipt.teachingExperience && { k: 'Experience',   v: receipt.teachingExperience },
+    receipt.school             && { k: 'School',            v: receipt.school             },
+    receipt.department         && { k: 'Department',        v: receipt.department         },
+    receipt.designation        && { k: 'Designation',       v: receipt.designation        },
+    receipt.phone              && { k: 'Phone',             v: receipt.phone              },
+    receipt.qualification      && { k: 'Qualification',     v: receipt.qualification      },
+    receipt.teachingExperience && { k: 'Experience',        v: receipt.teachingExperience },
+    receipt.reportsToRegistrar && { k: 'Reports To',        v: 'Registrar (RO skipped)'   },
+    receipt.reportingOfficer   && { k: 'Reporting Officer', v: receipt.reportingOfficer   },
   ].filter(Boolean) : [];
 
   return (
