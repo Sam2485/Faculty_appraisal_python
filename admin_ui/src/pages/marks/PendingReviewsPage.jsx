@@ -241,7 +241,6 @@ function SummaryCard({ queue, count }) {
 /* ── Main page ── */
 export default function PendingReviewsPage() {
   const profile = api.getProfile();
-  if (profile?.appraisal_role !== 'super_admin') return <Navigate to="/" replace />;
 
   const [year,   setYear]   = useState('');
   const [school, setSchool] = useState('');
@@ -278,6 +277,8 @@ export default function PendingReviewsPage() {
 
   const totalPending = Object.values(queues).reduce((s, arr) => s + arr.length, 0);
   const activeQueues = QUEUES.filter(q => queues[q.role]?.length > 0);
+
+  if (profile?.appraisal_role !== 'super_admin') return <Navigate to="/" replace />;
 
   return (
     <div className="page-enter">
