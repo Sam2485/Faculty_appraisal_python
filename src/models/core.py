@@ -24,6 +24,7 @@ class FacultyProfile(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     reports_to_registrar = Column(Boolean, nullable=False, default=False)
     reporting_officer_email = Column(String, nullable=True)
+    registrar_email = Column(String, nullable=True)
     avatar = Column(String)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
