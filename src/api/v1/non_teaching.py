@@ -50,10 +50,9 @@ async def get_non_teaching_subordinates(academic_year: str, current_user: Curren
         # Sees all non-teaching pending review
         pass
     elif "reporting_officer" in current_user.roles:
-        # RO: Sees only those in their school/dept who are NOT direct-to-registrar
+        # RO: Sees only staff explicitly assigned to them via reporting_officer_email
         query = query.where(
-            FacultyProfile.school == current_user.school,
-            FacultyProfile.department == current_user.department,
+            FacultyProfile.reporting_officer_email == current_user.email,
             FacultyProfile.reports_to_registrar == False,
         )
     else:
@@ -87,8 +86,14 @@ async def review_non_teaching(email: str, data: Dict[str, Any], current_user: Cu
     target = target_res.scalar_one_or_none()
     if not target:
         raise HTTPException(status_code=404, detail="Staff profile not found")
-    
-    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school):
+
+    is_assigned_ro = (
+        "reporting_officer" in current_user.roles
+        and target.reporting_officer_email == current_user.email
+    )
+    if not is_assigned_ro and not current_user.has_authority_over(
+        email, target.appraisal_role, target.department, target.school
+    ):
         raise HTTPException(status_code=403, detail="Not authorized to view this staff's data")
 
     # 1. Update totals based on role

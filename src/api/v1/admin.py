@@ -198,6 +198,7 @@ class UserCreateRequest(BaseModel):
     is_verified: bool = True  # admin-created accounts skip email verification
     is_active: bool = True
     reports_to_registrar: bool = False
+    reporting_officer_email: Optional[str] = None
 
 
 class UserUpdateRequest(BaseModel):
@@ -213,6 +214,7 @@ class UserUpdateRequest(BaseModel):
     is_verified: Optional[bool] = None
     is_active: Optional[bool] = None
     reports_to_registrar: Optional[bool] = None
+    reporting_officer_email: Optional[str] = None
     password: Optional[str] = None  # if set, resets the user's password
 
 
@@ -253,6 +255,7 @@ async def list_users(
             "is_verified": u.is_verified,
             "is_active": u.is_active,
             "reports_to_registrar": u.reports_to_registrar,
+            "reporting_officer_email": u.reporting_officer_email,
             "created_at": u.created_at,
         }
         for u in users
@@ -292,6 +295,7 @@ async def create_user(
         is_verified=data.is_verified,
         is_active=data.is_active,
         reports_to_registrar=data.reports_to_registrar,
+        reporting_officer_email=data.reporting_officer_email,
     )
     db.add(user)
     await db.commit()
@@ -398,6 +402,35 @@ async def delete_user(
     await db.delete(user)
     await db.commit()
     return {"message": f"User {email} deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Reporting officers list (for RO assignment dropdown in admin UI)
+# ---------------------------------------------------------------------------
+
+@router.get("/reporting-officers")
+async def list_reporting_officers(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(FacultyProfile)
+        .where(
+            FacultyProfile.appraisal_role == "reporting_officer",
+            FacultyProfile.is_active == True,
+        )
+        .order_by(FacultyProfile.full_name)
+    )
+    return [
+        {
+            "email": u.email,
+            "full_name": u.full_name,
+            "school": u.school,
+            "department": u.department,
+        }
+        for u in result.scalars().all()
+    ]
 
 
 # ---------------------------------------------------------------------------

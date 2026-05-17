@@ -62,6 +62,7 @@ create table public.faculty_profiles (
   is_verified boolean not null default false,
   is_active boolean not null default true,
   reports_to_registrar boolean not null default false,
+  reporting_officer_email text default null,
   avatar text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
