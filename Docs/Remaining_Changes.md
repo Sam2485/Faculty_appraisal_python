@@ -1,29 +1,29 @@
-# Remaining Backend Changes — Reporting Officer Assignment
+# Remaining Backend Changes — Registrar Assignment
 
-**Feature:** When adding a non-teaching staff user via the Admin UI, admin can now select a specific Reporting Officer (from a dropdown) instead of relying on school/department matching. There is also an existing toggle to skip the RO entirely and route directly to the Registrar.
+**Feature:** When adding a non-teaching staff user via the Admin UI, admin can now select a specific **Registrar** from a dropdown (mandatory for all non-teaching staff). This replaces the old approach where the Registrar saw all non-teaching staff regardless of assignment.
 
-The frontend changes are complete. The following backend changes are **required** for the feature to work end-to-end.
+The frontend changes are **complete**. The following backend changes are required for the feature to work end-to-end.
 
 ---
 
 ## 1. Database — New Column
 
-**Migration file:** `migrations/016_add_reporting_officer_email.sql`
+**Create migration file:** `migrations/017_add_registrar_email.sql`
 
 ```sql
 ALTER TABLE faculty_profiles
-  ADD COLUMN IF NOT EXISTS reporting_officer_email TEXT DEFAULT NULL;
+  ADD COLUMN IF NOT EXISTS registrar_email TEXT DEFAULT NULL;
 ```
 
 Run this against the Cloud SQL database before deploying the backend code changes.
 
 ---
 
-## 2. New API Endpoint — List Reporting Officers
+## 2. New API Endpoint — List Registrars
 
-The Admin UI calls this endpoint to populate the RO dropdown when creating/editing a non-teaching staff user.
+The Admin UI calls this to populate the Registrar dropdown when creating/editing a non-teaching staff user.
 
-**Endpoint:** `GET /api/v1/admin/reporting-officers`
+**Endpoint:** `GET /api/v1/admin/registrars`
 
 **Auth:** Admin role required (same guard as other `/admin/*` endpoints).
 
@@ -31,21 +31,20 @@ The Admin UI calls this endpoint to populate the RO dropdown when creating/editi
 ```json
 [
   {
-    "email": "ravi.patil@dypu.edu.in",
-    "full_name": "Ravi Patil",
-    "school": "SoCSEA",
-    "department": "Computer Science"
-  },
-  ...
+    "email": "sunita.kale@dypu.edu.in",
+    "full_name": "Sunita Kale",
+    "school": null,
+    "department": null
+  }
 ]
 ```
 
-**Logic:** Query `faculty_profiles` where `appraisal_role = 'reporting_officer'` and `is_active = true`, ordered by `full_name`.
+**Logic:** Query `faculty_profiles` where `appraisal_role = 'registrar'` and `is_active = true`, ordered by `full_name`.
 
-**Suggested implementation in `src/api/v1/admin.py`:**
+**Add to `src/api/v1/admin.py`:**
 ```python
-@router.get("/reporting-officers")
-async def list_reporting_officers(
+@router.get("/registrars")
+async def list_registrars(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ):
@@ -53,7 +52,7 @@ async def list_reporting_officers(
     result = await db.execute(
         select(FacultyProfile)
         .where(
-            FacultyProfile.appraisal_role == "reporting_officer",
+            FacultyProfile.appraisal_role == "registrar",
             FacultyProfile.is_active == True,
         )
         .order_by(FacultyProfile.full_name)
@@ -74,100 +73,98 @@ async def list_reporting_officers(
 
 ## 3. Update Model — `FacultyProfile`
 
-Add the new column to the SQLAlchemy model in `src/models/core.py`:
+**File:** `src/models/core.py`
 
 ```python
-# In class FacultyProfile:
-reports_to_registrar     = Column(Boolean, nullable=False, default=False)
-reporting_officer_email  = Column(String, nullable=True)   # ← ADD THIS LINE
-avatar                   = Column(String)
+# In class FacultyProfile — add after reports_to_registrar:
+reports_to_registrar = Column(Boolean, nullable=False, default=False)
+registrar_email      = Column(String, nullable=True)   # ← ADD THIS
+avatar               = Column(String)
 ```
 
 ---
 
-## 4. Update Admin User Create/Update/List — `src/api/v1/admin.py`
+## 4. Update Admin User Create / Update / List
 
-### 4a. `UserCreateRequest` — add field
+**File:** `src/api/v1/admin.py`
+
+### `UserCreateRequest` — add field
 ```python
 class UserCreateRequest(BaseModel):
     # ... existing fields ...
     reports_to_registrar: bool = False
-    reporting_officer_email: Optional[str] = None   # ← ADD THIS
+    registrar_email: Optional[str] = None   # ← ADD THIS
 ```
 
-### 4b. `UserUpdateRequest` — add field
+### `UserUpdateRequest` — add field
 ```python
 class UserUpdateRequest(BaseModel):
     # ... existing fields ...
     reports_to_registrar: Optional[bool] = None
-    reporting_officer_email: Optional[str] = None   # ← ADD THIS
+    registrar_email: Optional[str] = None   # ← ADD THIS
     password: Optional[str] = None
 ```
 
-### 4c. `create_user` — save the field
+### `create_user` — save the field
 ```python
 user = FacultyProfile(
     # ... existing fields ...
     reports_to_registrar=data.reports_to_registrar,
-    reporting_officer_email=data.reporting_officer_email,   # ← ADD THIS
+    registrar_email=data.registrar_email,   # ← ADD THIS
 )
 ```
 
-### 4d. `list_users` — include in response
+### `list_users` — include in response
 ```python
 return [
     {
         # ... existing fields ...
         "reports_to_registrar": u.reports_to_registrar,
-        "reporting_officer_email": u.reporting_officer_email,   # ← ADD THIS
+        "registrar_email":      u.registrar_email,   # ← ADD THIS
         "created_at": u.created_at,
     }
     for u in users
 ]
 ```
 
-> **Note:** `update_user` already uses `setattr` in a loop over `data.model_dump(exclude_none=True)`, so it will automatically pick up `reporting_officer_email` with no extra code once the field is on the model and schema.
+> `update_user` uses `setattr` in a loop over `data.model_dump(exclude_none=True)` — it will automatically save `registrar_email` with no extra code once the field is on the model and schema.
 
 ---
 
-## 5. Update Non-Teaching Subordinates Query — `src/api/v1/non_teaching.py`
+## 5. Update Non-Teaching Subordinates — Registrar Filter
 
-Currently, a Reporting Officer sees all non-teaching staff in the **same school and department**. After this change, an RO should only see staff explicitly **assigned to them** via `reporting_officer_email`.
-
-**File:** `src/api/v1/non_teaching.py`  
+**File:** `src/api/v1/non_teaching.py`
 **Function:** `get_non_teaching_subordinates`
+
+Currently the Registrar sees **all** non-teaching appraisals. After this change, a Registrar should only see staff **assigned to them** via `registrar_email`.
 
 **Change this block:**
 ```python
-elif "reporting_officer" in current_user.roles:
-    # OLD — school+department matching
-    query = query.where(
-        FacultyProfile.school == current_user.school,
-        FacultyProfile.department == current_user.department,
-        FacultyProfile.reports_to_registrar == False,
-    )
+if "registrar" in current_user.roles or "vc" in current_user.roles:
+    # Sees all non-teaching pending review
+    pass
 ```
 
 **To this:**
 ```python
-elif "reporting_officer" in current_user.roles:
-    # NEW — explicit assignment via reporting_officer_email
+if "vc" in current_user.roles:
+    # VC sees everything
+    pass
+elif "registrar" in current_user.roles:
+    # Registrar sees only staff assigned to them
     query = query.where(
-        FacultyProfile.reporting_officer_email == current_user.email,
-        FacultyProfile.reports_to_registrar == False,
+        FacultyProfile.registrar_email == current_user.email
     )
 ```
 
 ---
 
-## 6. Update Review Authorization — `src/api/v1/non_teaching.py`
+## 6. Update Review Authorization — Registrar
 
-The `review_non_teaching` endpoint uses `has_authority_over()` which checks school-level access for ROs. An RO assigned cross-school would currently be blocked.
-
-**File:** `src/api/v1/non_teaching.py`  
+**File:** `src/api/v1/non_teaching.py`
 **Function:** `review_non_teaching`
 
-After the target profile is loaded, add an explicit RO assignment check **before** the `has_authority_over` call:
+The current `has_authority_over()` check may block a Registrar assigned to a staff member from a different school/department. Add an explicit assignment check before the authority check:
 
 ```python
 target_res = await db.execute(select(FacultyProfile).where(FacultyProfile.email == email))
@@ -175,13 +172,13 @@ target = target_res.scalar_one_or_none()
 if not target:
     raise HTTPException(status_code=404, detail="Staff profile not found")
 
-# Allow access if this RO is explicitly assigned to the staff member
-is_assigned_ro = (
-    "reporting_officer" in current_user.roles
-    and target.reporting_officer_email == current_user.email
+# Allow if this Registrar is explicitly assigned to the staff member
+is_assigned_registrar = (
+    "registrar" in current_user.roles
+    and target.registrar_email == current_user.email
 )
 
-if not is_assigned_ro and not current_user.has_authority_over(
+if not is_assigned_registrar and not current_user.has_authority_over(
     email, target.appraisal_role, target.department, target.school
 ):
     raise HTTPException(status_code=403, detail="Not authorized to view this staff's data")
@@ -193,15 +190,15 @@ if not is_assigned_ro and not current_user.has_authority_over(
 
 | File | Change |
 |---|---|
-| `migrations/016_add_reporting_officer_email.sql` | **Create** — ALTER TABLE to add column |
-| `src/models/core.py` | Add `reporting_officer_email` column to `FacultyProfile` |
-| `src/api/v1/admin.py` | Add `GET /reporting-officers` endpoint; add field to create/update/list schemas |
-| `src/api/v1/non_teaching.py` | Switch RO subordinates filter to use `reporting_officer_email`; fix review auth |
+| `migrations/017_add_registrar_email.sql` | **Create** — ALTER TABLE to add `registrar_email` column |
+| `src/models/core.py` | Add `registrar_email` column to `FacultyProfile` |
+| `src/api/v1/admin.py` | Add `GET /registrars` endpoint; add `registrar_email` to create/update/list schemas |
+| `src/api/v1/non_teaching.py` | Add Registrar filter in subordinates query; fix review auth |
 
 ---
 
 ## Deployment Order
 
-1. Run migration `016_add_reporting_officer_email.sql` against the database
+1. Run migration `017_add_registrar_email.sql` against the database
 2. Deploy updated backend code
-3. Frontend changes are already live (no additional frontend deployment needed beyond the current build)
+3. Frontend is already done — no additional frontend changes needed
