@@ -26,7 +26,9 @@ const STAGE_KEY = {
 };
 
 const NT_STAGE_KEY = {
+  'Pending RO Review':          'ro',
   'Draft':                      'ro',
+  'Pending Registrar Review':   'registrar',
   'Reporting Officer Reviewed': 'registrar',
   'Registrar Reviewed':         'vc',
   'VC Approved':                'done',
@@ -375,10 +377,10 @@ export default function AppraisalCyclePage() {
     [raw?.academic_year],
     { interval: AUTO_REFRESH_INTERVAL },
   );
-  // Per-faculty submission status — needs backend: GET /api/v1/admin/submissions
+  // Per-faculty submission status — reuse marks endpoint (returns email + status for all faculty)
   const { data: rawSubs } = useFetch(
     () => raw?.academic_year
-      ? api.submissions.list({ academic_year: raw.academic_year }).catch(() => null)
+      ? api.marks.list(raw.academic_year, '').catch(() => null)
       : Promise.resolve(null),
     [raw?.academic_year],
     { interval: AUTO_REFRESH_INTERVAL },
@@ -421,28 +423,22 @@ export default function AppraisalCyclePage() {
     return tc;
   }, [stats]);
 
-  const { ntCounts, ntUsers, ntPending, ntStageGroups, hasFacultyStatusNT } = useMemo(() => {
+  const { ntCounts, ntUsers, ntPending, ntSubs, ntStageGroups, hasFacultyStatusNT } = useMemo(() => {
     const users   = allUsers.filter(u => NT_ROLES_SET.has(u.role));
     const pend    = users.filter(u => pendingEmails.has(u.email));
     const counts  = stageCounts(stats.nonTeachingPipeline, NT_STAGE_KEY);
     counts['not_submitted'] = pend.length;
     const subs      = users.filter(u => !pendingEmails.has(u.email));
     const hasStatus = subs.some(u => subStatusMap[u.email]);
-    // Staff with reports_to_registrar=true skip RO entirely — their 'Draft' status means
-    // they're waiting at Registrar, not RO.
-    const directToRegistrar = new Set(users.filter(u => u.reports_to_registrar).map(u => u.email));
     return {
-      ntCounts: counts, ntUsers: users, ntPending: pend, hasFacultyStatusNT: hasStatus,
+      ntCounts: counts, ntUsers: users, ntPending: pend, ntSubs: subs, hasFacultyStatusNT: hasStatus,
       ntStageGroups: {
         not_submitted: pend,
         ro: hasStatus
-          ? subs.filter(u => subStatusMap[u.email] === 'Draft' && !directToRegistrar.has(u.email))
+          ? subs.filter(u => ['Pending RO Review', 'Draft'].includes(subStatusMap[u.email]))
           : [],
         registrar: hasStatus
-          ? subs.filter(u =>
-              subStatusMap[u.email] === 'Reporting Officer Reviewed' ||
-              (subStatusMap[u.email] === 'Draft' && directToRegistrar.has(u.email))
-            )
+          ? subs.filter(u => ['Pending Registrar Review', 'Reporting Officer Reviewed'].includes(subStatusMap[u.email]))
           : [],
         vc:   hasStatus ? subs.filter(u => subStatusMap[u.email] === 'Registrar Reviewed') : [],
         done: hasStatus ? subs.filter(u => subStatusMap[u.email] === 'VC Approved')        : [],
@@ -863,18 +859,6 @@ export default function AppraisalCyclePage() {
                         stageDesc={NT_STAGE_DESC}
                       />
 
-                      {!hasFacultyStatusNT && ntSubs.length > 0 && (
-                        <div style={{
-                          marginTop: 12, padding: '10px 13px', borderRadius: 8, fontSize: 11, lineHeight: 1.6,
-                          color: C.muted, background: 'rgba(255,255,255,.025)',
-                          border: '1px solid rgba(255,255,255,.06)',
-                        }}>
-                          Individual staff names per stage will appear once the backend exposes{' '}
-                          <code style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: C.subtle }}>
-                            GET /api/v1/admin/submissions
-                          </code>
-                        </div>
-                      )}
                     </>
                   )}
                 </div>

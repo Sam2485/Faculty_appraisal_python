@@ -30,7 +30,8 @@ const T_STAGES = [
 ];
 
 const NT_STAGES = [
-  { key: 'Draft',                      label: 'Submitted',    color: C.accent  },
+  { key: 'Pending RO Review',          label: 'RO Queue',     color: C.accent  },
+  { key: 'Pending Registrar Review',   label: 'Reg. Queue',   color: '#e879f9' },
   { key: 'Reporting Officer Reviewed', label: 'RO Reviewed',  color: '#a78bfa' },
   { key: 'Registrar Reviewed',         label: 'Registrar',    color: C.yellow  },
   { key: 'VC Approved',                label: 'VC Approved',  color: '#22d3ee' },
@@ -156,7 +157,9 @@ export default function OverviewPage() {
     const isSchool = !!(selectedSchool && !isNT);
     const schoolRow = isSchool ? bySchool.find(s => s.name === selectedSchool) : null;
 
-    const ntRegistered = byRole?.non_teaching_staff ?? 0;
+    const ntRegistered = (byRole?.non_teaching_staff ?? 0)
+                       + (byRole?.reporting_officer ?? 0)
+                       + (byRole?.registrar ?? 0);
     const ntSubmitted  = Object.values(nonTeachingPipeline).reduce((s, n) => s + (n ?? 0), 0);
 
     const filtPipeline = isNT ? nonTeachingPipeline
@@ -248,7 +251,9 @@ export default function OverviewPage() {
         <PageHead
           title="Overview"
           sub={selectedSchool
-            ? `Showing data for ${selectedSchool} · ${schoolFullName}`
+            ? isNT
+              ? 'Showing data for Non-Teaching Staff'
+              : `Showing data for ${selectedSchool} · ${schoolFullName}`
             : 'Real-time snapshot · submission pipeline · school analytics'}
           action={<LiveBadge lastUpdated={lastUpdated} />}
         />

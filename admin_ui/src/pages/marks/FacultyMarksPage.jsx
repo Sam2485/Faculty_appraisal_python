@@ -768,7 +768,6 @@ function FilterBar({ school, setSchool, role, setRole, search, setSearch, count,
 ──────────────────────────────────────────────────────────────── */
 export default function FacultyMarksPage() {
   const profile = api.getProfile();
-  if (profile?.appraisal_role !== 'super_admin') return <Navigate to="/" replace />;
 
   const [school, setSchool] = useState('');
   const [role,   setRole]   = useState('');
@@ -805,6 +804,8 @@ export default function FacultyMarksPage() {
       r.school?.toLowerCase().includes(q)
     );
   }, [rows, search, school, role]);
+
+  if (profile?.appraisal_role !== 'super_admin') return <Navigate to="/" replace />;
 
   return (
     <div className="page-enter" style={{ maxWidth: 1100, margin: '0 auto' }}>
