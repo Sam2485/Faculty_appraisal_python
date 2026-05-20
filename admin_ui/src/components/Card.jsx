@@ -5,7 +5,7 @@ const Card = memo(function Card({ title, sub, action, info, children, style = {}
   const [tip, setTip] = useState(false);
 
   return (
-    <div className="glass card-appear" style={{ padding: '20px 22px', animationDelay: `${delay}ms`, ...style }}>
+    <div className="glass glass-glow card-shimmer card-appear" style={{ padding: '20px 22px', animationDelay: `${delay}ms`, ...style }}>
       {(title || action) && (
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',

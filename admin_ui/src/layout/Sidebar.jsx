@@ -91,7 +91,8 @@ function NavSection({ section, defaultOpen, colorIdx }) {
                   fontFamily: 'inherit', fontSize: 12.5,
                   fontWeight: active ? 600 : 400,
                   marginBottom: 2, textAlign: 'left',
-                  transition: 'all .12s ease',
+                  boxShadow: active ? `inset 0 0 16px ${col}0d` : 'none',
+                  transition: 'all .15s ease',
                 }}
               >
                 <CIcon size={13} stroke="currentColor" />
@@ -130,11 +131,11 @@ export default function Sidebar() {
       <div style={{ padding: '22px 18px 18px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           {/* Logo mark */}
-          <div style={{
+          <div className="float" style={{
             width: 42, height: 42, borderRadius: 12, flexShrink: 0,
             background: 'linear-gradient(135deg,#3b82f6 0%,#818cf8 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 24px rgba(59,130,246,.4), 0 4px 12px rgba(0,0,0,.25)',
+            boxShadow: '0 0 28px rgba(59,130,246,.5), 0 4px 14px rgba(0,0,0,.3)',
           }}>
             <I.school size={20} stroke="#fff" />
           </div>
@@ -161,7 +162,7 @@ export default function Sidebar() {
           border: '1px solid rgba(59,130,246,.15)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: `0 0 6px ${C.green}` }} />
+            <div className="notif-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}` }} />
             <span style={{ fontSize: 11, color: 'var(--c-sidebar-muted)', fontWeight: 500 }}>Cycle 2024–25</span>
           </div>
           <span style={{ fontSize: 9.5, color: '#3b82f6', fontWeight: 700, letterSpacing: .4, textTransform: 'uppercase' }}>Live</span>

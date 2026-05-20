@@ -174,4 +174,42 @@ const exportData = {
   faculty:     (params = {}) => downloadFile('/admin/export/faculty?' + new URLSearchParams(params)),
 }
 
-export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, submissions, announcements, ai, export: exportData, marks }
+// ---------------------------------------------------------------------------
+// Non-teaching workflow — live chain per staff member
+// ---------------------------------------------------------------------------
+const workflow = {
+  getTemplate:   (role, reportsDirectly = false) =>
+    request(`/non-teaching/workflow-template?role=${encodeURIComponent(role)}&reports_directly=${reportsDirectly}`),
+  getForFaculty: (email, academicYear) =>
+    request(`/non-teaching/workflow/${encodeURIComponent(email)}?academic_year=${encodeURIComponent(academicYear)}`),
+}
+
+// ---------------------------------------------------------------------------
+// Designations — catalog of approval designations used in NT workflows
+// ---------------------------------------------------------------------------
+const designations = {
+  list:   ()          => request('/admin/nt-designations'),
+  create: (data)      => request('/admin/nt-designations', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data)  => request(`/admin/nt-designations/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id)        => request(`/admin/nt-designations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+}
+
+// ---------------------------------------------------------------------------
+// Workflow templates — named approval chains with ordered designation steps
+// ---------------------------------------------------------------------------
+const workflowTemplates = {
+  list:            ()               => request('/admin/nt-workflow-templates'),
+  create:          (data)           => request('/admin/nt-workflow-templates', { method: 'POST', body: JSON.stringify(data) }),
+  update:          (id, data)       => request(`/admin/nt-workflow-templates/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove:          (id)             => request(`/admin/nt-workflow-templates/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  setDefault:      (id)             => request(`/admin/nt-workflow-templates/${encodeURIComponent(id)}/set-default`, { method: 'PUT' }),
+  addStep:         (id, data)       => request(`/admin/nt-workflow-templates/${encodeURIComponent(id)}/steps`, { method: 'POST', body: JSON.stringify(data) }),
+  updateStep:      (id, stepNo, d)  => request(`/admin/nt-workflow-templates/${encodeURIComponent(id)}/steps/${stepNo}`, { method: 'PUT', body: JSON.stringify(d) }),
+  removeStep:      (id, stepNo)     => request(`/admin/nt-workflow-templates/${encodeURIComponent(id)}/steps/${stepNo}`, { method: 'DELETE' }),
+  reorderSteps:    (id, steps)      => request(`/admin/nt-workflow-templates/${encodeURIComponent(id)}/reorder`, { method: 'PUT', body: JSON.stringify({ steps }) }),
+  listAssignments: ()               => request('/admin/nt-workflow-assignments'),
+  assign:          (data)           => request('/admin/nt-workflow-assignments', { method: 'POST', body: JSON.stringify(data) }),
+  removeAssignment:(id)             => request(`/admin/nt-workflow-assignments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+}
+
+export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, submissions, announcements, ai, export: exportData, marks, workflow, designations, workflowTemplates }
