@@ -14,7 +14,7 @@
 
 **Bullet points (pick 4–5):**
 
-- Designed and built a production REST API in FastAPI serving 8 schools and a 5-level role hierarchy (Faculty → HOD → Director → Dean → VC), with role-scoped data access enforced at the query layer
+- Designed and built a production REST API in FastAPI serving 8 schools and a 5-level role hierarchy (Faculty → HOD → Director → Dean → VC), with role-scoped data access enforced at the query layer; system achieved 54ms min / 214ms avg / 523ms max response latency in production
 - Deployed the service to GCP Cloud Run with automated CI/CD via Cloud Build; connected to Cloud SQL PostgreSQL over Unix socket and Google Cloud Storage for file uploads
 - Migrated the database layer from Supabase to Cloud SQL mid-project after hitting authentication connection limits, with zero data loss and no downtime to the test environment
 - Wrote 13 incremental schema migrations by hand (no ORM migration tool) to evolve a 25+ table schema across two appraisal form types (teaching and non-teaching)

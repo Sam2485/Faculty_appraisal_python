@@ -109,6 +109,22 @@ async def get_subordinates(
 
         subordinates.append(sub)
 
+    # Overlay NT staff statuses from non_teaching_appraisals
+    from src.models.non_teaching import NonTeachingAppraisal as _NTA
+    _NT_ROLES = {'non_teaching_staff', 'reporting_officer', 'registrar'}
+    nt_emails = [s["email"] for s in subordinates if s.get("appraisal_role") in _NT_ROLES]
+    if nt_emails:
+        nt_res = await db.execute(
+            select(_NTA.staff_email, _NTA.status, _NTA.submitted_at)
+            .where(_NTA.staff_email.in_(nt_emails), _NTA.academic_year == academic_year)
+        )
+        nt_map = {email: (status, submitted_at) for email, status, submitted_at in nt_res.all()}
+        for sub in subordinates:
+            if sub["email"] in nt_map:
+                nt_s, nt_at = nt_map[sub["email"]]
+                sub["status"]       = nt_s
+                sub["submitted_at"] = nt_at.isoformat() if nt_at else None
+
     return subordinates
 
 @router.get("/faculty/{email}")

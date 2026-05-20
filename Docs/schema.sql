@@ -905,6 +905,129 @@ create table public.password_reset_tokens (
 create index password_reset_tokens_email_idx   on public.password_reset_tokens (email);
 create index password_reset_tokens_expires_idx on public.password_reset_tokens (expires_at);
 
+-- ── NT Workflow System (migration 018) ──────────────────────────────────────
+
+-- nt_designations: catalog of reviewer roles used in workflow templates
+create table public.nt_designations (
+    id          uuid        primary key default gen_random_uuid(),
+    name        varchar     not null unique,
+    description varchar,
+    is_system   boolean     not null default false,
+    is_active   boolean     not null default true,
+    created_at  timestamptz default now(),
+    updated_at  timestamptz default now()
+);
+
+-- nt_workflow_templates: named approval chains (e.g. "Standard NT Flow")
+create table public.nt_workflow_templates (
+    id          uuid        primary key default gen_random_uuid(),
+    name        varchar     not null,
+    description varchar,
+    is_active   boolean     not null default true,
+    is_default  boolean     not null default false,
+    created_at  timestamptz default now(),
+    updated_at  timestamptz default now()
+);
+
+-- nt_workflow_template_steps: ordered steps within a template
+create table public.nt_workflow_template_steps (
+    id              uuid        primary key default gen_random_uuid(),
+    template_id     uuid        not null references public.nt_workflow_templates(id) on delete cascade,
+    step_no         integer     not null,
+    designation_id  uuid        not null references public.nt_designations(id),
+    is_required     boolean     not null default true,
+    created_at      timestamptz default now(),
+    unique (template_id, step_no)
+);
+
+-- nt_workflow_assignments: maps a template to an individual, role, or department
+create table public.nt_workflow_assignments (
+    id              uuid        primary key default gen_random_uuid(),
+    template_id     uuid        not null references public.nt_workflow_templates(id),
+    staff_email     varchar     unique,
+    appraisal_role  varchar,
+    department      varchar,
+    created_at      timestamptz default now(),
+    updated_at      timestamptz default now(),
+    constraint chk_one_target check (
+        (staff_email is not null)::int
+      + (appraisal_role is not null)::int
+      + (department is not null)::int = 1
+    )
+);
+
+-- nt_workflow_instances: live approval state for one staff member's appraisal
+create table public.nt_workflow_instances (
+    id              uuid        primary key default gen_random_uuid(),
+    appraisal_id    uuid        not null references public.non_teaching_appraisals(id) on delete cascade,
+    template_id     uuid        references public.nt_workflow_templates(id),
+    staff_email     varchar     not null,
+    academic_year   varchar     not null,
+    current_step    integer,
+    status          varchar     not null default 'PENDING',
+    created_at      timestamptz default now(),
+    updated_at      timestamptz default now(),
+    unique (staff_email, academic_year)
+);
+
+-- nt_workflow_instance_steps: per-step review record within an instance
+create table public.nt_workflow_instance_steps (
+    id              uuid        primary key default gen_random_uuid(),
+    instance_id     uuid        not null references public.nt_workflow_instances(id) on delete cascade,
+    step_no         integer     not null,
+    designation     varchar     not null,
+    reviewer_email  varchar,
+    status          varchar     not null default 'WAITING',
+    score           numeric,
+    remarks         text,
+    reviewed_at     timestamptz,
+    created_at      timestamptz default now(),
+    updated_at      timestamptz default now(),
+    unique (instance_id, step_no)
+);
+
+-- Seed: system designations
+insert into public.nt_designations (name, description, is_system) values
+('Reporting Officer', 'First approver for non-teaching staff appraisals', true),
+('Registrar',         'Reviews after Reporting Officer',                   true),
+('VC',                'Final approver — Vice Chancellor',                  true);
+
+-- Seed: Standard NT Flow template (RO → Registrar → VC, default)
+with t as (
+    insert into public.nt_workflow_templates (name, description, is_default)
+    values ('Standard NT Flow', 'Reporting Officer → Registrar → VC', true)
+    returning id
+)
+insert into public.nt_workflow_template_steps (template_id, step_no, designation_id)
+select t.id, s.step_no, d.id
+  from t,
+       (values (1,'Reporting Officer'), (2,'Registrar'), (3,'VC')) as s(step_no, name)
+  join public.nt_designations d on d.name = s.name;
+
+-- Seed: Direct to Registrar template (Registrar → VC)
+with t as (
+    insert into public.nt_workflow_templates (name, description, is_default)
+    values ('Direct to Registrar', 'Registrar → VC (skips Reporting Officer)', false)
+    returning id
+)
+insert into public.nt_workflow_template_steps (template_id, step_no, designation_id)
+select t.id, s.step_no, d.id
+  from t,
+       (values (1,'Registrar'), (2,'VC')) as s(step_no, name)
+  join public.nt_designations d on d.name = s.name;
+
+-- Seed: default role assignments
+insert into public.nt_workflow_assignments (template_id, appraisal_role)
+select id, 'non_teaching_staff' from public.nt_workflow_templates where name = 'Standard NT Flow';
+
+insert into public.nt_workflow_assignments (template_id, appraisal_role)
+select id, 'reporting_officer' from public.nt_workflow_templates where name = 'Standard NT Flow';
+
+insert into public.nt_workflow_assignments (template_id, appraisal_role)
+select id, 'registrar' from public.nt_workflow_templates where name = 'Standard NT Flow';
+
+-- ── End of NT Workflow System ────────────────────────────────────────────────
+
 do $$
 declare
   table_record record;

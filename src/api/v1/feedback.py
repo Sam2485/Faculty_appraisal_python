@@ -62,7 +62,7 @@ def _validate(data: Dict[str, Any]) -> Dict[str, str]:
 
 
 def _require_admin(current_user):
-    if "admin" not in current_user.roles:
+    if not any(r in current_user.roles for r in ("admin", "super_admin")):
         raise HTTPException(status_code=403, detail="Admin role required")
 
 

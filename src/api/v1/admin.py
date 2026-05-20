@@ -1,11 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, distinct, text
+from sqlalchemy import select, func, distinct, text, update as sql_update
+from sqlalchemy.orm import selectinload
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
 from src.models.core import FacultyProfile, Declaration, AppraisalReview, AppraisalConfig, ModuleConfig
 from src.models.non_teaching import NonTeachingAppraisal
+from src.models.non_teaching import (
+    NTDesignation, NTWorkflowTemplate, NTWorkflowTemplateStep,
+    NTWorkflowAssignment, NTWorkflowInstance,
+)
 from src.setup.local_auth import get_password_hash
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
@@ -460,6 +465,461 @@ async def list_reporting_officers(
         }
         for u in result.scalars().all()
     ]
+
+
+# ---------------------------------------------------------------------------
+# NT Workflow — Designations
+# ---------------------------------------------------------------------------
+
+def _designation_dict(d: NTDesignation) -> dict:
+    return {
+        "id":          str(d.id),
+        "name":        d.name,
+        "description": d.description,
+        "is_system":   d.is_system,
+        "is_active":   d.is_active,
+        "created_at":  d.created_at,
+    }
+
+
+class DesignationCreate(BaseModel):
+    name:        str
+    description: Optional[str] = None
+
+
+class DesignationUpdate(BaseModel):
+    name:        Optional[str]  = None
+    description: Optional[str]  = None
+    is_active:   Optional[bool] = None
+
+
+@router.get("/nt-designations")
+async def list_designations(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(NTDesignation).order_by(NTDesignation.is_system.desc(), NTDesignation.name)
+    )
+    return [_designation_dict(d) for d in result.scalars().all()]
+
+
+@router.post("/nt-designations", status_code=201)
+async def create_designation(
+    current_user: CurrentUser, data: DesignationCreate, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Designation name is required")
+    existing = await db.execute(select(NTDesignation).where(NTDesignation.name == name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail=f"Designation '{name}' already exists")
+    d = NTDesignation(name=name, description=data.description)
+    db.add(d)
+    await db.commit()
+    await db.refresh(d)
+    return _designation_dict(d)
+
+
+@router.put("/nt-designations/{designation_id}")
+async def update_designation(
+    designation_id: str, current_user: CurrentUser, data: DesignationUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(NTDesignation).where(NTDesignation.id == designation_id))
+    d = result.scalar_one_or_none()
+    if not d:
+        raise HTTPException(status_code=404, detail="Designation not found")
+    if data.name is not None:
+        name = data.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Designation name cannot be empty")
+        conflict = await db.execute(
+            select(NTDesignation).where(NTDesignation.name == name, NTDesignation.id != designation_id)
+        )
+        if conflict.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail=f"Designation '{name}' already exists")
+        d.name = name
+    if data.description is not None:
+        d.description = data.description
+    if data.is_active is not None:
+        d.is_active = data.is_active
+    await db.commit()
+    await db.refresh(d)
+    return _designation_dict(d)
+
+
+@router.delete("/nt-designations/{designation_id}")
+async def delete_designation(
+    designation_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(NTDesignation).where(NTDesignation.id == designation_id))
+    d = result.scalar_one_or_none()
+    if not d:
+        raise HTTPException(status_code=404, detail="Designation not found")
+    if d.is_system:
+        raise HTTPException(status_code=400, detail="System designations cannot be deleted")
+    used = await db.execute(
+        select(NTWorkflowTemplateStep)
+        .join(NTWorkflowTemplate, NTWorkflowTemplateStep.template_id == NTWorkflowTemplate.id)
+        .where(
+            NTWorkflowTemplateStep.designation_id == designation_id,
+            NTWorkflowTemplate.is_active == True,
+        )
+    )
+    if used.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete: designation is used in an active workflow template. "
+                   "Remove it from all templates first, or deactivate instead.",
+        )
+    await db.delete(d)
+    await db.commit()
+    return {"message": f"Designation '{d.name}' deleted"}
+
+
+# ---------------------------------------------------------------------------
+# NT Workflow — Templates
+# ---------------------------------------------------------------------------
+
+def _template_dict(t: NTWorkflowTemplate) -> dict:
+    return {
+        "id":          str(t.id),
+        "name":        t.name,
+        "description": t.description,
+        "is_active":   t.is_active,
+        "is_default":  t.is_default,
+        "created_at":  t.created_at,
+        "steps": [
+            {
+                "id":             str(s.id),
+                "step_no":        s.step_no,
+                "designation_id": str(s.designation_id),
+                "designation":    s.designation_obj.name if s.designation_obj else None,
+                "is_required":    s.is_required,
+            }
+            for s in (t.steps or [])
+        ],
+    }
+
+
+class TemplateCreate(BaseModel):
+    name:        str
+    description: Optional[str] = None
+
+
+class TemplateUpdate(BaseModel):
+    name:        Optional[str]  = None
+    description: Optional[str]  = None
+    is_active:   Optional[bool] = None
+
+
+@router.get("/nt-workflow-templates")
+async def list_workflow_templates(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(NTWorkflowTemplate)
+        .options(
+            selectinload(NTWorkflowTemplate.steps).selectinload(NTWorkflowTemplateStep.designation_obj)
+        )
+        .order_by(NTWorkflowTemplate.is_default.desc(), NTWorkflowTemplate.name)
+    )
+    return [_template_dict(t) for t in result.scalars().all()]
+
+
+@router.post("/nt-workflow-templates", status_code=201)
+async def create_workflow_template(
+    current_user: CurrentUser, data: TemplateCreate, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Template name is required")
+    t = NTWorkflowTemplate(name=name, description=data.description)
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return {"id": str(t.id), "name": t.name, "description": t.description,
+            "is_active": t.is_active, "is_default": t.is_default, "steps": []}
+
+
+@router.put("/nt-workflow-templates/{template_id}")
+async def update_workflow_template(
+    template_id: str, current_user: CurrentUser, data: TemplateUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(NTWorkflowTemplate).where(NTWorkflowTemplate.id == template_id))
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(t, field, value)
+    await db.commit()
+    await db.refresh(t)
+    return {"id": str(t.id), "name": t.name, "is_active": t.is_active, "is_default": t.is_default}
+
+
+@router.delete("/nt-workflow-templates/{template_id}")
+async def delete_workflow_template(
+    template_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(NTWorkflowTemplate).where(NTWorkflowTemplate.id == template_id))
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if t.is_default:
+        raise HTTPException(status_code=400, detail="Cannot delete the default template. Set another as default first.")
+    await db.delete(t)
+    await db.commit()
+    return {"message": f"Template '{t.name}' deleted"}
+
+
+@router.put("/nt-workflow-templates/{template_id}/set-default")
+async def set_default_template(
+    template_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(NTWorkflowTemplate).where(NTWorkflowTemplate.id == template_id))
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    await db.execute(
+        sql_update(NTWorkflowTemplate)
+        .where(NTWorkflowTemplate.id != template_id)
+        .values(is_default=False)
+    )
+    t.is_default = True
+    await db.commit()
+    return {"message": f"'{t.name}' is now the default template"}
+
+
+# ---------------------------------------------------------------------------
+# NT Workflow — Template Steps
+# ---------------------------------------------------------------------------
+
+class StepCreate(BaseModel):
+    designation_id: str
+    step_no:        Optional[int]  = None
+    is_required:    bool           = True
+
+
+class StepUpdate(BaseModel):
+    designation_id: Optional[str]  = None
+    is_required:    Optional[bool] = None
+
+
+class ReorderRequest(BaseModel):
+    steps: List[dict]
+
+
+@router.post("/nt-workflow-templates/{template_id}/steps", status_code=201)
+async def add_template_step(
+    template_id: str, current_user: CurrentUser, data: StepCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    t_res = await db.execute(select(NTWorkflowTemplate).where(NTWorkflowTemplate.id == template_id))
+    if not t_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Template not found")
+    d_res = await db.execute(select(NTDesignation).where(NTDesignation.id == data.designation_id))
+    desig = d_res.scalar_one_or_none()
+    if not desig:
+        raise HTTPException(status_code=404, detail="Designation not found")
+    if not desig.is_active:
+        raise HTTPException(status_code=400, detail="Cannot add an inactive designation as a step")
+
+    if data.step_no is not None:
+        dup = await db.execute(
+            select(NTWorkflowTemplateStep).where(
+                NTWorkflowTemplateStep.template_id == template_id,
+                NTWorkflowTemplateStep.step_no == data.step_no,
+            )
+        )
+        if dup.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail=f"Step {data.step_no} already exists in this template")
+        step_no = data.step_no
+    else:
+        max_res = await db.execute(
+            select(func.max(NTWorkflowTemplateStep.step_no))
+            .where(NTWorkflowTemplateStep.template_id == template_id)
+        )
+        step_no = (max_res.scalar() or 0) + 1
+
+    step = NTWorkflowTemplateStep(
+        template_id=template_id, step_no=step_no,
+        designation_id=data.designation_id, is_required=data.is_required,
+    )
+    db.add(step)
+    await db.commit()
+    await db.refresh(step)
+    return {
+        "step": {
+            "id":          str(step.id),
+            "step_no":     step.step_no,
+            "designation": desig.name,
+            "is_required": step.is_required,
+        }
+    }
+
+
+@router.put("/nt-workflow-templates/{template_id}/steps/{step_no}")
+async def update_template_step(
+    template_id: str, step_no: int, current_user: CurrentUser, data: StepUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(NTWorkflowTemplateStep).where(
+            NTWorkflowTemplateStep.template_id == template_id,
+            NTWorkflowTemplateStep.step_no == step_no,
+        )
+    )
+    step = result.scalar_one_or_none()
+    if not step:
+        raise HTTPException(status_code=404, detail="Step not found")
+    if data.designation_id is not None:
+        d_res = await db.execute(select(NTDesignation).where(NTDesignation.id == data.designation_id))
+        desig = d_res.scalar_one_or_none()
+        if not desig or not desig.is_active:
+            raise HTTPException(status_code=404, detail="Designation not found or inactive")
+        step.designation_id = data.designation_id
+    if data.is_required is not None:
+        step.is_required = data.is_required
+    await db.commit()
+    return {"message": "Step updated"}
+
+
+@router.delete("/nt-workflow-templates/{template_id}/steps/{step_no}")
+async def remove_template_step(
+    template_id: str, step_no: int, current_user: CurrentUser, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(NTWorkflowTemplateStep).where(
+            NTWorkflowTemplateStep.template_id == template_id,
+            NTWorkflowTemplateStep.step_no == step_no,
+        )
+    )
+    step = result.scalar_one_or_none()
+    if not step:
+        raise HTTPException(status_code=404, detail="Step not found")
+    count_res = await db.execute(
+        select(func.count()).where(NTWorkflowTemplateStep.template_id == template_id)
+    )
+    if (count_res.scalar() or 0) <= 1:
+        raise HTTPException(status_code=400, detail="A workflow template must have at least one step")
+    await db.delete(step)
+    await db.commit()
+    return {"message": "Step removed"}
+
+
+@router.put("/nt-workflow-templates/{template_id}/reorder")
+async def reorder_template_steps(
+    template_id: str, current_user: CurrentUser, data: ReorderRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    existing = await db.execute(
+        select(NTWorkflowTemplateStep).where(NTWorkflowTemplateStep.template_id == template_id)
+    )
+    steps = existing.scalars().all()
+    if not steps:
+        raise HTTPException(status_code=404, detail="Template not found or has no steps")
+
+    step_map = {s.step_no: s for s in steps}
+    # Two-pass to avoid unique constraint violations during renumber
+    for new_no, item in enumerate(data.steps, start=1):
+        old_no = item.get("step_no")
+        if old_no in step_map:
+            step_map[old_no].step_no = new_no + 1000
+    await db.flush()
+    for new_no, item in enumerate(data.steps, start=1):
+        old_no = item.get("step_no")
+        if old_no in step_map:
+            step_map[old_no].step_no = new_no
+    await db.commit()
+    return {"message": "Steps reordered"}
+
+
+# ---------------------------------------------------------------------------
+# NT Workflow — Assignments
+# ---------------------------------------------------------------------------
+
+class AssignmentCreate(BaseModel):
+    template_id:    str
+    staff_email:    Optional[str] = None
+    appraisal_role: Optional[str] = None
+    department:     Optional[str] = None
+
+
+@router.get("/nt-workflow-assignments")
+async def list_assignments(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    _check_admin(current_user)
+    result = await db.execute(
+        select(NTWorkflowAssignment, NTWorkflowTemplate)
+        .join(NTWorkflowTemplate, NTWorkflowAssignment.template_id == NTWorkflowTemplate.id)
+        .order_by(NTWorkflowAssignment.created_at.desc())
+    )
+    return [
+        {
+            "id":             str(a.id),
+            "template_id":    str(a.template_id),
+            "template_name":  t.name,
+            "staff_email":    a.staff_email,
+            "appraisal_role": a.appraisal_role,
+            "department":     a.department,
+        }
+        for a, t in result.all()
+    ]
+
+
+@router.post("/nt-workflow-assignments", status_code=201)
+async def create_assignment(
+    current_user: CurrentUser, data: AssignmentCreate, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    targets = [x for x in [data.staff_email, data.appraisal_role, data.department] if x]
+    if len(targets) != 1:
+        raise HTTPException(status_code=400, detail="Provide exactly one of: staff_email, appraisal_role, department")
+    t_res = await db.execute(select(NTWorkflowTemplate).where(NTWorkflowTemplate.id == data.template_id))
+    if not t_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    q = select(NTWorkflowAssignment).where(NTWorkflowAssignment.template_id == data.template_id)
+    if data.appraisal_role:
+        q = q.where(NTWorkflowAssignment.appraisal_role == data.appraisal_role)
+    elif data.department:
+        q = q.where(NTWorkflowAssignment.department == data.department)
+    if (await db.execute(q)).scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="An assignment for this target already exists")
+
+    a = NTWorkflowAssignment(
+        template_id=data.template_id,
+        staff_email=data.staff_email,
+        appraisal_role=data.appraisal_role,
+        department=data.department,
+    )
+    db.add(a)
+    await db.commit()
+    await db.refresh(a)
+    return {"id": str(a.id), "template_id": str(a.template_id)}
+
+
+@router.delete("/nt-workflow-assignments/{assignment_id}")
+async def delete_assignment(
+    assignment_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db),
+):
+    _check_admin(current_user)
+    result = await db.execute(select(NTWorkflowAssignment).where(NTWorkflowAssignment.id == assignment_id))
+    a = result.scalar_one_or_none()
+    if not a:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    await db.delete(a)
+    await db.commit()
+    return {"message": "Assignment removed"}
 
 
 # ---------------------------------------------------------------------------

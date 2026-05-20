@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Numeric, Integer, DateTime
+from sqlalchemy import Column, String, Numeric, Integer, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 from datetime import datetime
@@ -53,3 +54,100 @@ class NonTeachingPartBRating(Base):
     vc_rating = Column(Numeric)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class NTDesignation(Base):
+    __tablename__ = "nt_designations"
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name        = Column(String, nullable=False, unique=True)
+    description = Column(String)
+    is_system   = Column(Boolean, nullable=False, default=False)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at  = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    steps = relationship("NTWorkflowTemplateStep", back_populates="designation_obj")
+
+
+class NTWorkflowTemplate(Base):
+    __tablename__ = "nt_workflow_templates"
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name        = Column(String, nullable=False)
+    description = Column(String)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    is_default  = Column(Boolean, nullable=False, default=False)
+    created_at  = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at  = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    steps       = relationship("NTWorkflowTemplateStep", back_populates="template",
+                               order_by="NTWorkflowTemplateStep.step_no",
+                               cascade="all, delete-orphan")
+    assignments = relationship("NTWorkflowAssignment", back_populates="template")
+    instances   = relationship("NTWorkflowInstance",   back_populates="template")
+
+
+class NTWorkflowTemplateStep(Base):
+    __tablename__ = "nt_workflow_template_steps"
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    template_id    = Column(UUID(as_uuid=True), ForeignKey("nt_workflow_templates.id", ondelete="CASCADE"), nullable=False)
+    step_no        = Column(Integer, nullable=False)
+    designation_id = Column(UUID(as_uuid=True), ForeignKey("nt_designations.id"), nullable=False)
+    is_required    = Column(Boolean, nullable=False, default=True)
+    created_at     = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    template        = relationship("NTWorkflowTemplate",  back_populates="steps")
+    designation_obj = relationship("NTDesignation",       back_populates="steps")
+
+
+class NTWorkflowAssignment(Base):
+    __tablename__ = "nt_workflow_assignments"
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    template_id    = Column(UUID(as_uuid=True), ForeignKey("nt_workflow_templates.id"), nullable=False)
+    staff_email    = Column(String, unique=True)
+    appraisal_role = Column(String)
+    department     = Column(String)
+    created_at     = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at     = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    template = relationship("NTWorkflowTemplate", back_populates="assignments")
+
+
+class NTWorkflowInstance(Base):
+    __tablename__ = "nt_workflow_instances"
+
+    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    appraisal_id  = Column(UUID(as_uuid=True), ForeignKey("non_teaching_appraisals.id", ondelete="CASCADE"), nullable=False)
+    template_id   = Column(UUID(as_uuid=True), ForeignKey("nt_workflow_templates.id"))
+    staff_email   = Column(String, nullable=False)
+    academic_year = Column(String, nullable=False)
+    current_step  = Column(Integer)
+    status        = Column(String, nullable=False, default="PENDING")
+    created_at    = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at    = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    template       = relationship("NTWorkflowTemplate", back_populates="instances")
+    instance_steps = relationship("NTWorkflowInstanceStep", back_populates="instance",
+                                  order_by="NTWorkflowInstanceStep.step_no",
+                                  cascade="all, delete-orphan")
+
+
+class NTWorkflowInstanceStep(Base):
+    __tablename__ = "nt_workflow_instance_steps"
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    instance_id    = Column(UUID(as_uuid=True), ForeignKey("nt_workflow_instances.id", ondelete="CASCADE"), nullable=False)
+    step_no        = Column(Integer, nullable=False)
+    designation    = Column(String, nullable=False)
+    reviewer_email = Column(String)
+    status         = Column(String, nullable=False, default="WAITING")
+    score          = Column(Numeric)
+    remarks        = Column(Text)
+    reviewed_at    = Column(DateTime(timezone=True))
+    created_at     = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at     = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    instance = relationship("NTWorkflowInstance", back_populates="instance_steps")
