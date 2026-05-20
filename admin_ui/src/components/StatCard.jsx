@@ -2,7 +2,7 @@ import { C } from '../constants/colors';
 
 export default function StatCard({ label, value, delta, color, IconC, delay = 0 }) {
   return (
-    <div className="glass stat-card card-appear" style={{
+    <div className="glass glass-glow stat-card card-shimmer card-appear" style={{
       padding: '20px 22px', position: 'relative', overflow: 'hidden',
       animationDelay: `${delay}ms`,
     }}>
