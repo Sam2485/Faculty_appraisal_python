@@ -60,6 +60,7 @@ class DeclarationBase(BaseModel):
     part_b_total: float = 0
     grand_total: float = 0
     status: str = 'Pending Review'
+    submission_attempt: int = 1
 
 class DeclarationResponse(DeclarationBase):
     id: UUID

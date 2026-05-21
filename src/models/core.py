@@ -51,6 +51,7 @@ class Declaration(Base):
     part_b_total = Column(Numeric, nullable=False, default=0)
     grand_total = Column(Numeric, nullable=False, default=0)
     status = Column(String, nullable=False, default='Pending Review')
+    submission_attempt = Column(Integer, nullable=False, default=1)
     submitted_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
