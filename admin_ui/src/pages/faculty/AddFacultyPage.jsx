@@ -9,6 +9,8 @@ import Card from '../../components/Card';
 import Modal from '../../components/Modal';
 import PageHead from '../../components/PageHead';
 import { I } from '../../components/icons';
+import WorkflowTimeline from '../../components/workflow/WorkflowTimeline';
+import { useWorkflowTemplate } from '../../hooks/useWorkflow';
 
 const ENGG_ROLES = [
   { value: 'faculty',  label: 'Faculty',             color: C.accent,  icon: I.users,  flow: 'HOD/Director → Dean (Eng) → VC'          },
@@ -26,9 +28,9 @@ const CISR_ROLES = [
   { value: 'center_head', label: 'Center Head', color: '#a78bfa', icon: I.shield, flow: 'VC only'          },
 ];
 const NT_ROLES = [
-  { value: 'non_teaching_staff', label: 'Staff',             color: C.accent,  icon: I.users, flow: 'Reporting Officer → Registrar → VC' },
-  { value: 'reporting_officer',  label: 'Reporting Officer', color: '#a78bfa', icon: I.doc,   flow: 'Registrar → VC'                     },
-  { value: 'registrar',          label: 'Registrar',         color: C.yellow,  icon: I.star,  flow: 'VC only'                           },
+  { value: 'non_teaching_staff', label: 'Staff',             color: C.accent,  icon: I.users, desc: 'Submits appraisal form · routed through assigned workflow template'    },
+  { value: 'reporting_officer',  label: 'Reporting Officer', color: '#a78bfa', icon: I.doc,   desc: 'Reviews & scores NT staff appraisals routed to them'                   },
+  { value: 'registrar',          label: 'Registrar',         color: C.yellow,  icon: I.star,  desc: 'Final institutional sign-off on non-teaching appraisals'               },
 ];
 
 const STEPS = [
@@ -42,9 +44,7 @@ const EMPTY = {
   full_name: '', email: '', password: 'demo123',
   school: '', department: '', appraisal_role: '',
   designation: '', phone: '', qualification: '', teaching_experience: '',
-  reports_to_registrar: false,
-  reporting_officer_email: '',
-  registrar_email: '',
+  workflow_template_id: '',
 };
 
 // ── Appraisal flow computation ─────────────────────────────────────────────────
@@ -53,31 +53,9 @@ function computeFlow(staffType, track, role, school, dept, reportsDirectly = fal
   if (!staffType || !role) return [];
   const n = (label, sub, sees, hides) => ({ label, sub, sees, hides });
 
-  if (staffType === 'non_teaching') {
-    if (role === 'non_teaching_staff') {
-      if (reportsDirectly) return [
-        n('Staff', 'Fills and submits form', null, null),
-        n('Registrar', 'Reviews & scores', 'Staff self-score', null),
-        n('VC', 'Final review & scores', 'Staff + Registrar scores', null),
-      ];
-      return [
-        n('Staff', 'Fills and submits form', null, null),
-        n('Reporting Officer', 'Reviews & scores', 'Staff self-score only', null),
-        n('Registrar', 'Reviews & scores', 'Staff self-score only', 'Reporting Officer score hidden'),
-        n('VC', 'Final review & scores', 'All scores: Staff + RO + Registrar', null),
-      ];
-    }
-    if (role === 'reporting_officer') return [
-      n('Reporting Officer', 'Fills and submits form', null, null),
-      n('Registrar', 'Reviews & scores', 'RO self-score', null),
-      n('VC', 'Final review & scores', 'RO + Registrar scores', null),
-    ];
-    if (role === 'registrar') return [
-      n('Registrar', 'Fills and submits form', null, null),
-      n('VC', 'Reviews & scores', 'Registrar self-score', null),
-    ];
-    return [];
-  }
+  // Non-teaching flows are fully dynamic — rendered via WorkflowTimeline + useWorkflowTemplate.
+  // computeFlow is not used for NT staff; this guard ensures an empty array is returned.
+  if (staffType === 'non_teaching') return [];
 
   if (track === 'cisr') {
     if (role === 'faculty') return [
@@ -139,10 +117,10 @@ function computeFlow(staffType, track, role, school, dept, reportsDirectly = fal
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function Stepper({ current }) {
+function Stepper({ current, steps: stepList = STEPS }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 28 }}>
-      {STEPS.map((s, i) => {
+      {stepList.map((s, i) => {
         const done   = i < current;
         const active = i === current;
         const col    = done ? C.green : active ? C.accent : 'rgba(255,255,255,.2)';
@@ -318,41 +296,6 @@ function InfoBox({ color, children }) {
 }
 
 // Reporting structure toggle (non-teaching staff only)
-function ReportingToggle({ checked, onChange }) {
-  return (
-    <div onClick={onChange} style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '14px 16px', borderRadius: 10, cursor: 'pointer',
-      background: checked ? 'rgba(52,211,153,.07)' : 'rgba(255,255,255,.03)',
-      border: `1.5px solid ${checked ? 'rgba(52,211,153,.3)' : 'rgba(255,255,255,.08)'}`,
-      transition: 'all .2s',
-    }}>
-      <div>
-        <div style={{ fontWeight: 700, fontSize: 13, color: checked ? C.green : C.text }}>
-          Reports directly to Registrar
-        </div>
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
-          {checked
-            ? 'Skips Reporting Officer — form submitted directly to Registrar'
-            : 'Standard flow: Staff → Reporting Officer → Registrar → VC'}
-        </div>
-      </div>
-      <div style={{
-        width: 40, height: 22, borderRadius: 11, position: 'relative', flexShrink: 0, marginLeft: 16,
-        background: checked ? C.green : 'rgba(255,255,255,.1)',
-        border: `1.5px solid ${checked ? C.green : 'rgba(255,255,255,.12)'}`,
-        transition: 'all .2s',
-      }}>
-        <div style={{
-          position: 'absolute', top: 2, left: checked ? 19 : 2,
-          width: 14, height: 14, borderRadius: '50%', background: '#fff',
-          transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,.35)',
-        }} />
-      </div>
-    </div>
-  );
-}
-
 // ── CSV import helpers ─────────────────────────────────────────────────────────
 
 const TEMPLATE_HEADERS = [
@@ -1050,26 +993,17 @@ export default function AddFacultyPage() {
   const [success,     setSuccess]     = useState(null);
   const [receipt,     setReceipt]     = useState(null);
   const [importModal, setImportModal] = useState(false);
-  const [ros,              setRos]              = useState([]);
-  const [rosLoading,       setRosLoading]       = useState(false);
-  const [registrars,       setRegistrars]       = useState([]);
-  const [registrarsLoading,setRegistrarsLoading]= useState(false);
+  const [templates,        setTemplates]        = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   useEffect(() => {
     if (staffType !== 'non_teaching') return;
-    if (ros.length === 0) {
-      setRosLoading(true);
-      api.users.reportingOfficers()
-        .then(data => setRos(data || []))
+    if (templates.length === 0) {
+      setTemplatesLoading(true);
+      api.workflowTemplates.list()
+        .then(data => setTemplates(Array.isArray(data) ? data : []))
         .catch(() => {})
-        .finally(() => setRosLoading(false));
-    }
-    if (registrars.length === 0) {
-      setRegistrarsLoading(true);
-      api.users.registrars()
-        .then(data => setRegistrars(data || []))
-        .catch(() => {})
-        .finally(() => setRegistrarsLoading(false));
+        .finally(() => setTemplatesLoading(false));
     }
   }, [staffType]);
 
@@ -1100,7 +1034,18 @@ export default function AddFacultyPage() {
   const showDeptFixed    = (role === 'faculty' || role === 'hod') && school === 'SoEMR';
   const showDeptText     = role === 'faculty' && !!school && school !== 'SoEMR' && (isEngineering || isNonEng);
 
-  const flowNodes = computeFlow(staffType, track, role, school, dept, form.reports_to_registrar);
+  const flowNodes = computeFlow(staffType, track, role, school, dept);
+
+  // Dynamic NT workflow — fetched from API, falls back gracefully if unavailable
+  const { steps: ntWorkflowSteps, loading: ntWorkflowLoading } = useWorkflowTemplate(
+    isNonTeaching ? role : null,
+  );
+
+  // If admin selected a specific template override, use that template's steps for the preview
+  const selectedTemplate = templates.find(t => String(t.id) === String(form.workflow_template_id));
+  const displayNtSteps = selectedTemplate?.steps
+    ? selectedTemplate.steps.map(s => ({ stepNo: s.step_no, designation: s.designation, status: 'WAITING' }))
+    : ntWorkflowSteps;
 
   // ── Print receipt ────────────────────────────────────────────────────────────
 
@@ -1159,7 +1104,7 @@ export default function AddFacultyPage() {
     setStaffType(type);
     setTrack('');
     setErr(null);
-    setForm(p => ({ ...p, appraisal_role: '', school: '', department: '', reports_to_registrar: false, reporting_officer_email: '', registrar_email: '' }));
+    setForm(p => ({ ...p, appraisal_role: '', school: '', department: '', workflow_template_id: '' }));
   };
   const handleTrack = (t) => {
     setTrack(t);
@@ -1177,10 +1122,9 @@ export default function AddFacultyPage() {
     }));
   };
   const handleRole = (val) => {
-    const update = { appraisal_role: val, department: '', reporting_officer_email: '', registrar_email: '' };
+    const update = { appraisal_role: val, department: '', workflow_template_id: '' };
     if (val === 'hod')  update.school = 'SoEMR';
     if (val === 'dean') update.school = track;
-    if (val !== 'non_teaching_staff') update.reports_to_registrar = false;
     setForm(p => ({ ...p, ...update }));
   };
 
@@ -1190,6 +1134,7 @@ export default function AddFacultyPage() {
     if (step === 0) {
       if (!staffType) return 'Please select Teaching or Non-Teaching.';
       if (isTeaching && !track) return 'Please select an academic track.';
+      if (isNonTeaching && !role) return 'Please select a Non-Teaching role.';
     }
     if (step === 1) {
       if (!role) return 'Please select a role.';
@@ -1199,10 +1144,6 @@ export default function AddFacultyPage() {
         return 'Please select a department for this HOD position.';
       if (role === 'faculty' && school === 'SoEMR' && !dept)
         return 'SoEMR faculty must be assigned to a department.';
-      if (isNonTeaching && role === 'non_teaching_staff' && !form.reports_to_registrar && !form.reporting_officer_email)
-        return 'Please assign a Reporting Officer, or enable "Reports directly to Registrar".';
-      if (isNonTeaching && role === 'non_teaching_staff' && !form.registrar_email)
-        return 'Please assign a Registrar.';
     }
     if (step === 2) {
       if (!form.full_name.trim()) return 'Full name is required.';
@@ -1233,9 +1174,7 @@ export default function AddFacultyPage() {
         phone:              form.phone         || null,
         qualification:      form.qualification || null,
         teachingExperience: form.teaching_experience || null,
-        reportsToRegistrar: form.reports_to_registrar || false,
-        reportingOfficer:   selectedRO  ? selectedRO.full_name  : null,
-        registrar:          selectedReg ? selectedReg.full_name : null,
+        template:           selectedTemplate?.name || null,
         createdAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       };
       setReceipt(snap);
@@ -1303,10 +1242,148 @@ export default function AddFacultyPage() {
           </div>
         </div>
       )}
+
+      {isNonTeaching && (
+        <div style={{ animation: 'fadeUp .2s cubic-bezier(.22,1,.36,1) both' }}>
+          <SL>Select Role</SL>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            {NT_ROLES.map(r => {
+              const RIcon  = r.icon;
+              const active = role === r.value;
+              return (
+                <button
+                  key={r.value}
+                  type="button"
+                  onClick={() => handleRole(r.value)}
+                  className="act-btn"
+                  style={{
+                    padding: '16px 14px', borderRadius: 12, textAlign: 'left',
+                    cursor: 'pointer', position: 'relative',
+                    border: `1.5px solid ${active ? r.color : 'rgba(255,255,255,.07)'}`,
+                    background: active ? `${r.color}12` : 'rgba(255,255,255,.02)',
+                    transition: 'border-color .15s, background .15s',
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 9, marginBottom: 10, flexShrink: 0,
+                    background: active ? `${r.color}20` : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${active ? `${r.color}35` : 'rgba(255,255,255,.07)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: active ? r.color : C.muted,
+                  }}>
+                    <RIcon size={16} />
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: active ? r.color : C.text, marginBottom: 5 }}>
+                    {r.label}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.5 }}>
+                    {r.desc}
+                  </div>
+                  {active && (
+                    <div style={{ position: 'absolute', top: 10, right: 10, width: 7, height: 7, borderRadius: '50%', background: r.color }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 
-  const stepRoleSchool = () => (
+  const stepRoleSchool = () => {
+    // ── Non-Teaching: role already chosen in step 0 — show workflow config only ──
+    if (isNonTeaching) {
+      const ntRole = NT_ROLES.find(r => r.value === role);
+      const NTIcon = ntRole?.icon;
+      return (
+        <div>
+          {/* Role summary */}
+          {ntRole && (
+            <div style={{ marginBottom: 22 }}>
+              <SL>Selected Role</SL>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10,
+                background: `${ntRole.color}10`, border: `1.5px solid ${ntRole.color}28`,
+              }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+                  background: `${ntRole.color}18`, border: `1px solid ${ntRole.color}30`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: ntRole.color,
+                }}>
+                  <NTIcon size={16} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: ntRole.color }}>{ntRole.label}</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{ntRole.desc}</div>
+                </div>
+                <button
+                  type="button" className="act-btn"
+                  onClick={() => { setErr(null); setStep(0); }}
+                  style={{
+                    fontSize: 11, color: C.muted, background: 'transparent', flexShrink: 0,
+                    border: '1px solid rgba(255,255,255,.08)', borderRadius: 7, padding: '5px 10px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Workflow Template */}
+          <SL>Workflow Template</SL>
+          <div style={{ marginBottom: 10 }}>
+            {templatesLoading ? (
+              <div style={{
+                fontSize: 11, color: C.muted, padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+              }}>
+                Loading templates…
+              </div>
+            ) : (
+              <select
+                className="ifield"
+                value={form.workflow_template_id}
+                onChange={set('workflow_template_id')}
+                style={inp}
+              >
+                <option value="">— Use default template for this role —</option>
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.is_default ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            {!templatesLoading && templates.length === 0 && (
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>
+                No templates configured — default role-based workflow will be used.
+              </div>
+            )}
+          </div>
+          <InfoBox color="purple">
+            The template defines the approval chain — who reviews this member's appraisal and in what order.
+            Leave on default to use the standard role-based chain, or pick a specific template to override it for this individual.
+          </InfoBox>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <button type="button" onClick={() => navigate('/workflow/templates')}
+              style={{ fontSize: 11, color: C.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}>
+              Manage Templates →
+            </button>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.15)' }}>|</span>
+            <button type="button" onClick={() => navigate('/workflow/designations')}
+              style={{ fontSize: 11, color: C.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}>
+              Manage Designations →
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Teaching / CISR: role cards + school/dept ──
+    return (
     <div>
       {/* ── Role cards ── */}
       <SL>Role</SL>
@@ -1348,89 +1425,6 @@ export default function AddFacultyPage() {
           );
         })}
       </div>
-
-      {/* ── Reporting structure — non-teaching staff only ── */}
-      {isNonTeaching && role === 'non_teaching_staff' && (
-        <div style={{ marginBottom: 20, animation: 'fadeUp .2s ease both' }}>
-          <SL>Reporting Structure</SL>
-          <ReportingToggle
-            checked={form.reports_to_registrar}
-            onChange={() => setForm(p => ({
-              ...p,
-              reports_to_registrar: !p.reports_to_registrar,
-              reporting_officer_email: p.reports_to_registrar ? p.reporting_officer_email : '',
-            }))}
-          />
-
-          {/* RO picker — only when not skipping RO */}
-          {!form.reports_to_registrar && (
-            <div style={{ marginTop: 12, animation: 'fadeUp .18s ease both' }}>
-              <label style={lbl}>Assign Reporting Officer *</label>
-              {rosLoading ? (
-                <div style={{
-                  fontSize: 11, color: C.muted, padding: '10px 14px', borderRadius: 8,
-                  background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
-                }}>
-                  Loading reporting officers…
-                </div>
-              ) : (
-                <select
-                  className="ifield"
-                  value={form.reporting_officer_email}
-                  onChange={set('reporting_officer_email')}
-                  style={inp}
-                >
-                  <option value="">— Select a Reporting Officer —</option>
-                  {ros.map(ro => (
-                    <option key={ro.email} value={ro.email}>
-                      {ro.full_name}
-                      {ro.school ? ` (${ro.school}${ro.department ? ' / ' + ro.department : ''})` : ''}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {!rosLoading && ros.length === 0 && (
-                <div style={{ fontSize: 10, color: C.red, marginTop: 5 }}>
-                  No reporting officers found. Add a user with the Reporting Officer role first.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Registrar picker — always required for non_teaching_staff */}
-          <div style={{ marginTop: 12, animation: 'fadeUp .18s ease both' }}>
-            <label style={lbl}>Assign Registrar *</label>
-            {registrarsLoading ? (
-              <div style={{
-                fontSize: 11, color: C.muted, padding: '10px 14px', borderRadius: 8,
-                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
-              }}>
-                Loading registrars…
-              </div>
-            ) : (
-              <select
-                className="ifield"
-                value={form.registrar_email}
-                onChange={set('registrar_email')}
-                style={inp}
-              >
-                <option value="">— Select a Registrar —</option>
-                {registrars.map(r => (
-                  <option key={r.email} value={r.email}>
-                    {r.full_name}
-                    {r.school ? ` (${r.school}${r.department ? ' / ' + r.department : ''})` : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-            {!registrarsLoading && registrars.length === 0 && (
-              <div style={{ fontSize: 10, color: C.red, marginTop: 5 }}>
-                No registrars found. Add a user with the Registrar role first.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── Contextual notes ── */}
       {role === 'dean' && (isEngineering || isNonEng) && (
@@ -1539,7 +1533,8 @@ export default function AddFacultyPage() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const stepAccount = () => (
     <div>
@@ -1605,19 +1600,16 @@ export default function AddFacultyPage() {
 
   // ── Summary rows ─────────────────────────────────────────────────────────────
 
-  const roleMeta      = availRoles.find(r => r.value === role);
-  const selectedRO    = ros.find(r => r.email === form.reporting_officer_email);
-  const selectedReg   = registrars.find(r => r.email === form.registrar_email);
+  const roleMeta    = availRoles.find(r => r.value === role);
   const summaryRows = [
-    { k: 'Category',   v: staffType === 'teaching' ? 'Teaching' : staffType === 'non_teaching' ? 'Non-Teaching' : null },
-    { k: 'Track',      v: track === 'engineering' ? 'Engineering' : track === 'non_engineering' ? 'Non-Engineering' : track === 'cisr' ? 'CISR' : null },
-    { k: 'Role',       v: roleMeta?.label ?? null },
-    { k: 'School',     v: school || null },
-    { k: 'Dept',       v: dept   || null },
-    { k: 'Name',       v: form.full_name || null },
-    { k: 'Email',      v: form.email     || null },
-    { k: 'Reports To', v: form.reports_to_registrar ? 'Registrar (skip RO)' : selectedRO ? selectedRO.full_name : null },
-    { k: 'Registrar',  v: selectedReg ? selectedReg.full_name : null },
+    { k: 'Category', v: staffType === 'teaching' ? 'Teaching' : staffType === 'non_teaching' ? 'Non-Teaching' : null },
+    { k: 'Track',    v: track === 'engineering' ? 'Engineering' : track === 'non_engineering' ? 'Non-Engineering' : track === 'cisr' ? 'CISR' : null },
+    { k: 'Role',     v: roleMeta?.label ?? null },
+    { k: 'School',   v: school || null },
+    { k: 'Dept',     v: dept   || null },
+    { k: 'Name',     v: form.full_name || null },
+    { k: 'Email',    v: form.email     || null },
+    { k: 'Template', v: selectedTemplate?.name || null },
   ].filter(r => r.v);
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -1625,19 +1617,17 @@ export default function AddFacultyPage() {
   // ── Receipt modal ─────────────────────────────────────────────────────────────
 
   const receiptFields = receipt ? [
-    { k: 'Full Name',    v: receipt.name        },
-    { k: 'Email',        v: receipt.email       },
-    { k: 'Role',         v: receipt.role        },
-    { k: 'Staff Type',   v: receipt.staffType   },
-    receipt.school             && { k: 'School',            v: receipt.school             },
-    receipt.department         && { k: 'Department',        v: receipt.department         },
-    receipt.designation        && { k: 'Designation',       v: receipt.designation        },
-    receipt.phone              && { k: 'Phone',             v: receipt.phone              },
-    receipt.qualification      && { k: 'Qualification',     v: receipt.qualification      },
-    receipt.teachingExperience && { k: 'Experience',        v: receipt.teachingExperience },
-    receipt.reportsToRegistrar && { k: 'Reports To',        v: 'Registrar (RO skipped)'   },
-    receipt.reportingOfficer   && { k: 'Reporting Officer', v: receipt.reportingOfficer   },
-    receipt.registrar          && { k: 'Registrar',         v: receipt.registrar           },
+    { k: 'Full Name',  v: receipt.name        },
+    { k: 'Email',      v: receipt.email       },
+    { k: 'Role',       v: receipt.role        },
+    { k: 'Staff Type', v: receipt.staffType   },
+    receipt.school             && { k: 'School',      v: receipt.school             },
+    receipt.department         && { k: 'Department',  v: receipt.department         },
+    receipt.designation        && { k: 'Designation', v: receipt.designation        },
+    receipt.phone              && { k: 'Phone',       v: receipt.phone              },
+    receipt.qualification      && { k: 'Qualification', v: receipt.qualification    },
+    receipt.teachingExperience && { k: 'Experience',  v: receipt.teachingExperience },
+    receipt.template           && { k: 'Template',    v: receipt.template           },
   ].filter(Boolean) : [];
 
   return (
@@ -1724,15 +1714,23 @@ export default function AddFacultyPage() {
 
         {/* ── Main form card ── */}
         <Card delay={0}>
-          <Stepper current={step} />
+          <Stepper current={step} steps={isNonTeaching
+            ? [
+                { label: 'Classification', sub: 'Staff type & role'      },
+                { label: 'Workflow',       sub: 'Approval template'       },
+                { label: 'Account',        sub: 'Login credentials'       },
+                { label: 'Profile',        sub: 'Professional details'    },
+              ]
+            : STEPS}
+          />
 
           {/* Step heading */}
           <div style={{ marginBottom: 22 }}>
             <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>
-              {STEPS[step].label}
+              {step === 1 && isNonTeaching ? 'Workflow Setup' : STEPS[step].label}
             </div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-              {STEPS[step].sub}
+              {step === 1 && isNonTeaching ? 'Assign an approval template for this staff member' : STEPS[step].sub}
             </div>
           </div>
 
@@ -1824,8 +1822,36 @@ export default function AddFacultyPage() {
           </Card>
 
           {/* Appraisal Journey */}
-          <Card title="Appraisal Journey" sub="Score visibility at each stage" delay={100}>
-            <FlowPreview nodes={flowNodes} />
+          <Card
+            title="Appraisal Journey"
+            sub={isNonTeaching
+              ? selectedTemplate
+                ? `Template: ${selectedTemplate.name}`
+                : 'Approval chain — default workflow'
+              : 'Score visibility at each stage'}
+            delay={100}
+          >
+            {isNonTeaching
+              ? <>
+                  <WorkflowTimeline
+                    steps={displayNtSteps}
+                    loading={ntWorkflowLoading && !selectedTemplate}
+                    showStaff
+                  />
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.05)' }}>
+                    <button type="button" onClick={() => navigate('/workflow/templates')}
+                      style={{ fontSize: 10, color: C.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}>
+                      Manage Templates →
+                    </button>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,.15)' }}>|</span>
+                    <button type="button" onClick={() => navigate('/workflow/designations')}
+                      style={{ fontSize: 10, color: C.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}>
+                      Manage Designations →
+                    </button>
+                  </div>
+                </>
+              : <FlowPreview nodes={flowNodes} />
+            }
           </Card>
 
         </div>

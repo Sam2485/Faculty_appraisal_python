@@ -20,6 +20,9 @@ const SchoolStatisticsPage  = lazy(() => import('./pages/tracking/SchoolStatisti
 
 const CredentialDetailsPage = lazy(() => import('./pages/credentials/CredentialDetailsPage'))
 
+const DesignationsPage      = lazy(() => import('./pages/workflow/DesignationsPage'))
+const WorkflowTemplatesPage = lazy(() => import('./pages/workflow/WorkflowTemplatesPage'))
+
 const FeedbackPage          = lazy(() => import('./pages/feedback/FeedbackPage'))
 const AnnouncementsPage     = lazy(() => import('./pages/announcements/AnnouncementsPage'))
 const SettingsPage          = lazy(() => import('./pages/settings/SettingsPage'))
@@ -50,6 +53,9 @@ export default function App() {
           <Route path="tracking/schools"    element={<SchoolStatisticsPage />} />
 
           <Route path="credentials/reset"   element={<CredentialDetailsPage />} />
+
+          <Route path="workflow/designations" element={<DesignationsPage />}      />
+          <Route path="workflow/templates"    element={<WorkflowTemplatesPage />} />
 
           <Route path="analytics"           element={<Navigate to="/" replace />} />
 

@@ -360,6 +360,226 @@ style.textContent = `
 
   /* ── Remarks expand ─────────────────────────────────────────── */
   .remarks-expand{animation:expandDown .25s cubic-bezier(.22,1,.36,1) both}
+
+  /* ══════════════════════════════════════════════════════════════
+     NEW INTERACTIVE ANIMATION SYSTEM
+  ══════════════════════════════════════════════════════════════ */
+
+  /* ── New keyframes ──────────────────────────────────────────── */
+  @keyframes slideInRight{
+    from{opacity:0;transform:translateX(28px)}
+    to{opacity:1;transform:translateX(0)}
+  }
+  @keyframes bounceIn{
+    0%{opacity:0;transform:scale(.55)}
+    60%{opacity:1;transform:scale(1.1)}
+    80%{transform:scale(.95)}
+    100%{opacity:1;transform:scale(1)}
+  }
+  @keyframes shakeX{
+    0%,100%{transform:translateX(0)}
+    15%{transform:translateX(-7px)}
+    30%{transform:translateX(7px)}
+    45%{transform:translateX(-5px)}
+    60%{transform:translateX(5px)}
+    75%{transform:translateX(-2px)}
+    90%{transform:translateX(2px)}
+  }
+  @keyframes slideFadeUp{
+    from{opacity:0;transform:translateY(18px);filter:blur(5px)}
+    to{opacity:1;transform:translateY(0);filter:blur(0)}
+  }
+  @keyframes rippleSpread{
+    from{transform:scale(0);opacity:.5}
+    to{transform:scale(3);opacity:0}
+  }
+  @keyframes borderPulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,.0)}
+    50%{box-shadow:0 0 0 4px rgba(99,102,241,.18)}
+  }
+  @keyframes slideUp{
+    from{opacity:0;transform:translateY(10px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  @keyframes typeIn{
+    0%,100%{opacity:1}
+    50%{opacity:0}
+  }
+
+  /* ── Stagger children utility ───────────────────────────────── */
+  .stagger-children > *{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both}
+  .stagger-children > *:nth-child(1){animation-delay:0ms}
+  .stagger-children > *:nth-child(2){animation-delay:55ms}
+  .stagger-children > *:nth-child(3){animation-delay:110ms}
+  .stagger-children > *:nth-child(4){animation-delay:165ms}
+  .stagger-children > *:nth-child(5){animation-delay:220ms}
+  .stagger-children > *:nth-child(6){animation-delay:275ms}
+  .stagger-children > *:nth-child(7){animation-delay:330ms}
+  .stagger-children > *:nth-child(8){animation-delay:385ms}
+
+  /* ── Section stagger (grid cards) ───────────────────────────── */
+  .section-appear{animation:fadeUp .4s cubic-bezier(.22,1,.36,1) both}
+  .section-appear:nth-child(1){animation-delay:0ms}
+  .section-appear:nth-child(2){animation-delay:70ms}
+  .section-appear:nth-child(3){animation-delay:140ms}
+  .section-appear:nth-child(4){animation-delay:210ms}
+  .section-appear:nth-child(5){animation-delay:280ms}
+  .section-appear:nth-child(6){animation-delay:350ms}
+
+  /* ── Toast / notification enter ─────────────────────────────── */
+  .toast-enter{animation:slideInRight .3s cubic-bezier(.22,1,.36,1) both}
+  .toast-exit{animation:slideInRight .25s cubic-bezier(.22,1,.36,1) reverse both}
+
+  /* ── Error & success feedback ───────────────────────────────── */
+  .error-shake{animation:shakeX .42s cubic-bezier(.36,.07,.19,.97) both}
+  .success-pop{animation:bounceIn .48s cubic-bezier(.22,1,.36,1) both}
+  .fade-slide-up{animation:slideFadeUp .42s cubic-bezier(.22,1,.36,1) both}
+  .slide-up{animation:slideUp .3s cubic-bezier(.22,1,.36,1) both}
+
+  /* ── Hover scale ─────────────────────────────────────────────── */
+  .hover-scale{
+    transition:transform .2s cubic-bezier(.22,1,.36,1);
+    will-change:transform;
+  }
+  .hover-scale:hover{transform:scale(1.04)}
+  .hover-scale:active{transform:scale(.97)}
+
+  /* ── Hover lift (stronger) ───────────────────────────────────── */
+  .hover-lift{
+    transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s ease;
+    will-change:transform;
+  }
+  .hover-lift:hover{
+    transform:translateY(-7px);
+    box-shadow:0 28px 64px rgba(0,0,0,.45)!important;
+  }
+  [data-theme="light"] .hover-lift:hover{
+    box-shadow:0 18px 44px rgba(15,23,42,.15)!important;
+  }
+
+  /* ── Table row — left accent bar on hover ────────────────────── */
+  .tr-row{position:relative;transition:background .12s ease}
+  .tr-row::before{
+    content:'';
+    position:absolute;
+    left:0;top:5px;bottom:5px;
+    width:2px;
+    border-radius:2px;
+    background:linear-gradient(180deg,#3b82f6,#6366f1);
+    opacity:0;
+    transition:opacity .18s ease;
+    pointer-events:none;
+  }
+  .tr-row:hover{background:rgba(59,130,246,.06)!important}
+  .tr-row:hover::before{opacity:1}
+  [data-theme="light"] .tr-row:hover{background:rgba(59,130,246,.05)!important}
+
+  /* ── Glass card gradient border glow on hover ────────────────── */
+  .glass-glow{position:relative;overflow:hidden}
+  .glass-glow::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:14px;
+    background:linear-gradient(135deg,rgba(99,102,241,.06),rgba(59,130,246,.04),transparent 60%);
+    opacity:0;
+    transition:opacity .3s ease;
+    pointer-events:none;
+  }
+  .glass-glow:hover::after{opacity:1}
+  .glass-glow:hover{border-color:rgba(99,102,241,.2)!important}
+
+  /* ── Button ripple flash on press ────────────────────────────── */
+  .btn-ripple{position:relative;overflow:hidden}
+  .btn-ripple::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:inherit;
+    background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.22) 0%,transparent 65%);
+    opacity:0;
+    transition:opacity .28s ease;
+  }
+  .btn-ripple:active::after{
+    opacity:1;
+    transition:none;
+  }
+
+  /* ── Active nav item indicator ───────────────────────────────── */
+  .nav-active-indicator{
+    animation:scaleIn .18s cubic-bezier(.22,1,.36,1) both;
+    box-shadow:0 0 8px rgba(99,102,241,.5);
+  }
+
+  /* ── Input border pulse on focus ────────────────────────────── */
+  .ifield-pulse:focus{animation:borderPulse .8s cubic-bezier(.22,1,.36,1) both}
+
+  /* ── Count up number entrance ───────────────────────────────── */
+  .count-num{animation:countUp .6s cubic-bezier(.22,1,.36,1) both}
+
+  /* ── Typing cursor ──────────────────────────────────────────── */
+  .cursor-blink{animation:typeIn 1.1s step-end infinite}
+
+  /* ── Glowing active / selected state ────────────────────────── */
+  .active-glow{
+    box-shadow:0 0 0 2px rgba(99,102,241,.35),0 0 16px rgba(99,102,241,.12)!important;
+    border-color:rgba(99,102,241,.35)!important;
+    transition:box-shadow .25s ease,border-color .25s ease;
+  }
+
+  /* ── Subtle card shimmer on hover ───────────────────────────── */
+  .card-shimmer{position:relative;overflow:hidden}
+  .card-shimmer::before{
+    content:'';
+    position:absolute;
+    top:0;left:-100%;
+    width:60%;height:100%;
+    background:linear-gradient(
+      90deg,
+      transparent,
+      rgba(255,255,255,.04),
+      transparent
+    );
+    transform:skewX(-18deg);
+    transition:left .55s cubic-bezier(.22,1,.36,1);
+    pointer-events:none;
+  }
+  .card-shimmer:hover::before{left:150%}
+
+  /* ── Smooth row entrance in tables ─────────────────────────── */
+  .row-enter{animation:slideUp .28s cubic-bezier(.22,1,.36,1) both}
+  .row-enter:nth-child(1){animation-delay:0ms}
+  .row-enter:nth-child(2){animation-delay:40ms}
+  .row-enter:nth-child(3){animation-delay:80ms}
+  .row-enter:nth-child(4){animation-delay:120ms}
+  .row-enter:nth-child(5){animation-delay:160ms}
+  .row-enter:nth-child(6){animation-delay:200ms}
+  .row-enter:nth-child(7){animation-delay:240ms}
+  .row-enter:nth-child(8){animation-delay:280ms}
+  .row-enter:nth-child(9){animation-delay:320ms}
+  .row-enter:nth-child(10){animation-delay:360ms}
+
+  /* ── Focus ring utility ─────────────────────────────────────── */
+  .focus-ring:focus-visible{
+    outline:2px solid rgba(99,102,241,.6);
+    outline-offset:2px;
+    border-radius:6px;
+  }
+
+  /* ── Subtle text gradient link ──────────────────────────────── */
+  .link-hover{
+    position:relative;
+    transition:color .15s ease;
+  }
+  .link-hover::after{
+    content:'';
+    position:absolute;
+    left:0;bottom:-1px;
+    width:0;height:1px;
+    background:linear-gradient(90deg,#3b82f6,#6366f1);
+    transition:width .22s cubic-bezier(.22,1,.36,1);
+  }
+  .link-hover:hover::after{width:100%}
 `;
 
 document.head.appendChild(style);

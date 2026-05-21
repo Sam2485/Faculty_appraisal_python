@@ -43,6 +43,10 @@ export const pBtn = {
   fontWeight: 600,
   letterSpacing: .2,
   boxShadow: "0 4px 14px rgba(59,130,246,.28)",
+  transition: "filter .15s ease, transform .15s cubic-bezier(.22,1,.36,1), box-shadow .15s ease",
+  willChange: "transform",
+  position: "relative",
+  overflow: "hidden",
 };
 
 export const oBtn = {
@@ -57,6 +61,7 @@ export const oBtn = {
   cursor: "pointer",
   fontSize: 13,
   fontWeight: 600,
+  transition: "background .15s ease, border-color .15s ease, color .15s ease",
 };
 
 export const smBtn = {

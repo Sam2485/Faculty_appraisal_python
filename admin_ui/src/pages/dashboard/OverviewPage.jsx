@@ -63,11 +63,12 @@ function fmtRole(r) {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-const KPI = memo(function KPI({ label, value, sub, color, icon: Icon }) {
+const KPI = memo(function KPI({ label, value, sub, color, icon: Icon, delay = 0 }) {
   return (
-    <div className="glass card-appear" style={{
+    <div className="glass glass-glow stat-card card-shimmer card-appear" style={{
       padding: '18px 20px', borderRadius: 12, position: 'relative', overflow: 'hidden',
       border: '1px solid rgba(255,255,255,.06)',
+      animationDelay: `${delay}ms`,
     }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2,
         background: `linear-gradient(90deg,transparent,${color}80,transparent)` }} />
@@ -75,12 +76,14 @@ const KPI = memo(function KPI({ label, value, sub, color, icon: Icon }) {
         <div>
           <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: .7,
             textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: C.text, lineHeight: 1,
-            letterSpacing: -1, fontFamily: "'JetBrains Mono',monospace" }}>{value}</div>
+          <div className="stat-enter" style={{ fontSize: 28, fontWeight: 800, color: C.text, lineHeight: 1,
+            letterSpacing: -1, fontFamily: "'JetBrains Mono',monospace",
+            animationDelay: `${delay + 80}ms` }}>{value}</div>
           {sub && <div style={{ fontSize: 11, color, marginTop: 6, fontWeight: 500 }}>{sub}</div>}
         </div>
         <div style={{ padding: 10, borderRadius: 10,
-          background: `${color}14`, border: `1px solid ${color}25` }}>
+          background: `${color}14`, border: `1px solid ${color}25`,
+          transition: 'transform .2s ease, box-shadow .2s ease' }}>
           <Icon size={17} stroke={color} />
         </div>
       </div>
@@ -323,16 +326,17 @@ export default function OverviewPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
             <KPI label={isNT ? 'Non-Teaching Staff' : isSchool ? `${selectedSchool} Faculty` : 'Total Faculty'}
               value={filtTotal}    sub={isNT ? 'Registered staff' : isSchool ? schoolFullName : 'Registered'}
-              color={C.accent}   icon={I.users}  />
+              color={C.accent}   icon={I.users}  delay={0} />
             <KPI label="Submitted"
               value={filtSub}    sub={`${filtRate}% completion`}
-              color={C.green}    icon={I.check}  />
+              color={C.green}    icon={I.check}  delay={60} />
             <KPI label="Pending"
               value={filtPend}   sub="Yet to submit"
-              color={C.red}      icon={I.clock}  />
+              color={C.red}      icon={I.clock}  delay={120} />
             <KPI label="Fully Approved"
               value={filtApproved}
               sub={isNT ? 'VC approved' : isSchool ? 'Teaching only' : 'Teaching + Non-Teaching'}
+              delay={180}
               color='#22d3ee'    icon={I.shield} />
           </div>
 
