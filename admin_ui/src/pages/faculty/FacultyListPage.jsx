@@ -142,16 +142,31 @@ function getPageNums(current, total) {
 
 // ── Edit drawer ────────────────────────────────────────────────────────────────
 function EditDrawer({ user: f, onClose, onSaved }) {
+  const isNT = f.role === 'non_teaching_staff';
   const [form, setForm]   = useState({
-    full_name:            f.name === f.email ? '' : f.name,
-    department:           f.dept === '—' ? '' : f.dept,
-    school:               f.school === '—' ? '' : f.school,
-    phone:                f.phone === '—' ? '' : f.phone,
-    appraisal_role:       f.role ?? 'faculty',
-    reports_to_registrar: f.reports_to_registrar ?? false,
+    full_name:               f.name === f.email ? '' : f.name,
+    department:              f.dept === '—' ? '' : f.dept,
+    school:                  f.school === '—' ? '' : f.school,
+    phone:                   f.phone === '—' ? '' : f.phone,
+    appraisal_role:          f.role ?? 'faculty',
+    reports_to_registrar:    f.reports_to_registrar ?? false,
+    reporting_officer_email: f.reporting_officer_email ?? '',
+    registrar_email:         f.registrar_email ?? '',
   });
-  const [saving, setSaving] = useState(false);
-  const [err,    setErr]    = useState(null);
+  const [saving,         setSaving]         = useState(false);
+  const [err,            setErr]            = useState(null);
+  const [ros,            setRos]            = useState([]);
+  const [registrarsList, setRegistrarsList] = useState([]);
+
+  useEffect(() => {
+    if (!isNT) return;
+    Promise.all([api.users.reportingOfficers(), api.users.registrars()])
+      .then(([roData, regData]) => {
+        setRos(Array.isArray(roData)  ? roData  : []);
+        setRegistrarsList(Array.isArray(regData) ? regData : []);
+      })
+      .catch(() => {});
+  }, [isNT]);
 
   const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -216,30 +231,40 @@ function EditDrawer({ user: f, onClose, onSaved }) {
             </div>
 
             {form.appraisal_role === 'non_teaching_staff' && (
-              <div>
-                <label style={lbl}>Reporting Path</label>
-                <div
-                  onClick={() => setForm(p => ({ ...p, reports_to_registrar: !p.reports_to_registrar }))}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '11px 14px', borderRadius: 9, cursor: 'pointer',
-                    background: form.reports_to_registrar ? 'rgba(52,211,153,.07)' : 'rgba(255,255,255,.03)',
-                    border: `1.5px solid ${form.reports_to_registrar ? 'rgba(52,211,153,.3)' : 'rgba(255,255,255,.08)'}`,
-                    transition: 'all .2s',
-                  }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 12, color: form.reports_to_registrar ? C.green : C.subtle }}>
-                      {form.reports_to_registrar ? 'Direct → Registrar' : 'Standard (via RO)'}
-                    </div>
-                    <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-                      {form.reports_to_registrar ? 'Skips Reporting Officer' : 'Staff → RO → Registrar → VC'}
-                    </div>
-                  </div>
-                  <div style={{ width: 36, height: 20, borderRadius: 10, position: 'relative', flexShrink: 0, background: form.reports_to_registrar ? C.green : 'rgba(255,255,255,.1)', transition: 'all .2s' }}>
-                    <div style={{ position: 'absolute', top: 2, left: form.reports_to_registrar ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+              <>
+                <div>
+                  <label style={lbl}>Reporting Officer</label>
+                  <select className="ifield" style={inp}
+                    value={form.reporting_officer_email}
+                    onChange={e => setForm(p => ({ ...p, reporting_officer_email: e.target.value }))}>
+                    <option value="">— None / Not Required —</option>
+                    {ros.map(r => (
+                      <option key={r.email} value={r.email}>
+                        {r.full_name || r.email}{r.department ? ` — ${r.department}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>
+                    Leave blank if the approval chain skips the RO step.
                   </div>
                 </div>
-              </div>
+                <div>
+                  <label style={lbl}>Registrar</label>
+                  <select className="ifield" style={inp}
+                    value={form.registrar_email}
+                    onChange={e => setForm(p => ({ ...p, registrar_email: e.target.value }))}>
+                    <option value="">— None / Not Required —</option>
+                    {registrarsList.map(r => (
+                      <option key={r.email} value={r.email}>
+                        {r.full_name || r.email}{r.department ? ` — ${r.department}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>
+                    Leave blank if the approval chain skips the Registrar step.
+                  </div>
+                </div>
+              </>
             )}
 
             <div>
@@ -268,8 +293,22 @@ function EditDrawer({ user: f, onClose, onSaved }) {
   );
 }
 
+// ── Resolve effective workflow template for an NT staff member ─────────────────
+function resolveTemplateName(f, assignments, templates) {
+  const byEmail = assignments.find(a => a.staff_email === f.email);
+  if (byEmail) return byEmail.template_name;
+  const byRole = assignments.find(a => a.appraisal_role === f.role);
+  if (byRole) return byRole.template_name;
+  if (f.dept && f.dept !== '—') {
+    const byDept = assignments.find(a => a.department === f.dept);
+    if (byDept) return byDept.template_name;
+  }
+  const def = templates.find(t => t.is_default);
+  return def ? def.name : null;
+}
+
 // ── User row ───────────────────────────────────────────────────────────────────
-const UserRow = memo(function UserRow({ f, selected, onSelect, onEdit, onToggle, onDelete, verifying, removing }) {
+const UserRow = memo(function UserRow({ f, selected, onSelect, onEdit, onToggle, onDelete, verifying, removing, templateName, emailToName }) {
   const [hover, setHover] = useState(false);
   const rm       = roleMeta(f.role);
   const isActive = f.status === 'Active';
@@ -315,9 +354,30 @@ const UserRow = memo(function UserRow({ f, selected, onSelect, onEdit, onToggle,
         </div>
         {/* NT staff path indicator */}
         {isNT && (
-          <div style={{ marginTop: 3, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: f.reports_to_registrar ? '#22d3ee' : '#fb923c', fontFamily: "'JetBrains Mono',monospace" }}>
-            <span style={{ fontSize: 7 }}>●</span>
-            {f.reports_to_registrar ? 'Direct → Registrar' : 'Via RO → Registrar'}
+          <div style={{ marginTop: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {templateName && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: '#22d3ee', fontFamily: "'JetBrains Mono',monospace" }}>
+                <span style={{ fontSize: 7 }}>●</span>
+                {templateName}
+              </div>
+            )}
+            {(f.reporting_officer_email || f.registrar_email) && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {f.reporting_officer_email && (
+                  <span style={{ fontSize: 9, color: '#fb923c', fontWeight: 600 }}>
+                    RO: {emailToName?.(f.reporting_officer_email) ?? f.reporting_officer_email}
+                  </span>
+                )}
+                {f.registrar_email && (
+                  <span style={{ fontSize: 9, color: '#22d3ee', fontWeight: 600 }}>
+                    Reg: {emailToName?.(f.registrar_email) ?? f.registrar_email}
+                  </span>
+                )}
+              </div>
+            )}
+            {isNT && !templateName && !f.reporting_officer_email && !f.registrar_email && (
+              <span style={{ fontSize: 9, color: C.muted }}>No workflow assigned</span>
+            )}
           </div>
         )}
       </div>
@@ -387,7 +447,15 @@ export default function FacultyListPage() {
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
   const { data: raw, loading, error } = useFetch(() => api.users.list(), [tick]);
-  const users = useMemo(() => normalizeUsers(raw), [raw]);
+  const { data: assignmentsRaw }      = useFetch(() => api.workflowTemplates.listAssignments(), [tick]);
+  const { data: templatesRaw }        = useFetch(() => api.workflowTemplates.list(), [tick]);
+  const users      = useMemo(() => normalizeUsers(raw), [raw]);
+  const assignments = useMemo(() => assignmentsRaw ?? [], [assignmentsRaw]);
+  const templates   = useMemo(() => templatesRaw   ?? [], [templatesRaw]);
+  const emailToName  = useMemo(() => {
+    const m = new Map(users.map(u => [u.email, u.name]));
+    return (email) => m.get(email) ?? null;
+  }, [users]);
 
   const rows = useMemo(() => {
     const q = search.toLowerCase();
@@ -635,6 +703,8 @@ export default function FacultyListPage() {
                   onDelete={() => handleRemoveOne(f)}
                   verifying={verifying === f.email}
                   removing={removingEmail === f.email}
+                  templateName={f.role === 'non_teaching_staff' ? resolveTemplateName(f, assignments, templates) : null}
+                  emailToName={emailToName}
                 />
               ))}
             </div>
