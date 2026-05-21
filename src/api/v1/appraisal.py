@@ -89,10 +89,12 @@ async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: A
         Declaration.faculty_email == current_user.email,
         Declaration.academic_year == academic_year
     ))
-    if decl_res.scalar_one_or_none() is not None:
+    existing_decl = decl_res.scalar_one_or_none()
+    from src.api.v1.remarks import REJECTED_STATUSES
+    if existing_decl is not None and existing_decl.status not in REJECTED_STATUSES:
         raise HTTPException(
             status_code=403,
-            detail="Your appraisal has already been submitted and cannot be modified."
+            detail="Your appraisal has already been submitted and cannot be modified.",
         )
 
     try:
@@ -332,25 +334,51 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
 
     try:
         from src.setup.dependencies import get_form_family
+        from src.api.v1.remarks import REJECTED_STATUSES
+        from src.schema.core import DeclarationBase
+
         form_family = get_form_family(current_user.school) if current_user.school else "standard"
-        
+
+        # Check submission eligibility (also catches resubmission after rejection)
+        sub_check = await db.execute(select(Declaration).where(
+            Declaration.faculty_email == current_user.email,
+            Declaration.academic_year == academic_year,
+        ))
+        existing_decl = sub_check.scalar_one_or_none()
+        is_resubmission = existing_decl is not None and existing_decl.status in REJECTED_STATUSES
+
+        if existing_decl is not None and not is_resubmission:
+            raise HTTPException(
+                status_code=403,
+                detail="Your appraisal is currently under review and cannot be resubmitted.",
+            )
+
         # 1. Shred JSON into normalized tables
         await shred_form(db, current_user.email, academic_year, form, form_family)
         await db.flush()  # surface any DB constraint violations before proceeding
 
         # 2. Update/Create Declaration
-        from src.schema.core import DeclarationBase
         # Use status from payload if provided (frontend computes review chain); default to 'Submitted'
         initial_status = data.get('status') or data.get('workflow_status') or 'Submitted'
-        decl_data = DeclarationBase(
-            faculty_email=current_user.email,
-            academic_year=academic_year,
-            part_a_total=_safe_num(totals.get('partATotal')),
-            part_b_total=_safe_num(totals.get('partBTotal')),
-            grand_total=_safe_num(totals.get('grandTotal')),
-            status=initial_status
-        )
-        await create_or_update_declaration(db, decl_data)
+
+        if is_resubmission:
+            # Increment attempt counter, reset workflow state, update totals
+            existing_decl.part_a_total = _safe_num(totals.get('partATotal'))
+            existing_decl.part_b_total = _safe_num(totals.get('partBTotal'))
+            existing_decl.grand_total  = _safe_num(totals.get('grandTotal'))
+            existing_decl.status            = 'Submitted'
+            existing_decl.submission_attempt = existing_decl.submission_attempt + 1
+            existing_decl.submitted_at      = datetime.utcnow()
+        else:
+            decl_data = DeclarationBase(
+                faculty_email=current_user.email,
+                academic_year=academic_year,
+                part_a_total=_safe_num(totals.get('partATotal')),
+                part_b_total=_safe_num(totals.get('partBTotal')),
+                grand_total=_safe_num(totals.get('grandTotal')),
+                status=initial_status,
+            )
+            await create_or_update_declaration(db, decl_data)
 
         # 3. Save uploaded documents from docs map
         docs = data.get('docs', {})

@@ -91,6 +91,7 @@ create table public.declarations (
   part_b_total numeric not null default 0,
   grand_total numeric not null default 0,
   status text not null default 'Pending Review',
+  submission_attempt integer not null default 1,
   submitted_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
