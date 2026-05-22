@@ -27,7 +27,7 @@ ENV UV_CACHE_DIR=/tmp/uv_cache
 
 # Install Python deps (cached unless pyproject.toml / uv.lock changes)
 COPY pyproject.toml uv.lock ./
-RUN uv pip install --no-cache -r pyproject.toml
+RUN uv sync --frozen --no-dev --no-cache
 
 # Copy backend source
 COPY . .

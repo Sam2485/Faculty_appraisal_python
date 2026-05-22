@@ -1,38 +1,18 @@
 steps:
-  # Pull all cache images in one shot (|| true so first build doesn't fail)
+  # Pull :latest for cache (single pull — inline cache covers all stages including admin-build)
   - name: 'gcr.io/cloud-builders/docker'
     id: pull-cache
     entrypoint: bash
     args:
       - '-c'
-      - |
-        docker pull $_IMAGE:npm-cache || true
-        docker pull $_IMAGE:latest || true
+      - 'docker pull $_IMAGE:latest || true'
 
-  # Build only the Node stage and tag it as npm-cache.
-  # This makes `npm ci` a cache hit on every push where package.json hasn't changed,
-  # even though that stage doesn't appear in the final image.
+  # Single build — Node stage hits inline cache from :latest; Python layer hits if pyproject unchanged
   - name: 'gcr.io/cloud-builders/docker'
-    id: build-npm-cache
+    id: build
     waitFor: [pull-cache]
     args:
       - build
-      - --target=admin-build
-      - --cache-from=$_IMAGE:npm-cache
-      - --build-arg=BUILDKIT_INLINE_CACHE=1
-      - -t=$_IMAGE:npm-cache
-      - .
-    env:
-      - DOCKER_BUILDKIT=1
-
-  # Full build — cache hits for both the Node stage (npm-cache) and the Python
-  # deps layer (latest), so only changed layers are rebuilt.
-  - name: 'gcr.io/cloud-builders/docker'
-    id: build
-    waitFor: [build-npm-cache]
-    args:
-      - build
-      - --cache-from=$_IMAGE:npm-cache
       - --cache-from=$_IMAGE:latest
       - --build-arg=BUILDKIT_INLINE_CACHE=1
       - -t=$_IMAGE:latest
@@ -41,19 +21,13 @@ steps:
     env:
       - DOCKER_BUILDKIT=1
 
-  # Push :latest — required before deploy can reference the image
+  # Push :latest — required before deploy
   - name: 'gcr.io/cloud-builders/docker'
     id: push-latest
     waitFor: [build]
     args: [push, '$_IMAGE:latest']
 
-  # Push npm-cache in parallel with deploy — updates the cache for next build
-  - name: 'gcr.io/cloud-builders/docker'
-    id: push-npm-cache
-    waitFor: [build]
-    args: [push, '$_IMAGE:npm-cache']
-
-  # Deploy to Cloud Run — starts as soon as :latest is pushed
+  # Deploy and push :COMMIT_SHA run in parallel once :latest is available
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: deploy
     waitFor: [push-latest]
@@ -68,7 +42,6 @@ steps:
       - --allow-unauthenticated
       - --quiet
 
-  # Push :COMMIT_SHA in parallel with deploy — only needed for rollback reference
   - name: 'gcr.io/cloud-builders/docker'
     id: push-sha
     waitFor: [push-latest]
