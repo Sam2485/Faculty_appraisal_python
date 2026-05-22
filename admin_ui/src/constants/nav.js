@@ -24,6 +24,13 @@ export const NAV = [
     ],
   },
   {
+    label: "NT Workflow", icon: I.layers,
+    children: [
+      { label: "Designations",       icon: I.star, path: "/workflow/designations" },
+      { label: "Workflow Templates", icon: I.doc,  path: "/workflow/templates"    },
+    ],
+  },
+  {
     label: "Feedback", icon: I.chat,
     children: [
       { label: "Queries & Bugs", icon: I.bug, path: "/feedback" },
