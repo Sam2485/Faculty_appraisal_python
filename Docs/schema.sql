@@ -652,7 +652,7 @@ create table public.appraisal_reviews (
   faculty_email text not null,
   academic_year text not null,
   reviewer_email text,
-  reviewer_role text not null check (reviewer_role in ('hod', 'center_head', 'director', 'dean', 'vc')),
+  reviewer_role text not null check (reviewer_role in ('hod', 'center_head', 'director', 'dean', 'vc', 'registrar', 'reporting_officer', 'section_head')),
   part_a_score numeric not null default 0,
   part_b_score numeric not null default 0,
   total_score numeric not null default 0,
