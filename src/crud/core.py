@@ -50,7 +50,7 @@ async def get_declaration(db: AsyncSession, email: str, year: str) -> Optional[D
 async def create_or_update_declaration(db: AsyncSession, data: DeclarationBase) -> Declaration:
     db_decl = await get_declaration(db, data.faculty_email, data.academic_year)
     if db_decl:
-        for key, value in data.model_dump().items():
+        for key, value in data.model_dump(exclude={"submission_attempt"}).items():
             setattr(db_decl, key, value)
     else:
         db_decl = Declaration(**data.model_dump())

@@ -389,3 +389,81 @@ async def test_double_rejection_blocked(
 
     r = await _hod_review(client, hod_h, decision="rejected")
     assert r.status_code == 409, r.text
+
+
+@pytest.mark.asyncio
+async def test_reviewer_cannot_approve_rejected_appraisal(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """After HOD rejects, HOD must not be able to approve without faculty resubmitting."""
+    await _submit_faculty(client, faculty_h)
+    await _hod_review(client, hod_h, decision="rejected")
+
+    # HOD tries to push the appraisal forward without rejection or faculty resubmission
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/hod/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "part_a_score": 8,
+            "part_b_score": 7,
+            "total_score": 15,
+            "remarks": "Looks good now.",
+            "section_scores": {},
+            # no 'decision' key — this is an approval attempt
+        },
+        headers=hod_h,
+    )
+    assert r.status_code == 409, r.text
+
+
+@pytest.mark.asyncio
+async def test_soEMR_pending_hod_review_rejection_flow(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """
+    Reproduces the exact SoEMR bug: frontend sends status='Pending HOD Review'
+    on submission. HOD must be able to reject, and after resubmission the
+    status must be restored to 'Pending HOD Review' (not 'Submitted').
+    """
+    # Submit with the SoEMR-style initial status
+    r = await client.post(
+        "/api/v1/appraisal/submit",
+        json={
+            "academic_year": YEAR,
+            "form": _BASE_FORM,
+            "totals": _BASE_TOTALS,
+            "status": "Pending HOD Review",
+        },
+        headers=faculty_h,
+    )
+    assert r.status_code == 200, r.text
+
+    # HOD must be able to reject at "Pending HOD Review"
+    r = await _hod_review(client, hod_h, decision="rejected")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "HOD Rejected"
+
+    # Faculty resubmits — must restore to "Pending HOD Review", not "Submitted"
+    r = await client.post(
+        "/api/v1/appraisal/submit",
+        json={
+            "academic_year": YEAR,
+            "form": _BASE_FORM,
+            "totals": _BASE_TOTALS,
+            "status": "Pending HOD Review",
+        },
+        headers=faculty_h,
+    )
+    assert r.status_code == 200, r.text
+
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(
+            select(Declaration).where(
+                Declaration.faculty_email == FACULTY_EMAIL,
+                Declaration.academic_year == YEAR,
+            )
+        )
+        decl = res.scalar_one_or_none()
+    assert decl is not None
+    assert decl.status == "Pending HOD Review"
+    assert decl.submission_attempt == 2

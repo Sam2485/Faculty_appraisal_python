@@ -215,11 +215,18 @@ async def handle_review(
     )
     decl = decl_res.scalar_one_or_none()
 
-    # 1. Lock: once VC finalises, only VC may re-edit
+    # 1a. Lock: once VC finalises, only VC may re-edit
     if role != "vc" and decl and decl.status == "Reviewed":
         raise HTTPException(
             status_code=403,
             detail="This appraisal has been finalised by the VC and can no longer be modified.",
+        )
+
+    # 1b. Lock: once rejected, workflow is frozen until faculty resubmits
+    if decl and decl.status in REJECTED_STATUSES and (data.get('decision') or '').strip().lower() != 'rejected':
+        raise HTTPException(
+            status_code=409,
+            detail="This appraisal has been rejected and is awaiting resubmission by the faculty.",
         )
 
     # 2. Determine whether this is a rejection
