@@ -675,6 +675,22 @@ create table public.appraisal_snapshots (
   constraint appraisal_snapshots_faculty_year_key unique (faculty_email, academic_year)
 );
 
+-- migration 020: reviewer draft snapshots
+create table public.reviewer_snapshots (
+  id             uuid        primary key default gen_random_uuid(),
+  faculty_email  text        not null,
+  academic_year  text        not null,
+  reviewer_email text        not null,
+  reviewer_role  text        not null,
+  payload        jsonb       not null default '{}',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  constraint reviewer_snapshots_unique unique (faculty_email, academic_year, reviewer_role)
+);
+
+create index if not exists idx_reviewer_snapshots_faculty_year
+  on public.reviewer_snapshots (faculty_email, academic_year);
+
 create table public.non_teaching_appraisals (
   id uuid primary key default gen_random_uuid(),
   staff_email text not null,

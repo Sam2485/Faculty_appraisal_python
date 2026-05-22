@@ -3,7 +3,7 @@ from src.setup.errors import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, AppraisalReview, FormSectionDefinition, AppraisalConfig
+from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, AppraisalReview, FormSectionDefinition, AppraisalConfig, ReviewerSnapshot
 from src.crud.core import create_or_update_declaration
 from src.models import part_a as models_a
 from src.models import part_b as models_b
@@ -369,6 +369,13 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
             existing_decl.status            = initial_status
             existing_decl.submission_attempt = existing_decl.submission_attempt + 1
             existing_decl.submitted_at      = datetime.utcnow()
+            # Reviewer drafts are now stale — clear them so reviewers start fresh
+            await db.execute(
+                delete(ReviewerSnapshot).where(
+                    ReviewerSnapshot.faculty_email == current_user.email,
+                    ReviewerSnapshot.academic_year == academic_year,
+                )
+            )
         else:
             decl_data = DeclarationBase(
                 faculty_email=current_user.email,

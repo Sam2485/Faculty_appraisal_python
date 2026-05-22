@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.models.core import AppraisalReview, Declaration, FacultyProfile
+from src.models.core import AppraisalReview, Declaration, FacultyProfile, ReviewerSnapshot
 from src.crud.core import create_or_update_review
 from src.schema.core import AppraisalReviewBase
-from typing import Dict, Any
-from sqlalchemy import select, update
+from typing import Dict, Any, Optional
+from sqlalchemy import select, update, delete
+from sqlalchemy.orm.attributes import flag_modified
 from src.models import part_a as models_a
 from src.models import part_b as models_b
 
@@ -14,8 +15,6 @@ router = APIRouter(prefix="/appraisal-remarks", tags=["Appraisal Remarks"])
 
 # ── Rejection constants ──────────────────────────────────────────────────────
 
-# Status values that indicate a reviewer has rejected the appraisal.
-# Used by appraisal.py to decide whether editing/resubmission is allowed.
 REJECTED_STATUSES = frozenset({
     "HOD Rejected",
     "Center Head Rejected",
@@ -25,15 +24,21 @@ REJECTED_STATUSES = frozenset({
 })
 
 _ROLE_DISPLAY = {
-    "hod":         "HOD",
-    "center_head": "Center Head",
-    "director":    "Director",
-    "dean":        "Dean",
-    "vc":          "VC",
+    "hod":                "HOD",
+    "center_head":        "Center Head",
+    "director":           "Director",
+    "dean":               "Dean",
+    "vc":                 "VC",
+    "registrar":          "Registrar",
+    "reporting_officer":  "Reporting Officer",
 }
 
-# Maps a subject's appraisal_role → the set of reviewer roles that are their
-# FIRST (immediate) superior when status == "Submitted".
+# All roles that are permitted to save/submit reviews
+_VALID_REVIEWER_ROLES = frozenset({
+    "hod", "center_head", "director", "dean", "vc",
+    "registrar", "reporting_officer", "section_head",
+})
+
 _FIRST_REVIEWER_FOR_ROLE = {
     "faculty":      frozenset({"hod", "center_head"}),
     "hod":          frozenset({"director"}),
@@ -43,18 +48,16 @@ _FIRST_REVIEWER_FOR_ROLE = {
     "center_head":  frozenset({"vc"}),
 }
 
-# Maps declaration status → the set of reviewer roles active at that step.
-# Covers both generic "Submitted" fallback statuses and school-specific
-# "Pending HOD Review" / "Pending Center Head Review" initial statuses.
 _ACTIVE_REVIEWER_FOR_STATUS = {
     "Pending HOD Review":          frozenset({"hod"}),
     "Pending Center Head Review":  frozenset({"center_head"}),
     "Pending Director Review":     frozenset({"director"}),
     "Pending Dean Review":         frozenset({"dean"}),
     "Pending VC Review":           frozenset({"vc"}),
+    "Pending Registrar Review":    frozenset({"registrar"}),
+    "Pending RO Review":           frozenset({"reporting_officer"}),
 }
 
-# Normal approval status transitions
 _STATUS_MAP = {
     "hod":         "Pending Director Review",
     "center_head": "Pending VC Review",
@@ -69,11 +72,6 @@ def _is_immediate_superior(
     subject_appraisal_role: str,
     current_status: str,
 ) -> bool:
-    """
-    Returns True only if reviewer_role is the active step in the workflow.
-    Checks the status map first (covers all "Pending X Review" variants);
-    falls back to subject-role lookup only for the generic "Submitted" status.
-    """
     allowed = _ACTIVE_REVIEWER_FOR_STATUS.get(current_status)
     if allowed is not None:
         return reviewer_role in allowed
@@ -88,10 +86,6 @@ def _is_immediate_superior(
 # ── Score extraction helper ──────────────────────────────────────────────────
 
 def _extract_numeric_score(raw: Any, role: str) -> float:
-    """
-    Normalize section score from the frontend.
-    Accepts a plain number, a numeric string, a list of row-dicts, or a single dict.
-    """
     if isinstance(raw, (int, float)):
         return float(raw)
     if isinstance(raw, str):
@@ -125,9 +119,6 @@ async def update_item_scores(
     role: str,
     section_scores: Dict[str, Any],
 ):
-    """
-    Writes per-section reviewer scores into the normalized Part A / B tables.
-    """
     column_map = {
         "hod":         "hod_score",
         "center_head": "director_score",
@@ -186,7 +177,6 @@ async def handle_review(
     current_user: CurrentUser,
     db: AsyncSession,
 ):
-    # 0. Resolve target profile and check general authority
     target_res = await db.execute(
         select(FacultyProfile).where(FacultyProfile.email == email)
     )
@@ -206,7 +196,6 @@ async def handle_review(
     if not academic_year:
         raise HTTPException(status_code=422, detail="academic_year is required")
 
-    # Fetch declaration once — used for both the VC-lock check and rejection logic
     decl_res = await db.execute(
         select(Declaration).where(
             Declaration.faculty_email == email,
@@ -215,46 +204,39 @@ async def handle_review(
     )
     decl = decl_res.scalar_one_or_none()
 
-    # 1a. Lock: once VC finalises, only VC may re-edit
+    # Lock: once VC finalises, only VC may re-edit
     if role != "vc" and decl and decl.status == "Reviewed":
         raise HTTPException(
             status_code=403,
             detail="This appraisal has been finalised by the VC and can no longer be modified.",
         )
 
-    # 1b. Lock: once rejected, workflow is frozen until faculty resubmits
+    # Lock: once rejected, workflow is frozen until faculty resubmits
     if decl and decl.status in REJECTED_STATUSES and (data.get('decision') or '').strip().lower() != 'rejected':
         raise HTTPException(
             status_code=409,
             detail="This appraisal has been rejected and is awaiting resubmission by the faculty.",
         )
 
-    # 2. Determine whether this is a rejection
     decision = (data.get('decision') or '').strip().lower()
     is_rejection = decision == 'rejected'
 
     if is_rejection:
-        # Remarks are mandatory on rejection
         if not (data.get('remarks') or '').strip():
             raise HTTPException(
                 status_code=422,
                 detail="Remarks are mandatory when rejecting an appraisal.",
             )
-
         if not decl:
             raise HTTPException(
                 status_code=400,
                 detail="No submitted appraisal found for this faculty and year.",
             )
-
-        # Prevent double-rejection
         if decl.status in REJECTED_STATUSES:
             raise HTTPException(
                 status_code=409,
                 detail="This appraisal has already been rejected and is awaiting resubmission.",
             )
-
-        # Only the immediate superior may reject
         if not _is_immediate_superior(role, target.appraisal_role or "faculty", decl.status):
             raise HTTPException(
                 status_code=403,
@@ -264,8 +246,6 @@ async def handle_review(
                 ),
             )
 
-    # 3. Save review record (scores + remarks)
-    from sqlalchemy.orm.attributes import flag_modified
     review_in = AppraisalReviewBase(
         faculty_email=email,
         academic_year=academic_year,
@@ -283,16 +263,23 @@ async def handle_review(
         db_review.section_scores = data['section_scores']
         flag_modified(db_review, 'section_scores')
 
-    # 4. Write per-item scores into normalised tables
     if 'section_scores' in data:
         await update_item_scores(db, email, academic_year, role, data['section_scores'])
 
-    # 5. Advance (or reject) the declaration status
     if decl:
         if is_rejection:
-            decl.status = f"{_ROLE_DISPLAY[role]} Rejected"
+            decl.status = f"{_ROLE_DISPLAY.get(role, role.title())} Rejected"
         else:
             decl.status = _STATUS_MAP.get(role, decl.status)
+
+    # Draft is now superseded by the final review — clean it up
+    await db.execute(
+        delete(ReviewerSnapshot).where(
+            ReviewerSnapshot.faculty_email == email,
+            ReviewerSnapshot.academic_year == academic_year,
+            ReviewerSnapshot.reviewer_role == role,
+        )
+    )
 
     await db.commit()
 
@@ -307,7 +294,117 @@ async def handle_review(
     return response
 
 
-# ── Route handlers ───────────────────────────────────────────────────────────
+# ── Draft save / load endpoints ──────────────────────────────────────────────
+
+@router.get("/draft/{email}")
+async def get_review_draft(
+    email: str,
+    academic_year: str,
+    reviewer_role: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Load a previously saved review draft for the given faculty member.
+    Returns null (204) if no draft exists yet.
+    """
+    reviewer_role = reviewer_role.strip().lower()
+
+    if reviewer_role not in current_user.roles and "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have the '{reviewer_role}' role.",
+        )
+
+    res = await db.execute(
+        select(ReviewerSnapshot).where(
+            ReviewerSnapshot.faculty_email == email,
+            ReviewerSnapshot.academic_year == academic_year,
+            ReviewerSnapshot.reviewer_role == reviewer_role,
+        )
+    )
+    snapshot = res.scalar_one_or_none()
+    if not snapshot:
+        return None
+    return {
+        "payload":    snapshot.payload,
+        "updated_at": snapshot.updated_at,
+    }
+
+
+@router.put("/draft/{email}")
+async def save_review_draft(
+    email: str,
+    data: Dict[str, Any],
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Save (upsert) an in-progress review without advancing the declaration status.
+    The payload is stored verbatim — send whatever fields the review form contains.
+    """
+    reviewer_role = (data.get('reviewer_role') or '').strip().lower()
+    academic_year = data.get('academic_year')
+    payload = data.get('payload', {})
+
+    if not reviewer_role:
+        raise HTTPException(status_code=422, detail="reviewer_role is required")
+    if reviewer_role not in _VALID_REVIEWER_ROLES:
+        raise HTTPException(status_code=422, detail=f"Invalid reviewer_role '{reviewer_role}'")
+    if not academic_year:
+        raise HTTPException(status_code=422, detail="academic_year is required")
+
+    # Reviewer must actually hold the claimed role
+    if reviewer_role not in current_user.roles and "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have the '{reviewer_role}' role.",
+        )
+
+    # Must have hierarchical authority over the target faculty
+    target_res = await db.execute(
+        select(FacultyProfile).where(FacultyProfile.email == email)
+    )
+    target = target_res.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Faculty not found")
+
+    if not current_user.has_authority_over(
+        email, target.appraisal_role, target.department, target.school
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to save a review draft for this faculty",
+        )
+
+    # Upsert draft
+    res = await db.execute(
+        select(ReviewerSnapshot).where(
+            ReviewerSnapshot.faculty_email == email,
+            ReviewerSnapshot.academic_year == academic_year,
+            ReviewerSnapshot.reviewer_role == reviewer_role,
+        )
+    )
+    snapshot = res.scalar_one_or_none()
+    if snapshot:
+        snapshot.payload = payload
+        snapshot.reviewer_email = current_user.email
+        flag_modified(snapshot, 'payload')
+    else:
+        snapshot = ReviewerSnapshot(
+            faculty_email=email,
+            academic_year=academic_year,
+            reviewer_email=current_user.email,
+            reviewer_role=reviewer_role,
+            payload=payload,
+        )
+        db.add(snapshot)
+
+    await db.commit()
+    return {"message": "Draft saved"}
+
+
+# ── Final review route handlers ───────────────────────────────────────────────
 
 @router.put("/hod/{email}")
 async def review_hod(

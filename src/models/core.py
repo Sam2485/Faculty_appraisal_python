@@ -153,6 +153,18 @@ class ModuleConfig(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ReviewerSnapshot(Base):
+    __tablename__ = "reviewer_snapshots"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    faculty_email = Column(String, nullable=False)
+    academic_year = Column(String, nullable=False)
+    reviewer_email = Column(String, nullable=False)
+    reviewer_role = Column(String, nullable=False)
+    payload = Column(JSONB, nullable=False, default={})
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

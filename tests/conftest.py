@@ -5,7 +5,7 @@ from src.main import app
 from src.setup.database import engine, Base, AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, delete
-from src.models.core import FacultyProfile, Declaration, AppraisalSnapshot, AppraisalReview
+from src.models.core import FacultyProfile, Declaration, AppraisalSnapshot, AppraisalReview, ReviewerSnapshot
 from src.models.non_teaching import NonTeachingAppraisal, NonTeachingPartAItem, NonTeachingPartBRating
 
 # Fix for event loop scope in pytest-asyncio
@@ -43,6 +43,7 @@ async def cleanup_db():
             await db.execute(delete(Declaration).where(Declaration.faculty_email.like("%@test.com")))
             await db.execute(delete(AppraisalSnapshot).where(AppraisalSnapshot.faculty_email.like("%@test.com")))
             await db.execute(delete(AppraisalReview).where(AppraisalReview.faculty_email.like("%@test.com")))
+            await db.execute(delete(ReviewerSnapshot).where(ReviewerSnapshot.faculty_email.like("%@test.com")))
             await db.execute(delete(NonTeachingPartAItem).where(NonTeachingPartAItem.staff_email.like("%@test.com")))
             await db.execute(delete(NonTeachingPartBRating).where(NonTeachingPartBRating.staff_email.like("%@test.com")))
             await db.execute(delete(NonTeachingAppraisal).where(NonTeachingAppraisal.staff_email.like("%@test.com")))
