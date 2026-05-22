@@ -43,11 +43,15 @@ _FIRST_REVIEWER_FOR_ROLE = {
     "center_head":  frozenset({"vc"}),
 }
 
-# Maps declaration status → the single reviewer role that is active at that step.
+# Maps declaration status → the set of reviewer roles active at that step.
+# Covers both generic "Submitted" fallback statuses and school-specific
+# "Pending HOD Review" / "Pending Center Head Review" initial statuses.
 _ACTIVE_REVIEWER_FOR_STATUS = {
-    "Pending Director Review": frozenset({"director"}),
-    "Pending Dean Review":     frozenset({"dean"}),
-    "Pending VC Review":       frozenset({"vc"}),
+    "Pending HOD Review":          frozenset({"hod"}),
+    "Pending Center Head Review":  frozenset({"center_head"}),
+    "Pending Director Review":     frozenset({"director"}),
+    "Pending Dean Review":         frozenset({"dean"}),
+    "Pending VC Review":           frozenset({"vc"}),
 }
 
 # Normal approval status transitions
@@ -67,16 +71,18 @@ def _is_immediate_superior(
 ) -> bool:
     """
     Returns True only if reviewer_role is the active step in the workflow.
-    For "Submitted" status this is based on subject's appraisal role;
-    for later statuses it is based on the declaration status string.
+    Checks the status map first (covers all "Pending X Review" variants);
+    falls back to subject-role lookup only for the generic "Submitted" status.
     """
+    allowed = _ACTIVE_REVIEWER_FOR_STATUS.get(current_status)
+    if allowed is not None:
+        return reviewer_role in allowed
     if current_status == "Submitted":
         allowed = _FIRST_REVIEWER_FOR_ROLE.get(
             (subject_appraisal_role or "faculty").lower(), frozenset()
         )
         return reviewer_role in allowed
-    allowed = _ACTIVE_REVIEWER_FOR_STATUS.get(current_status, frozenset())
-    return reviewer_role in allowed
+    return False
 
 
 # ── Score extraction helper ──────────────────────────────────────────────────

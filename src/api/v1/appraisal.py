@@ -366,7 +366,7 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
             existing_decl.part_a_total = _safe_num(totals.get('partATotal'))
             existing_decl.part_b_total = _safe_num(totals.get('partBTotal'))
             existing_decl.grand_total  = _safe_num(totals.get('grandTotal'))
-            existing_decl.status            = 'Submitted'
+            existing_decl.status            = initial_status
             existing_decl.submission_attempt = existing_decl.submission_attempt + 1
             existing_decl.submitted_at      = datetime.utcnow()
         else:
