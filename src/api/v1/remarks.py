@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
 from src.models.core import AppraisalReview, Declaration, FacultyProfile, ReviewerSnapshot
 from src.crud.core import create_or_update_review
 from src.schema.core import AppraisalReviewBase
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm.attributes import flag_modified
 from src.models import part_a as models_a
@@ -21,6 +21,8 @@ REJECTED_STATUSES = frozenset({
     "Director Rejected",
     "Dean Rejected",
     "VC Rejected",
+    "Registrar Rejected",
+    "Reporting Officer Rejected",
 })
 
 _ROLE_DISPLAY = {
@@ -268,7 +270,7 @@ async def handle_review(
 
     if decl:
         if is_rejection:
-            decl.status = f"{_ROLE_DISPLAY.get(role, role.title())} Rejected"
+            decl.status = f"{_ROLE_DISPLAY.get(role, role.replace('_', ' ').title())} Rejected"
         else:
             decl.status = _STATUS_MAP.get(role, decl.status)
 
@@ -306,7 +308,7 @@ async def get_review_draft(
 ):
     """
     Load a previously saved review draft for the given faculty member.
-    Returns null (204) if no draft exists yet.
+    Returns {"payload": null, "updated_at": null} if no draft exists yet.
     """
     reviewer_role = reviewer_role.strip().lower()
 
@@ -314,6 +316,22 @@ async def get_review_draft(
         raise HTTPException(
             status_code=403,
             detail=f"You do not have the '{reviewer_role}' role.",
+        )
+
+    # Must have authority over this faculty — prevents cross-department draft reads
+    target_res = await db.execute(
+        select(FacultyProfile).where(FacultyProfile.email == email)
+    )
+    target = target_res.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Faculty not found")
+
+    if not current_user.has_authority_over(
+        email, target.appraisal_role, target.department, target.school
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to read a review draft for this faculty",
         )
 
     res = await db.execute(
@@ -325,7 +343,7 @@ async def get_review_draft(
     )
     snapshot = res.scalar_one_or_none()
     if not snapshot:
-        return None
+        return {"payload": None, "updated_at": None}
     return {
         "payload":    snapshot.payload,
         "updated_at": snapshot.updated_at,
