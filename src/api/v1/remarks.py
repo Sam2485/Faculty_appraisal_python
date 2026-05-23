@@ -69,6 +69,30 @@ _STATUS_MAP = {
 }
 
 
+def _is_rejection_request(data: Dict[str, Any]) -> bool:
+    """
+    Returns True if the payload signals a rejection using any supported field convention.
+    Accepts: decision="rejected", action="reject", review_decision="rejected",
+             rejected=True, is_rejected=True.
+    """
+    if (data.get('decision') or '').strip().lower() == 'rejected':
+        return True
+    if (data.get('action') or '').strip().lower() == 'reject':
+        return True
+    if (data.get('review_decision') or '').strip().lower() == 'rejected':
+        return True
+    if data.get('rejected') is True:
+        return True
+    if data.get('is_rejected') is True:
+        return True
+    return False
+
+
+def _get_rejection_remarks(data: Dict[str, Any]) -> str:
+    """Returns the rejection remarks/reason from whichever field the frontend used."""
+    return (data.get('remarks') or data.get('rejection_reason') or '').strip()
+
+
 def _is_immediate_superior(
     reviewer_role: str,
     subject_appraisal_role: str,
@@ -214,17 +238,17 @@ async def handle_review(
         )
 
     # Lock: once rejected, workflow is frozen until faculty resubmits
-    if decl and decl.status in REJECTED_STATUSES and (data.get('decision') or '').strip().lower() != 'rejected':
+    if decl and decl.status in REJECTED_STATUSES and not _is_rejection_request(data):
         raise HTTPException(
             status_code=409,
             detail="This appraisal has been rejected and is awaiting resubmission by the faculty.",
         )
 
-    decision = (data.get('decision') or '').strip().lower()
-    is_rejection = decision == 'rejected'
+    is_rejection = _is_rejection_request(data)
 
     if is_rejection:
-        if not (data.get('remarks') or '').strip():
+        rejection_remarks = _get_rejection_remarks(data)
+        if not rejection_remarks:
             raise HTTPException(
                 status_code=422,
                 detail="Remarks are mandatory when rejecting an appraisal.",
@@ -247,6 +271,8 @@ async def handle_review(
                     f"Current workflow status is '{decl.status}'."
                 ),
             )
+    else:
+        rejection_remarks = None
 
     review_in = AppraisalReviewBase(
         faculty_email=email,
@@ -256,7 +282,7 @@ async def handle_review(
         part_a_score=data.get('part_a_score', 0),
         part_b_score=data.get('part_b_score', 0),
         total_score=data.get('total_score', 0),
-        remarks=data.get('remarks'),
+        remarks=rejection_remarks if is_rejection else data.get('remarks'),
         status='Rejected' if is_rejection else 'Reviewed',
     )
     db_review = await create_or_update_review(db, review_in)
@@ -293,6 +319,7 @@ async def handle_review(
     if is_rejection:
         response["next_reviewer"] = None
         response["next_reviewer_role"] = None
+        response["next_reviewer_email"] = None
     return response
 
 

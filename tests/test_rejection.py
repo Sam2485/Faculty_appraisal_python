@@ -467,3 +467,269 @@ async def test_soEMR_pending_hod_review_rejection_flow(
     assert decl is not None
     assert decl.status == "Pending HOD Review"
     assert decl.submission_attempt == 2
+
+
+# ── Multi-step rejection tests (spec: rejection must STOP workflow) ───────────
+
+async def _approve_as(client: AsyncClient, headers: dict, role_path: str) -> None:
+    """Approve a faculty appraisal via the given reviewer endpoint."""
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/{role_path}/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "part_a_score": 8,
+            "part_b_score": 7,
+            "total_score": 15,
+            "remarks": "Approved.",
+            "section_scores": {},
+        },
+        headers=headers,
+    )
+    assert r.status_code == 200, f"{role_path} approval failed: {r.text}"
+
+
+@pytest.mark.asyncio
+async def test_director_rejects_faculty_stops_workflow(
+    client: AsyncClient, faculty_h: dict, hod_h: dict, director_h: dict
+):
+    """Director rejects at Pending Director Review — must NOT advance to Dean."""
+    await _submit_faculty(client, faculty_h)
+    await _approve_as(client, hod_h, "hod")           # → Pending Director Review
+
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/director/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "decision": "rejected",
+            "remarks": "Insufficient research output.",
+            "total_score": 10,
+        },
+        headers=director_h,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "Director Rejected"
+    assert body["decision"] == "rejected"
+    assert body["next_reviewer"] is None
+    assert body["next_reviewer_role"] is None
+    assert body["next_reviewer_email"] is None
+
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(
+            select(Declaration).where(
+                Declaration.faculty_email == FACULTY_EMAIL,
+                Declaration.academic_year == YEAR,
+            )
+        )
+        decl = res.scalar_one_or_none()
+    assert decl.status == "Director Rejected"   # did NOT move to Pending Dean Review
+
+
+@pytest.mark.asyncio
+async def test_dean_rejects_faculty_stops_workflow(
+    client: AsyncClient, faculty_h: dict, hod_h: dict, director_h: dict, dean_h: dict
+):
+    """Dean rejects at Pending Dean Review — must NOT advance to VC."""
+    await _submit_faculty(client, faculty_h)
+    await _approve_as(client, hod_h, "hod")           # → Pending Director Review
+    await _approve_as(client, director_h, "director") # → Pending Dean Review
+
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/dean/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "decision": "rejected",
+            "remarks": "Missing publications.",
+            "total_score": 10,
+        },
+        headers=dean_h,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "Dean Rejected"
+    assert body["next_reviewer"] is None
+    assert body["next_reviewer_role"] is None
+    assert body["next_reviewer_email"] is None
+
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(
+            select(Declaration).where(
+                Declaration.faculty_email == FACULTY_EMAIL,
+                Declaration.academic_year == YEAR,
+            )
+        )
+        decl = res.scalar_one_or_none()
+    assert decl.status == "Dean Rejected"   # did NOT move to Pending VC Review
+
+
+@pytest.mark.asyncio
+async def test_vc_rejects_faculty_workflow_stops(
+    client: AsyncClient, faculty_h: dict, hod_h: dict,
+    director_h: dict, dean_h: dict, vc_h: dict
+):
+    """VC rejects at Pending VC Review — workflow must stop entirely."""
+    await _submit_faculty(client, faculty_h)
+    await _approve_as(client, hod_h, "hod")
+    await _approve_as(client, director_h, "director")
+    await _approve_as(client, dean_h, "dean")         # → Pending VC Review
+
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/final/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "decision": "rejected",
+            "remarks": "Please add community service section.",
+            "total_score": 10,
+        },
+        headers=vc_h,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "VC Rejected"
+    assert body["next_reviewer"] is None
+    assert body["next_reviewer_role"] is None
+    assert body["next_reviewer_email"] is None
+
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(
+            select(Declaration).where(
+                Declaration.faculty_email == FACULTY_EMAIL,
+                Declaration.academic_year == YEAR,
+            )
+        )
+        decl = res.scalar_one_or_none()
+    assert decl.status == "VC Rejected"
+
+
+# ── Multi-field rejection detection tests ────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_rejection_via_action_field(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """Backend must detect rejection when frontend sends action='reject'."""
+    await _submit_faculty(client, faculty_h)
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/hod/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "action": "reject",
+            "remarks": "Missing data.",
+            "total_score": 10,
+            "section_scores": {},
+        },
+        headers=hod_h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "HOD Rejected"
+    assert r.json()["decision"] == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_rejection_via_rejected_bool(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """Backend must detect rejection when frontend sends rejected=True."""
+    await _submit_faculty(client, faculty_h)
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/hod/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "rejected": True,
+            "remarks": "Missing data.",
+            "total_score": 10,
+            "section_scores": {},
+        },
+        headers=hod_h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "HOD Rejected"
+    assert r.json()["decision"] == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_rejection_via_is_rejected_bool(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """Backend must detect rejection when frontend sends is_rejected=True."""
+    await _submit_faculty(client, faculty_h)
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/hod/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "is_rejected": True,
+            "remarks": "Missing data.",
+            "total_score": 10,
+            "section_scores": {},
+        },
+        headers=hod_h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "HOD Rejected"
+
+
+@pytest.mark.asyncio
+async def test_rejection_via_review_decision_field(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """Backend must detect rejection when frontend sends review_decision='rejected'."""
+    await _submit_faculty(client, faculty_h)
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/hod/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "review_decision": "rejected",
+            "remarks": "Missing data.",
+            "total_score": 10,
+            "section_scores": {},
+        },
+        headers=hod_h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "HOD Rejected"
+
+
+@pytest.mark.asyncio
+async def test_rejection_accepts_rejection_reason_field(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """Backend must accept rejection_reason as an alias for remarks."""
+    await _submit_faculty(client, faculty_h)
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/hod/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "decision": "rejected",
+            "rejection_reason": "Missing data.",   # NOT "remarks"
+            "total_score": 10,
+            "section_scores": {},
+        },
+        headers=hod_h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "HOD Rejected"
+
+
+@pytest.mark.asyncio
+async def test_approval_still_forwards_normally(
+    client: AsyncClient, faculty_h: dict, hod_h: dict
+):
+    """Approval path must be completely unaffected by the rejection changes."""
+    await _submit_faculty(client, faculty_h)
+    r = await client.put(
+        f"/api/v1/appraisal-remarks/hod/{FACULTY_EMAIL}",
+        json={
+            "academic_year": YEAR,
+            "part_a_score": 8,
+            "part_b_score": 7,
+            "total_score": 15,
+            "remarks": "Good work.",
+            "section_scores": {},
+        },
+        headers=hod_h,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "Pending Director Review"
+    assert body["decision"] == "approved"
+    assert "next_reviewer" not in body or body.get("next_reviewer") != "null"

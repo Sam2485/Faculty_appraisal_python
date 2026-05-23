@@ -114,6 +114,7 @@ class Feedback(Base):
     user_agent = Column(String(512))
     submitted_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class AppraisalConfig(Base):
