@@ -970,7 +970,9 @@ create table public.nt_workflow_assignments (
         (staff_email is not null)::int
       + (appraisal_role is not null)::int
       + (department is not null)::int = 1
-    )
+    ),
+    constraint uq_ntwfa_template_role unique (template_id, appraisal_role),
+    constraint uq_ntwfa_template_dept unique (template_id, department)
 );
 
 -- nt_workflow_instances: live approval state for one staff member's appraisal

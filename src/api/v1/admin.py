@@ -889,7 +889,9 @@ async def create_assignment(
         raise HTTPException(status_code=404, detail="Template not found")
 
     q = select(NTWorkflowAssignment).where(NTWorkflowAssignment.template_id == data.template_id)
-    if data.appraisal_role:
+    if data.staff_email:
+        q = q.where(NTWorkflowAssignment.staff_email == data.staff_email)
+    elif data.appraisal_role:
         q = q.where(NTWorkflowAssignment.appraisal_role == data.appraisal_role)
     elif data.department:
         q = q.where(NTWorkflowAssignment.department == data.department)
