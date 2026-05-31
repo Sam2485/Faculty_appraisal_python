@@ -1,13 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.models.core import Announcement, VALID_ANNOUNCEMENT_AUDIENCES
+from src.models.core import Announcement, FacultyProfile, VALID_ANNOUNCEMENT_AUDIENCES
+from src.setup.email_utils import send_announcement_emails
 from pydantic import BaseModel, field_validator
 from typing import Optional
 
 router = APIRouter(tags=["Announcements"])
+
+_SCHOOL_CODES = {
+    "SoCSEA", "SoBB", "SoCE", "SoEMR", "SoCM", "SoMCS", "SoD", "SoAA", "CISR",
+}
+_ADMIN_ROLES = {"admin", "super_admin"}
 
 
 def _check_admin(current_user):
@@ -61,6 +67,7 @@ class AnnouncementCreate(BaseModel):
     body: str
     audience: str = "all"
     is_active: bool = True
+    send_email: bool = True
 
     @field_validator("audience")
     @classmethod
@@ -111,6 +118,7 @@ async def list_all_announcements(
 async def create_announcement(
     current_user: CurrentUser,
     data: AnnouncementCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     _check_admin(current_user)
@@ -124,6 +132,37 @@ async def create_announcement(
     db.add(announcement)
     await db.commit()
     await db.refresh(announcement)
+
+    if data.is_active and data.send_email:
+        audiences = [a.strip() for a in data.audience.split(",")]
+
+        query = select(FacultyProfile.email).where(
+            FacultyProfile.is_active == True,
+            ~FacultyProfile.appraisal_role.in_(_ADMIN_ROLES),
+        )
+
+        if "all" not in audiences:
+            conditions = []
+            for a in audiences:
+                if a in _SCHOOL_CODES:
+                    conditions.append(FacultyProfile.school == a)
+                else:
+                    conditions.append(FacultyProfile.appraisal_role == a)
+            if conditions:
+                query = query.where(or_(*conditions))
+
+        result = await db.execute(query)
+        emails = [row[0] for row in result.all() if row[0]]
+
+        if emails:
+            background_tasks.add_task(
+                send_announcement_emails,
+                emails,
+                data.title,
+                data.body,
+                current_user.email,
+            )
+
     return {"message": "Announcement created", "id": announcement.id}
 
 
