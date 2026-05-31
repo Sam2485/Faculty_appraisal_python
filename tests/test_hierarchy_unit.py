@@ -15,7 +15,7 @@ def test_dean_engineering_authority():
     assert dean.has_authority_over("fac2", "faculty", subordinate_school="SoEMR") is True
     # Cannot see non-engineering schools
     assert dean.has_authority_over("fac3", "faculty", subordinate_school="SoMCS") is False
-    assert dean.has_authority_over("fac4", "faculty", subordinate_school="CioD") is False
+    assert dean.has_authority_over("fac4", "faculty", subordinate_school="SoD") is False
     # Cannot see CISR
     assert dean.has_authority_over("fac5", "faculty", subordinate_school="CISR") is False
     # Cannot oversee VC
@@ -25,7 +25,7 @@ def test_dean_non_engineering_authority():
     """Dean of Non-Engineering sees only non-engineering schools, not engineering or CISR"""
     dean = User(id="dean2_id", email="dean2@test.com", roles=["dean"], school="non_engineering")
     assert dean.has_authority_over("fac1", "faculty", subordinate_school="SoMCS") is True
-    assert dean.has_authority_over("fac2", "faculty", subordinate_school="CioD") is True
+    assert dean.has_authority_over("fac2", "faculty", subordinate_school="SoD") is True
     assert dean.has_authority_over("fac3", "faculty", subordinate_school="SoAA") is True
     # Cannot see engineering schools
     assert dean.has_authority_over("fac4", "faculty", subordinate_school="SoCSEA") is False
