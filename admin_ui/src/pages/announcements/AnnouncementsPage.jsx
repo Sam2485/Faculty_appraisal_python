@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
 import { useFetch } from '../../hooks/useFetch';
@@ -64,120 +64,64 @@ function ToggleSwitch({ checked, onChange }) {
 // ── AudiencePicker ─────────────────────────────────────────────────────────────
 
 function AudiencePicker({ selected, onChange }) {
-  const [schoolOpen, setSchoolOpen] = useState(false);
-  const schoolRef = useRef(null);
-
   const selectedSchools = selected.filter(s => isSchoolCode(s));
-  const selectedRoles   = selected.filter(s => !isSchoolCode(s));
+  const selectedRoles   = selected.filter(s => !isSchoolCode(s) && s !== 'all');
+  const currentSchool   = selectedSchools.length === 1 ? selectedSchools[0] : 'all';
 
-  useEffect(() => {
-    if (!schoolOpen) return;
-    const h = (e) => { if (schoolRef.current && !schoolRef.current.contains(e.target)) setSchoolOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [schoolOpen]);
-
-  const toggleRole = (v) => {
-    if (v === 'all') { onChange([...selectedSchools, 'all']); return; }
-    onChange([...selectedSchools, v]);
+  const handleSchoolChange = (code) => {
+    if (code === 'all') onChange(selectedRoles.length ? selectedRoles : ['all']);
+    else onChange([code, ...selectedRoles]);
   };
 
-  const toggleSchool = (code) => {
-    const next = selectedSchools.includes(code)
-      ? selectedSchools.filter(s => s !== code)
-      : [...selectedSchools, code];
-    onChange([...selectedRoles, ...next]);
+  const toggleRole = (role) => {
+    const newRoles = selectedRoles.includes(role)
+      ? selectedRoles.filter(r => r !== role)
+      : [...selectedRoles, role];
+    const schools = currentSchool === 'all' ? [] : [currentSchool];
+    onChange(newRoles.length === 0 && schools.length === 0 ? ['all'] : [...schools, ...newRoles]);
   };
-
-  const activeRole = selectedRoles.find(r => r !== 'all') ?? 'all';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Role dropdown */}
-      <div>
-        <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: .6,
-          textTransform: 'uppercase', marginBottom: 7 }}>By Role</div>
-        <select
-          className="ifield"
-          value={activeRole}
-          onChange={e => toggleRole(e.target.value)}
-          style={{
-            width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 12,
-            fontWeight: 600, cursor: 'pointer', appearance: 'none',
-            background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
-            color: C.text, outline: 'none',
-          }}>
-          {ROLE_OPTIONS.map(r => (
-            <option key={r.value} value={r.value}>{r.label}</option>
-          ))}
-        </select>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {/* School select */}
+      <select
+        className="ifield"
+        value={currentSchool}
+        onChange={e => handleSchoolChange(e.target.value)}
+        style={{
+          width: '100%', padding: '7px 11px', borderRadius: 7, fontSize: 12,
+          fontWeight: 600, cursor: 'pointer', appearance: 'none',
+          background: currentSchool !== 'all' ? `${C.yellow}0d` : 'rgba(255,255,255,.04)',
+          border: `1px solid ${currentSchool !== 'all' ? `${C.yellow}30` : 'rgba(255,255,255,.08)'}`,
+          color: currentSchool !== 'all' ? C.yellow : C.text, outline: 'none',
+        }}>
+        <option value="all">All Schools</option>
+        {SCHOOLS.map(s => (
+          <option key={s.code} value={s.code}>{s.code} — {s.full}</option>
+        ))}
+      </select>
 
-      {/* School multi-select */}
-      <div ref={schoolRef} style={{ position: 'relative' }}>
-        <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: .6,
-          textTransform: 'uppercase', marginBottom: 7 }}>By School (optional)</div>
-        <button type="button" className="act-btn" onClick={() => setSchoolOpen(o => !o)}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
-            background: selectedSchools.length ? `${C.yellow}0d` : 'rgba(255,255,255,.04)',
-            border: `1px solid ${selectedSchools.length ? `${C.yellow}30` : 'rgba(255,255,255,.08)'}`,
-            fontSize: 12, fontWeight: 600,
-            color: selectedSchools.length ? C.yellow : C.muted,
-          }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            fontFamily: selectedSchools.length ? "'JetBrains Mono',monospace" : 'inherit' }}>
-            {selectedSchools.length === 0 ? 'No specific school' :
-             selectedSchools.length === SCHOOLS.length ? 'All schools' :
-             selectedSchools.join(', ')}
-          </span>
-          <span style={{ fontSize: 9, opacity: .45, flexShrink: 0,
-            transform: schoolOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s',
-            display: 'inline-block' }}>▼</span>
-        </button>
-
-        {schoolOpen && (
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 300,
-            background: C.surf, border: '1px solid rgba(255,255,255,.12)',
-            borderRadius: 10, boxShadow: '0 16px 40px rgba(0,0,0,.7)',
-            maxHeight: 240, display: 'flex', flexDirection: 'column',
-          }}>
-            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0 }}>
-              {[
-                { label: 'All',  action: () => onChange([...selectedRoles, ...SCHOOLS.map(s => s.code)]) },
-                { label: 'None', action: () => onChange(selectedRoles) },
-              ].map(({ label, action }) => (
-                <button key={label} type="button" className="act-btn" onClick={action}
-                  style={{ flex: 1, padding: '7px 0', fontSize: 11, fontWeight: 600,
-                    color: C.muted, background: 'none', border: 'none', cursor: 'pointer',
-                    borderRight: label === 'All' ? '1px solid rgba(255,255,255,.06)' : 'none' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div style={{ overflowY: 'auto', padding: '4px 0' }}>
-              {SCHOOLS.map(s => {
-                const on = selectedSchools.includes(s.code);
-                return (
-                  <label key={s.code} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 14px', cursor: 'pointer',
-                    background: on ? 'rgba(251,191,36,.07)' : 'transparent',
-                  }}>
-                    <input type="checkbox" checked={on} onChange={() => toggleSchool(s.code)}
-                      style={{ accentColor: C.yellow, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: on ? C.yellow : C.subtle,
-                      fontFamily: "'JetBrains Mono',monospace", minWidth: 52 }}>{s.code}</span>
-                    <span style={{ fontSize: 11, color: C.muted, overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.full}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        )}
+      {/* Role chips — single horizontal row, scrollable */}
+      <div style={{
+        display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2,
+        scrollbarWidth: 'none', msOverflowStyle: 'none',
+      }}>
+        {ROLE_OPTIONS.filter(r => r.value !== 'all').map(r => {
+          const on = selectedRoles.includes(r.value);
+          return (
+            <button key={r.value} type="button" className="act-btn"
+              onClick={() => toggleRole(r.value)}
+              style={{
+                padding: '3px 9px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                cursor: 'pointer', transition: 'all .15s', flexShrink: 0,
+                border: `1px solid ${on ? r.color + '45' : 'rgba(255,255,255,.08)'}`,
+                background: on ? `${r.color}18` : 'rgba(255,255,255,.03)',
+                color: on ? r.color : C.muted,
+              }}>
+              {r.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -291,7 +235,7 @@ function NoticeRow({ n, onEdit, onDelete, deleting }) {
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
-const EMPTY = { title: '', body: '', audiences: ['all'], is_active: true };
+const EMPTY = { title: '', body: '', audiences: ['all'], is_active: true, send_email: true };
 
 export default function AnnouncementsPage() {
   const [form,        setForm]        = useState(EMPTY);
@@ -302,17 +246,12 @@ export default function AnnouncementsPage() {
   const [editing,     setEditing]     = useState(null);
   const [editSaving,  setEditSaving]  = useState(false);
   const [editErr,     setEditErr]     = useState(null);
-  const [filter,      setFilter]      = useState('all');
+  const [filter] = useState('all');
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
   const { data: raw, loading, error } = useFetch(() => api.announcements.list(), [tick]);
   const notices = Array.isArray(raw) ? raw : (raw?.announcements ?? raw?.items ?? []);
-
-  const { liveCount, offCount } = useMemo(() => ({
-    liveCount: notices.filter(n =>  n.is_active).length,
-    offCount:  notices.filter(n => !n.is_active).length,
-  }), [notices]);
 
   const visible = useMemo(() => notices.filter(n => {
     if (filter === 'live' && !n.is_active) return false;
@@ -330,6 +269,7 @@ export default function AnnouncementsPage() {
       await api.announcements.create({
         title: form.title, body: form.body,
         audience: toStr(form.audiences), is_active: form.is_active,
+        send_email: form.is_active && form.send_email,
       });
       setStatus({ ok: true, msg: 'Published successfully.' });
       setForm(EMPTY);
@@ -362,7 +302,7 @@ export default function AnnouncementsPage() {
   };
 
   return (
-    <div className="page-enter">
+    <div className="page-enter" style={{ overflow: 'hidden' }}>
       <style>{`@keyframes drawerIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
 
       {/* ── Edit drawer ─────────────────────────────────────────────────── */}
@@ -470,151 +410,229 @@ export default function AnnouncementsPage() {
         sub="Broadcast notices to faculty by role or school"
       />
 
-      {/* ── Stats + search bar (always visible, never scrolls) ─────────── */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14,
-        alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Stats chips */}
-        {[
-          { label: 'Total',  value: notices.length, color: C.accent },
-          { label: 'Live',   value: liveCount,       color: C.green  },
-          { label: 'Hidden', value: offCount,         color: C.muted  },
-        ].map(s => (
-          <div key={s.label} style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            padding: '6px 12px', borderRadius: 8,
-            background: `${s.color}0d`, border: `1px solid ${s.color}22`,
-            flexShrink: 0,
-          }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: s.color }} />
-            <span style={{ fontSize: 11, color: C.muted }}>{s.label}</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: s.color,
-              fontFamily: "'JetBrains Mono',monospace" }}>{s.value}</span>
-          </div>
-        ))}
-
-        <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,.1)', flexShrink: 0 }} />
-
-        {/* Filter tabs */}
-        {[
-          { key: 'all',  label: 'All',  count: notices.length },
-          { key: 'live', label: 'Live', count: liveCount       },
-          { key: 'off',  label: 'Off',  count: offCount        },
-        ].map(f => {
-          const active = filter === f.key;
-          return (
-            <button key={f.key} className="act-btn" onClick={() => setFilter(f.key)}
-              style={{
-                padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                border: `1px solid ${active ? C.accent : 'rgba(255,255,255,.08)'}`,
-                background: active ? `${C.accent}15` : 'transparent',
-                color: active ? C.accent : C.subtle,
-              }}>
-              {f.label}
-              <span style={{ opacity: .5, fontSize: 11, marginLeft: 4 }}>({f.count})</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* ── Two-column layout ───────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '380px minmax(0,1fr)', gap: 20, height: 'calc(100vh - 218px)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '380px minmax(0,1fr)', gap: 20, height: 'calc(100vh - 155px)' }}>
 
         {/* ══ Compose panel ════════════════════════════════════════════ */}
         <div style={{
-          borderRadius: 14,
-          background: 'rgba(255,255,255,.028)',
-          border: '1px solid rgba(255,255,255,.07)',
-          boxShadow: '0 4px 24px rgba(0,0,0,.28)',
-          overflow: 'visible',
+          borderRadius: 14, background: 'var(--c-card)',
+          border: '1px solid rgba(255,255,255,.08)',
+          boxShadow: '0 4px 24px rgba(0,0,0,.3)',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0,
         }}>
-          {/* Compact header */}
+
+          {/* Top accent line */}
+          <div style={{ height: 3, background: 'linear-gradient(90deg,#3b82f6,#818cf8,#a78bfa)', flexShrink: 0 }} />
+
+          {/* ── Header ── */}
           <div style={{
-            padding: '10px 16px',
+            padding: '12px 16px', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             borderBottom: '1px solid rgba(255,255,255,.06)',
-            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'linear-gradient(135deg,rgba(59,130,246,.07) 0%,transparent 70%)',
           }}>
-            <I.send size={13} stroke={C.accent} />
-            <span style={{ fontWeight: 700, fontSize: 12, color: C.text }}>New Announcement</span>
-          </div>
-
-          {/* Compact form */}
-          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-            {/* Title */}
-            <div>
-              <label style={lbl}>Title</label>
-              <input className="ifield" value={form.title} style={inp}
-                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                placeholder="e.g. Submission deadline extended to June 30" />
-            </div>
-
-            {/* Audience picker */}
-            <div>
-              <label style={lbl}>Audience</label>
-              <div style={{ padding: '10px 12px', borderRadius: 10,
-                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
-                <AudiencePicker
-                  selected={form.audiences}
-                  onChange={audiences => setForm(p => ({ ...p, audiences }))}
-                />
+            <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                background: 'linear-gradient(135deg,#3b82f6,#818cf8)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(59,130,246,.4)',
+              }}>
+                <I.send size={12} stroke="#fff" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: -.2 }}>
+                  New Announcement
+                </div>
+                <div style={{ fontSize: 10, color: C.muted }}>Compose & broadcast</div>
               </div>
             </div>
+            <div onClick={() => setForm(p => ({ ...p, is_active: !p.is_active }))} style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '3px 9px', borderRadius: 20, cursor: 'pointer', userSelect: 'none',
+              background: form.is_active ? 'rgba(52,211,153,.12)' : 'rgba(255,255,255,.06)',
+              border: `1px solid ${form.is_active ? 'rgba(52,211,153,.25)' : 'rgba(255,255,255,.1)'}`,
+              transition: 'all .2s',
+            }}>
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: form.is_active ? C.green : C.muted,
+                boxShadow: form.is_active ? `0 0 6px ${C.green}` : 'none',
+              }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: form.is_active ? C.green : C.muted }}>
+                {form.is_active ? 'Live' : 'Draft'}
+              </span>
+            </div>
+          </div>
 
-            {/* Message */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between',
-                alignItems: 'baseline', marginBottom: 4 }}>
-                <label style={{ ...lbl, marginBottom: 0 }}>Message</label>
-                <span style={{ fontSize: 10,
-                  color: form.body.length > 900 ? C.red : C.muted }}>
+          {/* ── Form body ── */}
+          <div style={{
+            flex: 1, minHeight: 0, padding: '14px 16px',
+            display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden',
+          }}>
+
+            {/* Title */}
+            <div style={{ flexShrink: 0 }}>
+              <label style={{
+                display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: .6,
+                textTransform: 'uppercase', color: C.muted, marginBottom: 5,
+              }}>Title</label>
+              <input className="ifield" value={form.title}
+                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                placeholder="e.g. Submission deadline extended to June 30"
+                style={{ ...inp, fontSize: 12,
+                  borderColor: form.title ? 'rgba(59,130,246,.35)' : undefined }} />
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: 'rgba(255,255,255,.05)', flexShrink: 0 }} />
+
+            {/* Audience */}
+            <div style={{ flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+                <label style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: .6,
+                  textTransform: 'uppercase', color: C.muted,
+                }}>Audience</label>
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {form.audiences.slice(0, 3).map(t => {
+                    const col = tokenColor(t);
+                    return (
+                      <span key={t} style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 5,
+                        background: `${col}14`, color: col, border: `1px solid ${col}25`,
+                        fontFamily: "'JetBrains Mono',monospace",
+                      }}>{tokenLabel(t)}</span>
+                    );
+                  })}
+                  {form.audiences.length > 3 && (
+                    <span style={{ fontSize: 9, color: C.muted }}>+{form.audiences.length - 3}</span>
+                  )}
+                </div>
+              </div>
+              <AudiencePicker
+                selected={form.audiences}
+                onChange={audiences => setForm(p => ({ ...p, audiences }))}
+              />
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: 'rgba(255,255,255,.05)', flexShrink: 0 }} />
+
+            {/* Message — fills all remaining space */}
+            <div style={{ flex: 1, minHeight: 160, display: 'flex', flexDirection: 'column' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: 6, flexShrink: 0,
+              }}>
+                <label style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: .6,
+                  textTransform: 'uppercase', color: C.muted,
+                }}>Message</label>
+                <span style={{
+                  fontSize: 9, fontWeight: 600, fontFamily: "'JetBrains Mono',monospace",
+                  color: form.body.length > 900 ? C.red : form.body.length > 600 ? C.yellow : C.muted,
+                }}>
                   {form.body.length}/1000
                 </span>
               </div>
-              <textarea className="ifield" value={form.body} rows={3} maxLength={1000}
+              <textarea className="ifield" value={form.body} maxLength={1000}
                 onChange={e => setForm(p => ({ ...p, body: e.target.value }))}
                 placeholder="Write your announcement here…"
-                style={{ ...inp, resize: 'none', lineHeight: 1.6 }} />
+                style={{
+                  ...inp, flex: 1, resize: 'none', lineHeight: 1.7, fontSize: 12,
+                  borderColor: form.body ? 'rgba(52,211,153,.25)' : undefined, minHeight: 150,
+                }} />
+              <div style={{ marginTop: 5, height: 3, borderRadius: 2,
+                background: 'rgba(255,255,255,.06)', flexShrink: 0 }}>
+                <div style={{
+                  height: '100%', borderRadius: 2,
+                  width: `${form.body.length / 10}%`,
+                  background: form.body.length > 900 ? C.red : form.body.length > 600 ? C.yellow : C.green,
+                  transition: 'width .2s, background .3s',
+                }} />
+              </div>
             </div>
 
-            {/* Status message */}
+            {/* Status */}
             {status && (
-              <div style={{ padding: '8px 11px', borderRadius: 7, fontSize: 12,
+              <div style={{
+                flexShrink: 0, padding: '8px 11px', borderRadius: 7, fontSize: 11,
+                display: 'flex', alignItems: 'center', gap: 7,
                 color: status.ok ? C.green : C.red,
                 background: status.ok ? 'rgba(52,211,153,.08)' : 'rgba(248,113,113,.08)',
-                border: `1px solid ${status.ok ? 'rgba(52,211,153,.2)' : 'rgba(248,113,113,.2)'}` }}>
-                {status.msg}
+                border: `1px solid ${status.ok ? 'rgba(52,211,153,.2)' : 'rgba(248,113,113,.2)'}`,
+              }}>
+                <span>{status.ok ? '✓' : '!'}</span>{status.msg}
               </div>
             )}
+          </div>
 
-            {/* Toggle + actions combined row */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1,
-                padding: '7px 11px', borderRadius: 8,
-                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
-                <ToggleSwitch
-                  checked={form.is_active}
-                  onChange={() => setForm(p => ({ ...p, is_active: !p.is_active }))}
-                />
-                <span style={{ fontSize: 11, fontWeight: 600,
-                  color: form.is_active ? C.green : C.muted }}>
-                  {form.is_active ? 'Live' : 'Draft'}
-                </span>
+          {/* ── Options bar ── */}
+          <div style={{
+            padding: '10px 16px', flexShrink: 0,
+            borderTop: '1px solid rgba(255,255,255,.05)',
+            display: 'flex', gap: 7,
+          }}>
+            {[
+              {
+                on: form.is_active,
+                label: form.is_active ? 'Live' : 'Draft',
+                sub: form.is_active ? 'Visible to faculty' : 'Hidden draft',
+                col: C.green,
+                toggle: () => setForm(p => ({ ...p, is_active: !p.is_active })),
+                disabled: false,
+              },
+              {
+                on: form.is_active && form.send_email,
+                label: 'Send Email',
+                sub: form.is_active && form.send_email ? 'Notify recipients' : 'No email',
+                col: '#3b82f6',
+                toggle: () => { if (form.is_active) setForm(p => ({ ...p, send_email: !p.send_email })); },
+                disabled: !form.is_active,
+              },
+            ].map(opt => (
+              <div key={opt.label} onClick={opt.toggle} style={{
+                flex: 1, display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 10px', borderRadius: 8,
+                cursor: opt.disabled ? 'default' : 'pointer',
+                background: opt.on ? `${opt.col}08` : 'rgba(255,255,255,.03)',
+                border: `1px solid ${opt.on ? `${opt.col}20` : 'rgba(255,255,255,.06)'}`,
+                opacity: opt.disabled ? 0.4 : 1, transition: 'all .2s', userSelect: 'none',
+              }}>
+                <ToggleSwitch checked={opt.on} onChange={opt.toggle} />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: opt.on ? opt.col : C.muted }}>
+                    {opt.label}
+                  </div>
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{opt.sub}</div>
+                </div>
               </div>
-              <button className="act-btn"
-                style={{ ...pBtn, display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '7px 14px', flexShrink: 0 }}
-                onClick={handlePublish} disabled={saving}>
-                <I.send size={12} />{saving ? '…' : 'Publish'}
-              </button>
-              <button className="act-btn"
-                onClick={() => { setForm(EMPTY); setStatus(null); }}
-                style={{ padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                  color: C.muted, background: 'transparent', flexShrink: 0,
-                  border: '1px solid rgba(255,255,255,.1)', cursor: 'pointer' }}>
-                Clear
-              </button>
-            </div>
+            ))}
+          </div>
+
+          {/* ── Footer ── */}
+          <div style={{
+            padding: '10px 16px', flexShrink: 0,
+            borderTop: '1px solid rgba(255,255,255,.05)',
+            display: 'flex', gap: 7, background: 'rgba(255,255,255,.015)',
+          }}>
+            <button className="act-btn" onClick={handlePublish} disabled={saving} style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '10px 0', borderRadius: 9, cursor: saving ? 'default' : 'pointer',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: '#fff', border: 'none',
+              background: saving ? 'rgba(59,130,246,.4)' : 'linear-gradient(135deg,#3b82f6,#818cf8)',
+              boxShadow: saving ? 'none' : '0 4px 14px rgba(59,130,246,.4)',
+              opacity: saving ? .7 : 1, transition: 'all .2s',
+            }}>
+              <I.send size={13} stroke="#fff" />
+              {saving ? 'Publishing…' : form.is_active ? 'Publish Now' : 'Save Draft'}
+            </button>
+            <button className="act-btn" onClick={() => { setForm(EMPTY); setStatus(null); }} style={{
+              padding: '10px 14px', borderRadius: 9, cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+              color: C.muted, background: 'transparent', border: '1px solid rgba(255,255,255,.1)',
+            }}>Clear</button>
           </div>
         </div>
 

@@ -7,8 +7,9 @@ import { ALL_SCHOOL_CODES } from '../constants/schools';
 export function normalizeStats(raw) {
   raw = raw ?? {};
 
-  const adminCount = raw.by_role?.admin ?? 0;
-  const total = (raw.total_registered ?? raw.total_faculty ?? raw.total ?? 0) - adminCount;
+  const adminCount      = raw.by_role?.admin       ?? 0;
+  const superAdminCount = raw.by_role?.super_admin ?? 0;
+  const total = (raw.total_registered ?? raw.total_faculty ?? raw.total ?? 0) - adminCount - superAdminCount;
 
   // teaching_submission_pipeline = { "Pending Review": 30, "Approved": 90, ... }
   // Any faculty who has a Declaration record counts as "submitted"
@@ -54,7 +55,7 @@ export function normalizeUsers(raw) {
   raw = raw ?? [];
   const arr = Array.isArray(raw) ? raw : (raw.users ?? raw.items ?? []);
   return arr
-    .filter(u => (u.appraisal_role ?? u.role) !== 'admin')
+    .filter(u => !['admin', 'super_admin'].includes(u.appraisal_role ?? u.role))
     .map(u => ({
       id:          u.email,
       name:        u.full_name ?? u.name ?? u.email,

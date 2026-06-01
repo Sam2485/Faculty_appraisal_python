@@ -34,6 +34,13 @@ const NT_STAGE_KEY = {
   'VC Approved':                'done',
 };
 
+const CISR_STAGE_KEY = {
+  'Submitted':                  'center_head',
+  'Pending Center Head Review': 'center_head',
+  'Pending VC Review':          'vc',
+  'Reviewed':                   'done',
+};
+
 // ── Pipeline stage definitions ────────────────────────────────────────────────
 
 const T_STAGES = [
@@ -53,6 +60,13 @@ const NT_STAGES = [
   { key: 'done',          label: 'Approved',      color: C.accent,  icon: I.check  },
 ];
 
+const CISR_STAGES = [
+  { key: 'not_submitted', label: 'Not Submitted', color: C.red,     icon: I.clock  },
+  { key: 'center_head',   label: 'Center Head',   color: '#e879f9', icon: I.star   },
+  { key: 'vc',            label: 'VC Queue',      color: '#f472b6', icon: I.users  },
+  { key: 'done',          label: 'Approved',      color: C.accent,  icon: I.check  },
+];
+
 // ── Stage descriptions ────────────────────────────────────────────────────────
 
 const T_STAGE_DESC = {
@@ -64,17 +78,26 @@ const T_STAGE_DESC = {
   done:          'VC approved — cycle complete',
 };
 
+const CISR_STAGE_DESC = {
+  not_submitted: 'Form not yet filled or submitted',
+  center_head:   'Submitted — awaiting Center Head review',
+  vc:            'Center Head reviewed — with VC',
+  done:          'VC approved — cycle complete',
+};
+
 // ── School-aware pipeline helpers ─────────────────────────────────────────────
 
-// Only SoEMR has HODs; all other schools route Faculty → Director directly.
+// CISR uses Center Head instead of Director/Dean; SoEMR is the only school with HODs.
 function getSchoolStages(schoolCode) {
+  if (schoolCode === 'CISR')  return CISR_STAGES;
   if (schoolCode === 'SoEMR') return T_STAGES;
   return T_STAGES.filter(s => s.key !== 'hod');
 }
 
 function getSchoolStageKey(schoolCode) {
+  if (schoolCode === 'CISR')  return CISR_STAGE_KEY;
   if (schoolCode === 'SoEMR') return STAGE_KEY;
-  // For non-SoEMR schools, 'Submitted' / 'Pending Review' means it's with the Director.
+  // For standard schools, 'Submitted' / 'Pending Review' means it's with the Director.
   return {
     'Pending Review':          'director',
     'Submitted':               'director',
@@ -96,6 +119,17 @@ const NT_STAGE_DESC = {
 // ── Transparency rules ────────────────────────────────────────────────────────
 
 function getTransparency(schoolCode, role) {
+  if (schoolCode === 'CISR') {
+    if (role === 'faculty') return [
+      { reviewer: 'Center Head (CISR)', sees: 'Faculty self-score',                hides: null },
+      { reviewer: 'VC',                 sees: 'Faculty + Center Head scores',       hides: null },
+    ];
+    if (role === 'center_head') return [
+      { reviewer: 'VC', sees: 'Center Head self-score', hides: null },
+    ];
+    return [];
+  }
+
   const track = SCHOOL_META[schoolCode]?.track;
 
   if (schoolCode === 'SoEMR') {
@@ -170,7 +204,7 @@ const TRACK_TABS = [
   { k: 'teaching',     label: 'Teaching Staff'     },
   { k: 'non_teaching', label: 'Non-Teaching Staff' },
 ];
-const ROLE_COLORS = { faculty: C.accent, hod: '#a78bfa', director: C.yellow, dean: C.green };
+const ROLE_COLORS = { faculty: C.accent, hod: '#a78bfa', director: C.yellow, dean: C.green, center_head: '#e879f9' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,6 +218,11 @@ function stageCounts(pipeline, map) {
 }
 
 function routeLabel(schoolCode, role) {
+  if (schoolCode === 'CISR') {
+    if (role === 'faculty')     return 'Faculty → Center Head (CISR) → VC';
+    if (role === 'center_head') return 'Center Head → VC';
+    return '';
+  }
   const isEng = ENGG_SCHOOL_CODES.includes(schoolCode);
   if (role === 'faculty' && schoolCode === 'SoEMR') return 'Faculty → HOD (dept) → Director (SoEMR) → Dean (Eng) → VC';
   if (role === 'faculty' && isEng)                  return `Faculty → Director (${schoolCode}) → Dean (Eng) → VC`;
@@ -447,23 +486,24 @@ export default function AppraisalCyclePage() {
   }, [allUsers, pendingEmails, stats.nonTeachingPipeline, subStatusMap]);
 
   const {
-    selMeta, selUsers, selFaculty, selHODs, selDirs,
+    selMeta, selUsers, selFaculty, selHODs, selDirs, selCenterHeads,
     selNotSubmitted, selSubmitted,
     selPipeline, selSchoolStages, selStgCounts,
     selReg, selSub, selPct, barCol,
-    hasFacultyStatus, isSoEMR, stageGroups,
+    hasFacultyStatus, isSoEMR, isCISR, stageGroups,
   } = useMemo(() => {
-    const meta     = SCHOOL_META[selectedSchool] ?? {};
-    const users    = usersBySchool[selectedSchool] ?? [];
-    const faculty  = users.filter(u => u.role === 'faculty');
-    const hods     = users.filter(u => u.role === 'hod');
-    const dirs     = users.filter(u => u.role === 'director');
-    const notSub   = faculty.filter(f =>  pendingEmails.has(f.email));
-    const subm     = faculty.filter(f => !pendingEmails.has(f.email));
-    const pipeline = bySchoolPipeline[selectedSchool] ?? {};
-    const schoolKey   = getSchoolStageKey(selectedSchool);
+    const meta        = SCHOOL_META[selectedSchool] ?? {};
+    const users       = usersBySchool[selectedSchool] ?? [];
+    const faculty     = users.filter(u => u.role === 'faculty');
+    const hods        = users.filter(u => u.role === 'hod');
+    const dirs        = users.filter(u => u.role === 'director');
+    const centerHeads = users.filter(u => u.role === 'center_head');
+    const notSub      = faculty.filter(f =>  pendingEmails.has(f.email));
+    const subm        = faculty.filter(f => !pendingEmails.has(f.email));
+    const pipeline    = bySchoolPipeline[selectedSchool] ?? {};
+    const schoolKey    = getSchoolStageKey(selectedSchool);
     const schoolStages = getSchoolStages(selectedSchool);
-    const stgCounts   = stageCounts(pipeline, schoolKey);
+    const stgCounts    = stageCounts(pipeline, schoolKey);
     stgCounts['not_submitted'] = notSub.length;
     const reg    = bySchoolReg[selectedSchool] ?? faculty.length;
     const sub    = Object.values(pipeline).reduce((s, n) => s + n, 0);
@@ -473,23 +513,28 @@ export default function AppraisalCyclePage() {
                  :             `linear-gradient(90deg,${C.yellow},#d97706)`;
     const hasStatus = faculty.some(f => subStatusMap[f.email]);
     const isEMR     = selectedSchool === 'SoEMR';
+    const isCISR    = selectedSchool === 'CISR';
     return {
       selMeta: meta, selUsers: users, selFaculty: faculty, selHODs: hods, selDirs: dirs,
+      selCenterHeads: centerHeads,
       selNotSubmitted: notSub, selSubmitted: subm,
       selPipeline: pipeline, selSchoolStages: schoolStages,
       selStgCounts: stgCounts, selReg: reg, selSub: sub, selPct: pct, barCol: col,
-      hasFacultyStatus: hasStatus, isSoEMR: isEMR,
+      hasFacultyStatus: hasStatus, isSoEMR: isEMR, isCISR,
       stageGroups: {
         not_submitted: notSub,
         hod: isEMR && hasStatus
           ? subm.filter(f => ['Pending Review', 'Submitted'].includes(subStatusMap[f.email]))
           : [],
-        director: hasStatus
+        center_head: isCISR && hasStatus
+          ? subm.filter(f => ['Submitted', 'Pending Center Head Review'].includes(subStatusMap[f.email]))
+          : [],
+        director: hasStatus && !isCISR
           ? subm.filter(f => isEMR
               ? subStatusMap[f.email] === 'Pending Director Review'
               : ['Pending Review', 'Submitted', 'Pending Director Review'].includes(subStatusMap[f.email]))
           : [],
-        dean: hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Pending Dean Review') : [],
+        dean: hasStatus && !isCISR ? subm.filter(f => subStatusMap[f.email] === 'Pending Dean Review') : [],
         vc:   hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Pending VC Review')   : [],
         done: hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Reviewed')            : [],
       },
@@ -497,9 +542,11 @@ export default function AppraisalCyclePage() {
   }, [selectedSchool, usersBySchool, bySchoolPipeline, bySchoolReg, pendingEmails, subStatusMap]);
 
   const { transRoles, transNodes, transRoute } = useMemo(() => ({
-    transRoles: selectedSchool === 'SoEMR'
-      ? [{ k: 'faculty', label: 'Faculty' }, { k: 'hod', label: 'HOD' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }]
-      : [{ k: 'faculty', label: 'Faculty' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }],
+    transRoles: selectedSchool === 'CISR'
+      ? [{ k: 'faculty', label: 'Faculty' }, { k: 'center_head', label: 'Center Head' }]
+      : selectedSchool === 'SoEMR'
+        ? [{ k: 'faculty', label: 'Faculty' }, { k: 'hod', label: 'HOD' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }]
+        : [{ k: 'faculty', label: 'Faculty' }, { k: 'director', label: 'Director' }, { k: 'dean', label: 'Dean' }],
     transNodes: getTransparency(selectedSchool, transRole),
     transRoute: routeLabel(selectedSchool, transRole),
   }), [selectedSchool, transRole]);
@@ -513,8 +560,14 @@ export default function AppraisalCyclePage() {
       { k: 'not_submitted', n: notSubCnt,                  c: C.red     },
       // HOD queue only meaningful for SoEMR
       ...(sc === 'SoEMR' ? [{ k: 'hod', n: sCounts['hod'] ?? 0, c: '#a78bfa' }] : []),
-      { k: 'director',      n: sCounts['director'] ?? 0,   c: C.yellow  },
-      { k: 'dean',          n: sCounts['dean']     ?? 0,   c: C.green   },
+      // CISR uses Center Head instead of Director/Dean
+      ...(sc === 'CISR'
+        ? [{ k: 'center_head', n: sCounts['center_head'] ?? 0, c: '#e879f9' }]
+        : [
+            { k: 'director', n: sCounts['director'] ?? 0, c: C.yellow },
+            { k: 'dean',     n: sCounts['dean']     ?? 0, c: C.green  },
+          ]
+      ),
       { k: 'vc',            n: sCounts['vc']       ?? 0,   c: '#f472b6' },
     ].filter(x => x.n > 0);
     const isActive = selectedSchool === sc;
@@ -648,8 +701,42 @@ export default function AppraisalCyclePage() {
 
                     <ProgressBar value={selPct} color={barCol} />
 
-                    {/* Director(s) */}
-                    {selDirs.length > 0 && (
+                    {/* Center Head — CISR only */}
+                    {isCISR && selCenterHeads.length > 0 && (
+                      <div style={{ marginTop: 16, marginBottom: 16 }}>
+                        <SectionLabel>Center Head — CISR</SectionLabel>
+                        {selCenterHeads.map((ch, j) => (
+                          <div key={ch.email} style={{
+                            display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0',
+                            borderBottom: j < selCenterHeads.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none',
+                          }}>
+                            <Av name={ch.name} color='#e879f9' size={28} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{ch.name}</div>
+                              {ch.designation !== '—' && (
+                                <div style={{ fontSize: 10, color: C.muted }}>{ch.designation}</div>
+                              )}
+                            </div>
+                            <div style={{ textAlign: 'right', marginRight: 6 }}>
+                              <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: .4 }}>CH Queue</div>
+                              <div style={{ fontSize: 16, fontWeight: 800,
+                                color: (selStgCounts['center_head'] ?? 0) > 0 ? '#e879f9' : C.muted,
+                                fontFamily: "'JetBrains Mono',monospace" }}>
+                                {selStgCounts['center_head'] ?? 0}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12,
+                              background: pendingEmails.has(ch.email) ? 'rgba(248,113,113,.12)' : 'rgba(52,211,153,.1)',
+                              color: pendingEmails.has(ch.email) ? C.red : C.green }}>
+                              {pendingEmails.has(ch.email) ? 'Not Submitted' : 'Submitted'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Director(s) — non-CISR schools */}
+                    {!isCISR && selDirs.length > 0 && (
                       <div style={{ marginTop: 16, marginBottom: 16 }}>
                         <SectionLabel>Director{selDirs.length > 1 ? 's' : ''} — {selectedSchool}</SectionLabel>
                         {selDirs.map((dir, j) => (
@@ -753,7 +840,7 @@ export default function AppraisalCyclePage() {
                             stageGroups={stageGroups}
                             hasFacultyStatus={hasFacultyStatus}
                             isDept={isSoEMR}
-                            stageDesc={T_STAGE_DESC}
+                            stageDesc={isCISR ? CISR_STAGE_DESC : T_STAGE_DESC}
                           />
 
                           {/* Note when per-faculty names not yet available */}

@@ -43,17 +43,23 @@ export const NAV = [
     ],
   },
   {
+    label: "Export Reports", icon: I.dl, adminOnly: true,
+    children: [
+      { label: "Download CSV", icon: I.dl, path: "/export" },
+    ],
+  },
+  {
+    label: "Faculty Authorization", icon: I.shield, adminOnly: true,
+    children: [
+      { label: "All Scores",      icon: I.eye,   path: "/marks"         },
+      { label: "Pending Reviews", icon: I.clock, path: "/marks/pending" },
+    ],
+  },
+  {
     label: "Settings", icon: I.gear,
     children: [
       { label: "System Settings", icon: I.monitor, path: "/settings"          },
       { label: "Security",        icon: I.lock,    path: "/settings/security" },
-    ],
-  },
-  {
-    label: "Unauthorized Access", icon: I.star, superAdminOnly: true,
-    children: [
-      { label: "All Scores",       icon: I.eye,  path: "/marks" },
-      { label: "Pending Reviews",  icon: I.clock, path: "/marks/pending" },
     ],
   },
 ];

@@ -31,6 +31,8 @@ const SecurityPage          = lazy(() => import('./pages/settings/SecurityPage')
 const FacultyMarksPage      = lazy(() => import('./pages/marks/FacultyMarksPage'))
 const PendingReviewsPage    = lazy(() => import('./pages/marks/PendingReviewsPage'))
 
+const ExportReportPage      = lazy(() => import('./pages/export/ExportReportPage'))
+
 export default function App() {
   return (
     <Routes>
@@ -67,6 +69,8 @@ export default function App() {
 
           <Route path="marks"               element={<FacultyMarksPage />}     />
           <Route path="marks/pending"       element={<PendingReviewsPage />}   />
+
+          <Route path="export"              element={<ExportReportPage />}     />
 
           <Route path="*"                   element={<Navigate to="/" replace />} />
         </Route>
