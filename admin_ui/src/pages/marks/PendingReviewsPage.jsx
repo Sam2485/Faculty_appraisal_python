@@ -266,7 +266,7 @@ export default function PendingReviewsPage() {
   /* ── Build queue buckets ── */
   const queues = useMemo(() => {
     const buckets = {};
-    for (const r of rows) {
+    for (const r of rows.filter(r => !['admin', 'super_admin'].includes(r.appraisal_role))) {
       const role = getWaitingRole(r.status, r.school, r.appraisal_role);
       if (!role || role === 'final') continue;
       if (!buckets[role]) buckets[role] = [];
@@ -278,7 +278,7 @@ export default function PendingReviewsPage() {
   const totalPending = Object.values(queues).reduce((s, arr) => s + arr.length, 0);
   const activeQueues = QUEUES.filter(q => queues[q.role]?.length > 0);
 
-  if (profile?.appraisal_role !== 'super_admin') return <Navigate to="/" replace />;
+  if (!['admin', 'super_admin'].includes(profile?.appraisal_role)) return <Navigate to="/" replace />;
 
   return (
     <div className="page-enter">

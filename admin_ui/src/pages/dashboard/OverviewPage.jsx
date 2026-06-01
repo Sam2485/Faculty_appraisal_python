@@ -1,7 +1,7 @@
 import { useState, useMemo, memo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  PieChart, Pie, Cell, Sector,
 } from 'recharts';
 import { C } from '../../constants/colors';
 import { api } from '../../api/client';
@@ -35,6 +35,13 @@ const NT_STAGES = [
   { key: 'Reporting Officer Reviewed', label: 'RO Reviewed',  color: '#a78bfa' },
   { key: 'Registrar Reviewed',         label: 'Registrar',    color: C.yellow  },
   { key: 'VC Approved',                label: 'VC Approved',  color: '#22d3ee' },
+];
+
+const CISR_STAGES = [
+  { key: 'Submitted',                  label: 'Submitted',    color: C.accent  },
+  { key: 'Pending Center Head Review', label: 'Center Head',  color: '#e879f9' },
+  { key: 'Pending VC Review',          label: 'VC Queue',     color: '#f472b6' },
+  { key: 'Reviewed',                   label: 'Approved',     color: '#22d3ee' },
 ];
 
 const ROLE_COLORS = {
@@ -134,6 +141,165 @@ const InsightChip = memo(function InsightChip({ icon: Icon, label, value, color 
   );
 });
 
+// ── Role Distribution Card ─────────────────────────────────────────────────────
+
+function RoleDistributionCard({ roleData, selectedSchool }) {
+  const [activeIdx, setActiveIdx] = useState(null);
+  const total = roleData.reduce((s, r) => s + r.value, 0);
+  const active = activeIdx !== null ? roleData[activeIdx] : null;
+
+  const activeShape = (props) => {
+    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+    return (
+      <Sector cx={cx} cy={cy}
+        innerRadius={innerRadius - 3} outerRadius={outerRadius + 7}
+        startAngle={startAngle} endAngle={endAngle}
+        fill={fill}
+      />
+    );
+  };
+
+  return (
+    <Card
+      title="Role Distribution"
+      sub={selectedSchool ? 'University-wide (role data not school-specific)' : 'Faculty breakdown by role'}
+      delay={140}
+      info="Donut shows how many registered users belong to each role. Hover a slice or row to highlight. Admin accounts excluded.">
+
+      {selectedSchool && (
+        <div style={{
+          marginBottom: 12, padding: '8px 12px', borderRadius: 7, fontSize: 11,
+          color: C.muted, background: 'rgba(255,255,255,.03)',
+          border: '1px solid rgba(255,255,255,.07)',
+        }}>
+          Role breakdown is available university-wide only.
+        </div>
+      )}
+
+      {roleData.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '28px 0', color: C.muted, fontSize: 13 }}>
+          No role data
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'flex-start' }}>
+
+          {/* Donut with dynamic center */}
+          <div style={{ position: 'relative' }}>
+            <ResponsiveContainer width="100%" height={185}>
+              <PieChart>
+                <Pie
+                  data={roleData}
+                  cx="50%" cy="50%"
+                  innerRadius={48} outerRadius={70}
+                  dataKey="value"
+                  strokeWidth={0}
+                  paddingAngle={2}
+                  activeIndex={activeIdx ?? undefined}
+                  activeShape={activeShape}
+                  onMouseEnter={(_, i) => setActiveIdx(i)}
+                  onMouseLeave={() => setActiveIdx(null)}
+                >
+                  {roleData.map((r, i) => (
+                    <Cell
+                      key={r.name}
+                      fill={r.color}
+                      opacity={activeIdx !== null && activeIdx !== i ? 0.35 : 1}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip content={<ChartTip />} />
+              </PieChart>
+            </ResponsiveContainer>
+
+            {/* Center overlay — shows active role or total */}
+            <div style={{
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              textAlign: 'center', pointerEvents: 'none',
+            }}>
+              <div style={{
+                fontFamily: "'JetBrains Mono',monospace",
+                fontSize: active ? 20 : 22,
+                fontWeight: 800, lineHeight: 1,
+                color: active ? active.color : C.text,
+                transition: 'color .15s ease',
+              }}>
+                {active ? active.value : total}
+              </div>
+              <div style={{ fontSize: 9, color: C.muted, marginTop: 3, letterSpacing: .4 }}>
+                {active
+                  ? `${Math.round(active.value / total * 100)}%`
+                  : 'registered'}
+              </div>
+            </div>
+          </div>
+
+          {/* Enhanced legend */}
+          <div style={{ paddingTop: 4 }}>
+            {roleData.map((r, i) => {
+              const pct = total ? Math.round(r.value / total * 100) : 0;
+              const isActive = activeIdx === i;
+              const isDimmed = activeIdx !== null && !isActive;
+              return (
+                <div
+                  key={r.name}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  onMouseLeave={() => setActiveIdx(null)}
+                  style={{
+                    padding: '5px 7px', borderRadius: 7, marginBottom: 3,
+                    cursor: 'default',
+                    background: isActive ? `${r.color}12` : 'transparent',
+                    border: `1px solid ${isActive ? `${r.color}35` : 'transparent'}`,
+                    opacity: isDimmed ? 0.4 : 1,
+                    transition: 'all .15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                    <div style={{
+                      width: 9, height: 9, borderRadius: 3, flexShrink: 0,
+                      background: r.color,
+                      boxShadow: isActive ? `0 0 6px ${r.color}80` : 'none',
+                    }} />
+                    <span style={{
+                      fontSize: 11, flex: 1,
+                      color: isActive ? C.text : C.subtle,
+                      fontWeight: isActive ? 600 : 400,
+                    }}>
+                      {r.name}
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: r.color,
+                      fontFamily: "'JetBrains Mono',monospace",
+                    }}>
+                      {r.value}
+                    </span>
+                    <span style={{
+                      fontSize: 10, color: C.muted, minWidth: 26, textAlign: 'right',
+                      fontFamily: "'JetBrains Mono',monospace",
+                    }}>
+                      {pct}%
+                    </span>
+                  </div>
+                  <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,.06)' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 2,
+                      width: `${pct}%`,
+                      background: r.color,
+                      transition: 'width .4s ease, opacity .15s ease',
+                      opacity: isActive ? 1 : 0.6,
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
@@ -179,7 +345,9 @@ export default function OverviewPage() {
       : isSchool ? (filtPipeline['Reviewed'] ?? 0)
       : (pipeline['Reviewed'] ?? 0) + (nonTeachingPipeline['VC Approved'] ?? 0);
 
-    const activeStages    = isNT ? NT_STAGES : T_STAGES;
+    const activeStages    = isNT ? NT_STAGES
+      : selectedSchool === 'CISR' ? CISR_STAGES
+      : T_STAGES;
     const pipelineBarData = activeStages.map(({ key, label, color }) => ({
       status: label, count: filtPipeline[key] ?? 0, color,
     }));
@@ -213,16 +381,17 @@ export default function OverviewPage() {
     [bySchool, selectedSchool]
   );
 
-  const [topSchool, bottomSchool] = useMemo(() => {
+  const [topSchool, bottomSchool, schoolRank] = useMemo(() => {
     const s = [...bySchool].sort((a, b) =>
       (b.total ? b.sub / b.total : 0) - (a.total ? a.sub / a.total : 0)
     );
-    return [s[0], s[s.length - 1]];
-  }, [bySchool]);
+    const rank = selectedSchool ? s.findIndex(r => r.name === selectedSchool) + 1 : 0;
+    return [s[0], s[s.length - 1], rank];
+  }, [bySchool, selectedSchool]);
 
   const roleData = useMemo(() =>
     Object.entries(byRole ?? {})
-      .filter(([role]) => role !== 'admin')
+      .filter(([role]) => !['admin', 'super_admin'].includes(role))
       .map(([role, count]) => ({ name: fmtRole(role), value: count, color: ROLE_COLORS[role] ?? C.muted }))
       .filter(r => r.value > 0)
       .sort((a, b) => b.value - a.value),
@@ -340,7 +509,7 @@ export default function OverviewPage() {
               color='#22d3ee'    icon={I.shield} />
           </div>
 
-          {/* ── Insights bar ────────────────────────────────────────────────── */}
+          {/* ── Insights / School context ───────────────────────────────────── */}
           {!selectedSchool && !isNT && bySchool.length > 0 && (
             <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
               <InsightChip icon={I.star}  label="Top school"      color={C.green}
@@ -353,18 +522,126 @@ export default function OverviewPage() {
               )}
             </div>
           )}
-          {(isSchool || isNT) && (
+
+          {/* NT insight chips */}
+          {isNT && (
             <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-              <InsightChip icon={I.star}  label="Completion rate"  color={C.green}
-                value={`${filtRate}%`} />
-              <InsightChip icon={I.chart} label="In pipeline"      color={C.accent}
-                value={`${filtTTotal} forms`} />
-              <InsightChip icon={I.check} label={isNT ? 'VC Approved' : 'Approved'} color='#22d3ee'
-                value={`${filtApproved}`} />
-              <InsightChip icon={I.clock} label="Pending"          color={C.red}
-                value={`${filtPend} remaining`} />
+              <InsightChip icon={I.star}  label="Completion rate" color={C.green}  value={`${filtRate}%`} />
+              <InsightChip icon={I.chart} label="In pipeline"     color={C.accent} value={`${filtTTotal} forms`} />
+              <InsightChip icon={I.check} label="VC Approved"     color='#22d3ee'  value={`${filtApproved}`} />
+              <InsightChip icon={I.clock} label="Pending"         color={C.red}    value={`${filtPend} remaining`} />
             </div>
           )}
+
+          {/* School context banner */}
+          {isSchool && (() => {
+            const rateCol = filtRate >= 75 ? C.green : filtRate >= 40 ? C.yellow : C.red;
+            const stats2x2 = [
+              { label: 'Submitted',   value: filtSub,      color: C.green   },
+              { label: 'Pending',     value: filtPend,     color: C.red     },
+              { label: 'In Pipeline', value: filtTTotal,   color: C.accent  },
+              { label: 'Approved',    value: filtApproved, color: '#22d3ee' },
+            ];
+            return (
+              <div style={{
+                marginBottom: 16, borderRadius: 12, overflow: 'hidden',
+                background: 'var(--c-card)',
+                border: `1px solid ${C.accent}28`,
+                boxShadow: `0 0 28px ${C.accent}08`,
+              }}>
+                {/* Accent top bar */}
+                <div style={{ height: 3, background: `linear-gradient(90deg,${C.accent},${C.accent}50,transparent)` }} />
+
+                <div style={{ padding: '16px 20px' }}>
+                  {/* Top row: school identity + rank + rate */}
+                  <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+
+                    {/* School code + name */}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontFamily: "'JetBrains Mono',monospace", fontSize: 26, fontWeight: 900,
+                        color: C.accent, letterSpacing: -1, lineHeight: 1,
+                      }}>
+                        {selectedSchool}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{schoolFullName}</div>
+                    </div>
+
+                    <div style={{ width: 1, height: 36, background: 'var(--c-divider)', flexShrink: 0 }} />
+
+                    {/* Rank */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 800,
+                        color: schoolRank === 1 ? C.green : C.text, lineHeight: 1,
+                      }}>
+                        #{schoolRank}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>
+                        of {bySchool.length} schools
+                      </div>
+                    </div>
+
+                    <div style={{ width: 1, height: 36, background: 'var(--c-divider)', flexShrink: 0 }} />
+
+                    {/* Completion rate */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 800,
+                        color: rateCol, lineHeight: 1,
+                      }}>
+                        {filtRate}%
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>completion</div>
+                    </div>
+
+                    <div style={{ width: 1, height: 36, background: 'var(--c-divider)', flexShrink: 0 }} />
+
+                    {/* Submitted fraction */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ lineHeight: 1, fontFamily: "'JetBrains Mono',monospace" }}>
+                        <span style={{ fontSize: 22, fontWeight: 800, color: C.green }}>{filtSub}</span>
+                        <span style={{ fontSize: 14, color: C.muted }}> / </span>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: C.text }}>{filtTotal}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>submitted</div>
+                    </div>
+
+                    {/* Progress bar — fills remaining space */}
+                    <div style={{ flex: 1, minWidth: 100 }}>
+                      <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,.06)' }}>
+                        <div style={{
+                          height: '100%', borderRadius: 4,
+                          width: `${filtRate}%`,
+                          background: `linear-gradient(90deg,${rateCol},${rateCol}80)`,
+                          transition: 'width .6s ease',
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom 4-stat row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+                    {stats2x2.map(s => (
+                      <div key={s.label} style={{
+                        padding: '9px 12px', borderRadius: 8,
+                        background: `${s.color}08`, border: `1px solid ${s.color}1a`,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}>
+                        <span style={{ fontSize: 11, color: C.muted }}>{s.label}</span>
+                        <span style={{
+                          fontSize: 16, fontWeight: 800, color: s.color,
+                          fontFamily: "'JetBrains Mono',monospace",
+                        }}>
+                          {s.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── Bar chart + Donut ───────────────────────────────────────────── */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 14 }}>
@@ -405,24 +682,79 @@ export default function OverviewPage() {
                  : 'Current year'}
               delay={60}
               info="Donut shows the ratio of submitted forms (green) to not-yet-submitted / pending faculty (red) for the selected academic year. Hover a segment for exact counts.">
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <ResponsiveContainer width="100%" height={155}>
-                  <PieChart>
-                    <Pie data={cycleDonut} cx="50%" cy="50%" innerRadius={46} outerRadius={66}
-                      strokeWidth={0} dataKey="value">
-                      {cycleDonut.map((e) => <Cell key={e.name} fill={e.color} />)}
-                    </Pie>
-                    <Tooltip content={<ChartTip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                {cycleDonut.map(p => (
-                  <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
-                    <span style={{ color: C.subtle }}>{p.name}</span>
-                    <span style={{ color: C.text, fontWeight: 700,
-                      fontFamily: "'JetBrains Mono',monospace" }}>{p.value}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <ResponsiveContainer width="100%" height={155}>
+                    <PieChart>
+                      <Pie data={cycleDonut} cx="50%" cy="50%" innerRadius={46} outerRadius={66}
+                        strokeWidth={0} dataKey="value">
+                        {cycleDonut.map((e) => <Cell key={e.name} fill={e.color} />)}
+                      </Pie>
+                      <Tooltip content={<ChartTip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Centered rate label inside donut */}
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center', pointerEvents: 'none',
+                  }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 800,
+                      color: filtRate >= 75 ? C.green : filtRate >= 40 ? C.yellow : C.red, lineHeight: 1 }}>
+                      {filtRate}%
+                    </div>
+                    <div style={{ fontSize: 9, color: C.muted, marginTop: 2, letterSpacing: .4 }}>done</div>
                   </div>
-                ))}
+                </div>
+
+                {/* Legend */}
+                <div style={{ display: 'flex', gap: 16 }}>
+                  {cycleDonut.map(p => (
+                    <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
+                      <span style={{ color: C.subtle }}>{p.name}</span>
+                      <span style={{ color: C.text, fontWeight: 700,
+                        fontFamily: "'JetBrains Mono',monospace" }}>{p.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Progress bar */}
+                <div style={{ width: '100%', marginTop: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontSize: 10, color: C.muted }}>Completion</span>
+                    <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>
+                      {filtSub} / {filtTotal}
+                    </span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 4, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 4,
+                      width: `${filtRate}%`,
+                      background: filtRate >= 75
+                        ? `linear-gradient(90deg, ${C.green}, #10b981)`
+                        : filtRate >= 40
+                        ? `linear-gradient(90deg, ${C.yellow}, #f59e0b)`
+                        : `linear-gradient(90deg, ${C.red}, #ef4444)`,
+                      transition: 'width .6s ease',
+                    }} />
+                  </div>
+                </div>
+
+                {/* Approved callout */}
+                {filtApproved > 0 && (
+                  <div style={{
+                    width: '100%', marginTop: 2, padding: '8px 12px', borderRadius: 8,
+                    background: 'rgba(52,211,153,.07)', border: '1px solid rgba(52,211,153,.18)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}>
+                    <span style={{ fontSize: 11, color: C.muted }}>Fully Approved</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: C.green,
+                      fontFamily: "'JetBrains Mono',monospace" }}>
+                      {filtApproved}
+                    </span>
+                  </div>
+                )}
               </div>
             </Card>
           </div>
@@ -539,52 +871,7 @@ export default function OverviewPage() {
           {/* ── Role distribution + Export ───────────────────────────────────── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
 
-            {/* Role distribution — pie chart */}
-            <Card
-              title="Role Distribution"
-              sub={selectedSchool ? 'University-wide (role data not school-specific)' : 'Faculty breakdown by role'}
-              delay={140}
-              info="Donut shows how many registered users belong to each role — Faculty, HOD, Director, Dean, VC, Registrar, Non-Teaching. Admin accounts are excluded. Hover a slice for exact count.">
-              {selectedSchool && (
-                <div style={{
-                  marginBottom: 12, padding: '8px 12px', borderRadius: 7, fontSize: 11,
-                  color: C.muted, background: 'rgba(255,255,255,.03)',
-                  border: '1px solid rgba(255,255,255,.07)',
-                }}>
-                  Role breakdown is available university-wide only.
-                </div>
-              )}
-              {roleData.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '28px 0', color: C.muted, fontSize: 13 }}>
-                  No role data
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'center' }}>
-                  <ResponsiveContainer width="100%" height={170}>
-                    <PieChart>
-                      <Pie data={roleData} cx="50%" cy="50%" innerRadius={42} outerRadius={70}
-                        dataKey="value" strokeWidth={0} paddingAngle={2}>
-                        {roleData.map((r) => <Cell key={r.name} fill={r.color} />)}
-                      </Pie>
-                      <Tooltip content={<ChartTip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div>
-                    {roleData.map((r, i) => (
-                      <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '5px 0',
-                        borderBottom: i < roleData.length - 1 ? '1px solid var(--c-row-border)' : 'none' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%',
-                          background: r.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 11, color: C.subtle, flex: 1 }}>{r.name}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: C.text,
-                          fontFamily: "'JetBrains Mono',monospace" }}>{r.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Card>
+            <RoleDistributionCard roleData={roleData} selectedSchool={selectedSchool} />
 
             {/* Export reports */}
             <Card title="Export Reports" sub="Download data as CSV" delay={140}>
@@ -619,18 +906,59 @@ export default function OverviewPage() {
               ))}
 
               {downloadErr && (
-                <div style={{ marginTop: 12, fontSize: 12, color: C.red }}>{downloadErr}</div>
+                <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>{downloadErr}</div>
               )}
 
-              <div style={{ marginTop: 14, padding: '9px 12px', borderRadius: 7, fontSize: 11,
-                color: C.yellow, background: 'rgba(251,191,36,.07)',
-                border: '1px solid rgba(251,191,36,.18)', lineHeight: 1.55 }}>
-                Export endpoints are pending backend implementation. CSV buttons will activate once
-                <code style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, margin: '0 3px' }}>
-                  /admin/export/*
-                </code>
-                is deployed.
+              {/* ── Pipeline breakdown ── */}
+              <div style={{ marginTop: 16, borderTop: '1px solid var(--c-divider)', paddingTop: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: .6, textTransform: 'uppercase', color: C.muted }}>
+                    Submission CSV preview{year ? ` · ${year}` : ''}
+                  </span>
+                  <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>
+                    {filtTTotal} rows
+                  </span>
+                </div>
+
+                {filtTTotal === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: C.muted }}>
+                    No submissions in pipeline
+                  </div>
+                ) : (() => {
+                  const maxCount = Math.max(1, ...pipelineBarData.map(s => s.count));
+                  return pipelineBarData.filter(s => s.count > 0).map(s => (
+                    <div key={s.status} style={{ marginBottom: 7 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: C.subtle }}>{s.status}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: s.color,
+                          fontFamily: "'JetBrains Mono',monospace" }}>{s.count}</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 3, background: 'rgba(255,255,255,.06)' }}>
+                        <div style={{
+                          height: '100%', borderRadius: 3,
+                          width: `${Math.round(s.count / maxCount * 100)}%`,
+                          background: s.color,
+                          transition: 'width .5s ease',
+                        }} />
+                      </div>
+                    </div>
+                  ));
+                })()}
+
+                {/* Faculty export row count */}
+                <div style={{
+                  marginTop: 12, padding: '8px 12px', borderRadius: 8,
+                  background: 'rgba(59,130,246,.06)', border: '1px solid rgba(59,130,246,.15)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>Faculty CSV rows</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#3b82f6',
+                    fontFamily: "'JetBrains Mono',monospace" }}>
+                    {stats.total}
+                  </span>
+                </div>
               </div>
+
             </Card>
 
           </div>
