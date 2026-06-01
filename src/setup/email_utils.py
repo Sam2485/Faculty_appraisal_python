@@ -53,29 +53,192 @@ async def send_announcement_emails(recipients: list[str], title: str, body: str,
         print("Email not configured — skipping announcement emails")
         return
 
-    html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-      <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0;">
-        <h2 style="color:#fff;margin:0;font-size:18px;">Faculty Appraisal System</h2>
-        <p style="color:#94a3b8;margin:4px 0 0;font-size:12px;">DY Patil University — Official Notice</p>
-      </div>
-      <div style="background:#f8fafc;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
-        <h3 style="color:#1e293b;margin-top:0;font-size:16px;">{title}</h3>
-        <div style="color:#334155;line-height:1.7;font-size:14px;white-space:pre-line;">{body}</div>
-        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
-        <p style="color:#94a3b8;font-size:11px;margin:0;">
-          Sent by <strong>{sent_by}</strong> via the Faculty Appraisal System.
-          Do not reply to this email.
-        </p>
-      </div>
+    from datetime import datetime
+    now       = datetime.now()
+    date_str  = now.strftime("%d %B %Y")
+    year_str  = now.strftime("%Y")
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>{title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#dde3ed;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+       style="background:#dde3ed;padding:40px 16px;">
+  <tr><td align="center">
+
+    <!-- ═══════════════════════════════════════════
+         OUTER CARD  (600 px, white)
+    ═══════════════════════════════════════════ -->
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+           style="max-width:600px;width:100%;background:#ffffff;
+                  border-radius:14px;overflow:hidden;
+                  box-shadow:0 8px 40px rgba(15,23,42,0.14);">
+
+      <!-- ── 1. Top stripe ── -->
+      <tr>
+        <td style="height:5px;background:#1e3a8a;font-size:0;line-height:0;">&nbsp;</td>
+      </tr>
+
+      <!-- ── 2. Header ── -->
+      <tr>
+        <td align="center" style="background:#1e3a8a;padding:32px 40px 28px;">
+
+          <!-- University label -->
+          <div style="margin-bottom:14px;">
+            <span style="display:inline-block;
+                         background:rgba(255,255,255,0.09);
+                         border:1px solid rgba(255,255,255,0.20);
+                         border-radius:4px;padding:5px 16px;">
+              <span style="color:#bfdbfe;font-size:9px;font-weight:700;
+                           letter-spacing:1.6px;text-transform:uppercase;">
+                Dr. D. Y. Patil International University, Pune
+              </span>
+            </span>
+          </div>
+
+          <!-- System name -->
+          <div style="color:#ffffff;font-size:26px;font-weight:800;
+                      letter-spacing:-0.6px;line-height:1.15;margin-bottom:6px;">
+            Faculty Appraisal System
+          </div>
+          <div style="color:#93c5fd;font-size:12px;font-weight:500;letter-spacing:0.3px;">
+            Official Communication Portal
+          </div>
+
+        </td>
+      </tr>
+
+      <!-- ── 3. Gold accent line ── -->
+      <tr>
+        <td style="height:4px;background:#f59e0b;font-size:0;line-height:0;">&nbsp;</td>
+      </tr>
+
+      <!-- ── 4. Date / badge bar ── -->
+      <tr>
+        <td style="background:#f8fafc;padding:11px 40px;border-bottom:1px solid #e2e8f0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="color:#64748b;font-size:11px;font-weight:600;">
+                {date_str}
+              </td>
+              <td align="right">
+                <span style="display:inline-block;
+                             background:#dbeafe;color:#1e40af;
+                             font-size:9px;font-weight:800;
+                             letter-spacing:1.2px;text-transform:uppercase;
+                             padding:4px 12px;border-radius:4px;
+                             border:1px solid #bfdbfe;">
+                  Official Notice
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- ── 5. Main content ── -->
+      <tr>
+        <td style="background:#ffffff;padding:36px 40px 30px;">
+
+          <!-- "Announcement" micro-label -->
+          <div style="color:#94a3b8;font-size:10px;font-weight:700;
+                      letter-spacing:1.4px;text-transform:uppercase;margin-bottom:8px;">
+            Announcement
+          </div>
+
+          <!-- Title -->
+          <h1 style="margin:0 0 18px;color:#0f172a;font-size:24px;
+                     font-weight:800;line-height:1.25;letter-spacing:-0.5px;">
+            {title}
+          </h1>
+
+          <!-- Thin divider -->
+          <div style="height:1px;background:#e2e8f0;margin-bottom:24px;"></div>
+
+          <!-- Message body -->
+          <div style="color:#334155;font-size:14.5px;line-height:1.85;
+                      white-space:pre-line;margin-bottom:28px;">
+{body}
+          </div>
+
+          <!-- Action note — left-border style -->
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">
+            <tr>
+              <td style="border-left:3px solid #2563eb;
+                         background:#f0f7ff;border-radius:0 7px 7px 0;
+                         padding:14px 18px;">
+                <div style="color:#1e40af;font-size:12.5px;line-height:1.65;">
+                  <strong>Please Note:</strong>&nbsp; This is an official communication
+                  from the Faculty Appraisal System at Dr. D. Y. Patil International
+                  University. Please read carefully and take any required action promptly.
+                </div>
+              </td>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+
+      <!-- ── 6. Footer ── -->
+      <tr>
+        <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:22px 40px;">
+
+          <div style="color:#1e293b;font-size:12px;font-weight:700;margin-bottom:3px;">
+            Dr. D. Y. Patil International University, Pune
+          </div>
+          <div style="color:#64748b;font-size:11px;line-height:1.6;margin-bottom:14px;">
+            Faculty Appraisal System &nbsp;&bull;&nbsp;
+            Confidential &nbsp;&bull;&nbsp; For Internal Use Only
+          </div>
+
+          <div style="height:1px;background:#e2e8f0;margin-bottom:14px;"></div>
+
+          <div style="color:#94a3b8;font-size:10.5px;line-height:1.75;">
+            This email was sent by&nbsp;<strong style="color:#64748b;">{sent_by}</strong>
+            &nbsp;via the Faculty Appraisal System.<br>
+            This is an automated notification &mdash; please do not reply to this email.
+          </div>
+
+        </td>
+      </tr>
+
+      <!-- ── 7. Bottom bar ── -->
+      <tr>
+        <td align="center" style="background:#0f172a;padding:12px 40px;">
+          <span style="color:#475569;font-size:10px;letter-spacing:0.3px;">
+            &copy; {year_str} Dr. D. Y. Patil International University
+            &nbsp;&bull;&nbsp; All rights reserved
+          </span>
+        </td>
+      </tr>
+
+    </table>
+    <!-- /OUTER CARD -->
+
+    <!-- Below-card disclaimer -->
+    <div style="color:#94a3b8;font-size:10px;text-align:center;
+                margin-top:18px;max-width:440px;
+                margin-left:auto;margin-right:auto;line-height:1.65;">
+      If you received this email in error, please disregard it and notify
+      your system administrator. Do not share this message externally.
     </div>
-    """
+
+  </td></tr>
+</table>
+
+</body>
+</html>"""
 
     fm = FastMail(conf)
     for email in recipients:
         try:
             await fm.send_message(MessageSchema(
-                subject=f"[Notice] {title}",
+                subject=f"[Official Notice] {title} — DYP University Faculty Appraisal",
                 recipients=[email],
                 body=html,
                 subtype=MessageType.html,
