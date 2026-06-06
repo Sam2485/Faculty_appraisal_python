@@ -56,6 +56,12 @@ export const NAV = [
     ],
   },
   {
+    label: "Activity Log", icon: I.list,
+    children: [
+      { label: "Activity Monitor", icon: I.monitor, path: "/monitoring" },
+    ],
+  },
+  {
     label: "Settings", icon: I.gear,
     children: [
       { label: "System Settings", icon: I.monitor, path: "/settings"          },

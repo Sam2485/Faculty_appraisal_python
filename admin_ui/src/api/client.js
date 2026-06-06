@@ -4,6 +4,19 @@ function getToken() {
   return localStorage.getItem('admin_token')
 }
 
+function _logSecEvent(type, endpoint, statusCode, detail, email = null) {
+  try {
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type, endpoint, statusCode, detail, email,
+      at: new Date().toISOString(),
+    };
+    const raw = localStorage.getItem('dyp_security_events');
+    const existing = raw ? JSON.parse(raw) : [];
+    localStorage.setItem('dyp_security_events', JSON.stringify([entry, ...existing].slice(0, 1000)));
+  } catch {}
+}
+
 async function request(path, options = {}) {
   const token = getToken()
 
@@ -19,6 +32,7 @@ async function request(path, options = {}) {
   const data = await res.json().catch(() => null)
 
   if (res.status === 401) {
+    _logSecEvent('unauthorized', path, 401, data?.detail || 'Token rejected or session expired');
     if (localStorage.getItem('admin_token')) {
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_profile')
@@ -26,6 +40,14 @@ async function request(path, options = {}) {
       return
     }
     throw new Error(data?.user_message || data?.detail || 'Invalid credentials')
+  }
+
+  if (res.status === 403) {
+    _logSecEvent('forbidden', path, 403, data?.detail || 'Access denied — insufficient role');
+  }
+
+  if (res.status === 429) {
+    _logSecEvent('rate_limited', path, 429, data?.detail || 'Too many requests — possible brute force');
   }
 
   if (!res.ok) {
@@ -212,4 +234,12 @@ const workflowTemplates = {
   removeAssignment:(id)             => request(`/admin/nt-workflow-assignments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }
 
-export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, submissions, announcements, ai, export: exportData, marks, workflow, designations, workflowTemplates }
+// ---------------------------------------------------------------------------
+// Current admin profile
+// ---------------------------------------------------------------------------
+const profile = {
+  get:    ()     => request('/auth/me'),
+  update: (data) => request('/auth/me', { method: 'PUT', body: JSON.stringify(data) }),
+}
+
+export const api = { login, logout, getProfile, users, stats, feedback, config, cycle, pending, submissions, announcements, ai, export: exportData, marks, workflow, designations, workflowTemplates, profile }

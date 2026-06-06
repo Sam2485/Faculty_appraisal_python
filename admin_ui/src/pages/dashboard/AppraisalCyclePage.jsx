@@ -359,7 +359,11 @@ function PipelineTimeline({ stages, stgCounts, stageGroups, hasFacultyStatus, is
                   background: 'rgba(255,255,255,.02)', borderRadius: 9,
                   border: `1px solid ${s.color}18`, padding: '2px 0',
                 }}>
-                  {displayList.map((f, j) => (
+                  {displayList.map((f, j) => {
+                    const roleLabel = f.role && f.role !== 'faculty'
+                      ? f.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                      : null;
+                    return (
                     <div key={f.email ?? j} style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '6px 10px',
@@ -376,12 +380,19 @@ function PipelineTimeline({ stages, stgCounts, stageGroups, hasFacultyStatus, is
                           ].filter(Boolean).join(' · ') || f.email}
                         </div>
                       </div>
+                      {roleLabel && (
+                        <span style={{
+                          fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 8, flexShrink: 0,
+                          background: 'rgba(255,255,255,.06)', color: C.muted,
+                          textTransform: 'uppercase', letterSpacing: .4,
+                        }}>{roleLabel}</span>
+                      )}
                       <span style={{
                         fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10, flexShrink: 0,
                         background: `${s.color}18`, color: s.color,
                       }}>{s.key === 'not_submitted' ? 'Pending' : s.label}</span>
                     </div>
-                  ))}
+                  );})}
                 </div>
               )}
 
@@ -500,6 +511,13 @@ export default function AppraisalCyclePage() {
     const centerHeads = users.filter(u => u.role === 'center_head');
     const notSub      = faculty.filter(f =>  pendingEmails.has(f.email));
     const subm        = faculty.filter(f => !pendingEmails.has(f.email));
+
+    // All teaching-role members who have submitted (faculty + HOD + director + dean + center_head)
+    // Used for stage name lists so HODs/Directors/Deans appear in VC Queue etc.
+    const allTeachingSubm = users.filter(u =>
+      TEACHING_ROLES_SET.has(u.role) && !pendingEmails.has(u.email)
+    );
+
     const pipeline    = bySchoolPipeline[selectedSchool] ?? {};
     const schoolKey    = getSchoolStageKey(selectedSchool);
     const schoolStages = getSchoolStages(selectedSchool);
@@ -511,7 +529,7 @@ export default function AppraisalCyclePage() {
     const col    = pct >= 80 ? `linear-gradient(90deg,${C.green},#059669)`
                  : pct >= 60 ? `linear-gradient(90deg,${C.accent},#2563eb)`
                  :             `linear-gradient(90deg,${C.yellow},#d97706)`;
-    const hasStatus = faculty.some(f => subStatusMap[f.email]);
+    const hasStatus = allTeachingSubm.some(u => subStatusMap[u.email]);
     const isEMR     = selectedSchool === 'SoEMR';
     const isCISR    = selectedSchool === 'CISR';
     return {
@@ -524,19 +542,25 @@ export default function AppraisalCyclePage() {
       stageGroups: {
         not_submitted: notSub,
         hod: isEMR && hasStatus
-          ? subm.filter(f => ['Pending Review', 'Submitted'].includes(subStatusMap[f.email]))
+          ? allTeachingSubm.filter(u => ['Pending Review', 'Submitted'].includes(subStatusMap[u.email]))
           : [],
         center_head: isCISR && hasStatus
-          ? subm.filter(f => ['Submitted', 'Pending Center Head Review'].includes(subStatusMap[f.email]))
+          ? allTeachingSubm.filter(u => ['Submitted', 'Pending Center Head Review'].includes(subStatusMap[u.email]))
           : [],
         director: hasStatus && !isCISR
-          ? subm.filter(f => isEMR
-              ? subStatusMap[f.email] === 'Pending Director Review'
-              : ['Pending Review', 'Submitted', 'Pending Director Review'].includes(subStatusMap[f.email]))
+          ? allTeachingSubm.filter(u => isEMR
+              ? subStatusMap[u.email] === 'Pending Director Review'
+              : ['Pending Review', 'Submitted', 'Pending Director Review'].includes(subStatusMap[u.email]))
           : [],
-        dean: hasStatus && !isCISR ? subm.filter(f => subStatusMap[f.email] === 'Pending Dean Review') : [],
-        vc:   hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Pending VC Review')   : [],
-        done: hasStatus ? subm.filter(f => subStatusMap[f.email] === 'Reviewed')            : [],
+        dean: hasStatus && !isCISR
+          ? allTeachingSubm.filter(u => subStatusMap[u.email] === 'Pending Dean Review')
+          : [],
+        vc:   hasStatus
+          ? allTeachingSubm.filter(u => subStatusMap[u.email] === 'Pending VC Review')
+          : [],
+        done: hasStatus
+          ? allTeachingSubm.filter(u => subStatusMap[u.email] === 'Reviewed')
+          : [],
       },
     };
   }, [selectedSchool, usersBySchool, bySchoolPipeline, bySchoolReg, pendingEmails, subStatusMap]);

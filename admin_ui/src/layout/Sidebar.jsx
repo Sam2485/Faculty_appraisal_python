@@ -196,7 +196,7 @@ export default function Sidebar() {
           {/* Avatar */}
           <div style={{
             width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-            background: 'linear-gradient(135deg,#3b82f6,#818cf8)',
+            background: 'linear-gradient(135deg,#1d4ed8,#3b82f6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13, fontWeight: 700, color: '#fff',
             fontFamily: "'JetBrains Mono',monospace",
@@ -216,6 +216,33 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
+
+        {/* Edit Profile */}
+        <button
+          onClick={() => navigate('/profile')}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', marginBottom: 7,
+            background: 'transparent',
+            border: '1px solid transparent',
+            borderRadius: 9, cursor: 'pointer',
+            color: 'var(--c-sidebar-muted)', fontSize: 12, fontWeight: 500,
+            fontFamily: 'inherit', transition: 'all .15s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background    = 'rgba(59,130,246,.07)'
+            e.currentTarget.style.borderColor   = 'rgba(59,130,246,.18)'
+            e.currentTarget.style.color         = C.accent
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background    = 'transparent'
+            e.currentTarget.style.borderColor   = 'transparent'
+            e.currentTarget.style.color         = 'var(--c-sidebar-muted)'
+          }}
+        >
+          <I.edit size={13} stroke="currentColor" />
+          Edit Profile
+        </button>
 
         {/* Sign out */}
         <button
