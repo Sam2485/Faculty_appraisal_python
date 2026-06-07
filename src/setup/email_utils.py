@@ -5,22 +5,31 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("SMTP_USER"),
-    MAIL_PASSWORD=os.getenv("SMTP_PASSWORD"),
-    MAIL_FROM=os.getenv("MAIL_FROM"),
-    MAIL_PORT=int(os.getenv("SMTP_PORT", 587)),
-    MAIL_SERVER=os.getenv("SMTP_HOST"),
-    MAIL_FROM_NAME="Faculty Appraisal System",
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
-)
+
+def _make_conf() -> ConnectionConfig:
+    """Build ConnectionConfig from current env vars each call so UI changes take effect immediately."""
+    tls = os.getenv("MAIL_TLS", "true").lower() == "true"
+    ssl = os.getenv("MAIL_SSL", "false").lower() == "true"
+    return ConnectionConfig(
+        MAIL_USERNAME=os.getenv("MAIL_USERNAME", ""),
+        MAIL_PASSWORD=os.getenv("MAIL_PASSWORD", ""),
+        MAIL_FROM=os.getenv("MAIL_FROM", "noreply@example.com"),
+        MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
+        MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+        MAIL_FROM_NAME="Faculty Appraisal System",
+        MAIL_STARTTLS=tls,
+        MAIL_SSL_TLS=ssl,
+        USE_CREDENTIALS=True,
+        VALIDATE_CERTS=True,
+    )
+
+
+def _email_configured() -> bool:
+    return bool(os.getenv("MAIL_USERNAME") and os.getenv("MAIL_SERVER"))
+
+
 async def send_reset_email(email: str, reset_url: str):
-    """
-    Sends a password-reset email containing a one-time reset link.
-    """
+    """Sends a password-reset email containing a one-time reset link."""
     html = f"""
     <h3>Faculty Appraisal System — Password Reset</h3>
     <p>You requested a password reset. Click the link below to set a new password:</p>
@@ -33,10 +42,10 @@ async def send_reset_email(email: str, reset_url: str):
         subject="Password Reset — Faculty Appraisal System",
         recipients=[email],
         body=html,
-        subtype=MessageType.html
+        subtype=MessageType.html,
     )
 
-    fm = FastMail(conf)
+    fm = FastMail(_make_conf())
     try:
         await fm.send_message(message)
         return True
@@ -49,7 +58,7 @@ async def send_announcement_emails(recipients: list[str], title: str, body: str,
     """Broadcast an announcement email to all matching registered users."""
     if not recipients:
         return
-    if not os.getenv("SMTP_USER") or not os.getenv("SMTP_HOST"):
+    if not _email_configured():
         print("Email not configured — skipping announcement emails")
         return
 
@@ -234,32 +243,25 @@ async def send_announcement_emails(recipients: list[str], title: str, body: str,
 </body>
 </html>"""
 
-    fm = FastMail(conf)
-    for email in recipients:
+    fm = FastMail(_make_conf())
+    for recipient in recipients:
         try:
             await fm.send_message(MessageSchema(
                 subject=f"[Official Notice] {title} — DYP University Faculty Appraisal",
-                recipients=[email],
+                recipients=[recipient],
                 body=html,
                 subtype=MessageType.html,
             ))
         except Exception as e:
-            print(f"Announcement email failed for {email}: {e}")
+            print(f"Announcement email failed for {recipient}: {e}")
 
 
 async def send_verification_email(email: EmailStr, token: str):
-    """
-    Sends a verification email with a link to the verify endpoint.
-    """
+    """Sends a verification email with a link to the verify endpoint."""
     app_url = os.getenv("APP_URL", "http://localhost:8000").rstrip("/")
 
-    # Heuristic to fix accidentally duplicated Cloud Run suffixes
     if app_url.endswith(".run.app.a.run.app"):
         app_url = app_url.replace(".run.app.a.run.app", ".a.run.app")
-    elif app_url.endswith(".run.app") and not app_url.endswith(".a.run.app"):
-        # If it ends in .run.app but missing the .a, it might be misconfigured
-        # but we'll leave it unless we are sure. The user's screenshot has run.app.a.run.app
-        pass
 
     verify_url = f"{app_url}/api/v1/auth/verify-email?token={token}"
 
@@ -270,15 +272,15 @@ async def send_verification_email(email: EmailStr, token: str):
     <br><br>
     <p>If you did not create an account, please ignore this email.</p>
     """
-    
+
     message = MessageSchema(
         subject="Email Verification - Faculty Appraisal System",
         recipients=[email],
         body=html,
-        subtype=MessageType.html
+        subtype=MessageType.html,
     )
-    
-    fm = FastMail(conf)
+
+    fm = FastMail(_make_conf())
     try:
         await fm.send_message(message)
         return True
