@@ -6,44 +6,82 @@ import { I } from '../../components/icons';
 import { SCHOOLS } from '../../constants/schools';
 
 // ── Section max marks (Part A = 200, Part B = 375) ────────────────────────
-const PART_A_SECTION_MAX = {
-  lectures: 50, courseFile: 20, innovativeTeaching: 10,
-  projectsGuidance: 10, qualificationEnhancement: 5, studentFeedback: 10,
-  departmentalActivities: 20, universityActivities: 30,
-  societyContribution: 10, industryConnect: 5, acr: 25,
-}
-const PART_B_SECTION_MAX = {
-  journals: 120, books: 50, ict: 20, researchGuidance: 30,
-  internalProjects: 15, externalProjects: 30, patents: 40,
-  awards: 10, conferences: 30, proposals: 10, products: 10, fdpTraining: 10,
-}
 const FULL_A = 200
 const FULL_B = 375
+const SELF_ACR_EXCLUDED = 25
 
 // When a section is empty or has notApplicable:true its max is removed from denominator.
 // Falls back to full 200/375 when vc_section_scores is not yet supplied by the backend.
-function computeEffectiveMax(vcSectionScores) {
-  if (!vcSectionScores || typeof vcSectionScores !== 'object') {
-    return { partA: FULL_A, partB: FULL_B }
+function getSelfMax(item = {}) {
+  const form = item.form && typeof item.form === 'object' ? item.form : {}
+  const totals = item.totals && typeof item.totals === 'object' ? item.totals : {}
+  const applicability = item.sectionApplicability || form.sectionApplicability || {}
+
+  const partAMax =
+    Number(item.effectivePartAMax || totals.effectivePartAMax) ||
+    FULL_A
+      - SELF_ACR_EXCLUDED
+      - (applicability.projects === 'notApplicable' ? 10 : 0)
+      - (applicability.society === 'notApplicable' ? 10 : 0)
+
+  const partBMax =
+    Number(item.effectivePartBMax || totals.effectivePartBMax) ||
+    FULL_B
+      - (applicability.research === 'notApplicable' ? 30 : 0)
+
+  return {
+    partA: Math.max(partAMax, 1),
+    partB: Math.max(partBMax, 1),
+    total: Math.max(partAMax + partBMax, 1),
   }
-  let effA = FULL_A, effB = FULL_B
-  for (const [key, mx] of Object.entries(PART_A_SECTION_MAX)) {
-    const rows = vcSectionScores[key]
-    if (!rows || rows.length === 0 || rows.some(r => r.notApplicable === true)) effA -= mx
-  }
-  for (const [key, mx] of Object.entries(PART_B_SECTION_MAX)) {
-    const rows = vcSectionScores[key]
-    if (!rows || rows.length === 0 || rows.some(r => r.notApplicable === true)) effB -= mx
-  }
-  return { partA: Math.max(effA, 1), partB: Math.max(effB, 1) }
 }
 
-function gradeLabel(pct) {
-  if (pct >= 90) return 'Outstanding'
-  if (pct >= 75) return 'Very Good'
-  if (pct >= 60) return 'Good'
-  if (pct >= 50) return 'Average'
-  return 'Needs Improvement'
+function getReviewerMax(item = {}) {
+  const self = getSelfMax(item)
+  return {
+    partA: self.partA + SELF_ACR_EXCLUDED,
+    partB: self.partB,
+    total: self.total + SELF_ACR_EXCLUDED,
+  }
+}
+
+function getReportPayload(detail = {}) {
+  const payload = detail.payload || {}
+  const nested = payload.payload && typeof payload.payload === 'object' ? payload.payload : {}
+  const form = payload.form || nested.form || {}
+  const totals = payload.totals || nested.totals || {}
+  const sectionApplicability =
+    payload.sectionApplicability ||
+    form.sectionApplicability ||
+    nested.sectionApplicability ||
+    nested.form?.sectionApplicability ||
+    {}
+
+  return { form, totals, sectionApplicability }
+}
+
+async function enrichTotalScoreRows(rows, academicYear) {
+  return Promise.all(rows.map(async (row) => {
+    try {
+      const detail = await api.marks.detail(row.email, academicYear)
+      const reportPayload = getReportPayload(detail)
+      const next = {
+        ...row,
+        ...reportPayload,
+        faculty_section_scores: reportPayload.form,
+        faculty_section_applicability: reportPayload.sectionApplicability,
+      }
+
+      ;(detail.reviews || []).forEach(review => {
+        const role = review.reviewer_role
+        if (role) next[`${role}_section_scores`] = review.section_scores || {}
+      })
+
+      return next
+    } catch {
+      return row
+    }
+  }))
 }
 
 // ── Total Score Excel builder (no colours, wide columns, centred) ──────────
@@ -59,13 +97,13 @@ async function buildTotalScoreExcel(rows, includeHod) {
 
   const FIXED = 4
   const groups = [
-    { label: 'Faculty Score',   cols: 4 },
-    ...(includeHod ? [{ label: 'Head of Department', cols: 4 }] : []),
-    { label: 'Director Score',  cols: 4 },
-    { label: 'Dean Score',      cols: 4 },
-    { label: 'Vice Chancellor', cols: 5 },
-    { label: 'Average Score',   cols: 4 },
-    { label: 'Best Score',      cols: 4 },
+    { label: 'Faculty Score',   cols: 7 },
+    ...(includeHod ? [{ label: 'Head of Department', cols: 7 }] : []),
+    { label: 'Director Score',  cols: 7 },
+    { label: 'Dean Score',      cols: 7 },
+    { label: 'Vice Chancellor', cols: 7 },
+    { label: 'Average Score',   cols: 7 },
+    { label: 'Best Score',      cols: 7 },
   ]
 
   ws.columns = [
@@ -74,9 +112,7 @@ async function buildTotalScoreExcel(rows, includeHod) {
     { width: 24 },  // Designation — wide
     { width: 12 },  // School
     ...groups.flatMap(g =>
-      g.cols === 5
-        ? [{ width: 9 }, { width: 9 }, { width: 9 }, { width: 7 }, { width: 18 }]
-        : [{ width: 9 }, { width: 9 }, { width: 9 }, { width: 7 }]
+      [{ width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 7 }]
     ),
   ]
 
@@ -85,6 +121,26 @@ async function buildTotalScoreExcel(rows, includeHod) {
     bottom: { style: 'thin', color: { argb: 'FFd1d5db' } },
     left:   { style: 'thin', color: { argb: 'FFd1d5db' } },
     right:  { style: 'thin', color: { argb: 'FFd1d5db' } },
+  }
+  const partAStyle = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } }
+  const partAMaxStyle = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } }
+  const partBStyle = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFECFDF5' } }
+  const partBMaxStyle = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }
+
+  const scoreFillForOffset = (offset) => {
+    if (offset === 0) return partAStyle
+    if (offset === 1) return partAMaxStyle
+    if (offset === 2) return partBStyle
+    if (offset === 3) return partBMaxStyle
+    return null
+  }
+  const scoreOffsetForColumn = (colNum) => {
+    let start = FIXED + 1
+    for (const g of groups) {
+      if (colNum >= start && colNum < start + g.cols) return colNum - start
+      start += g.cols
+    }
+    return -1
   }
 
   // ── Row 1: fixed + group headers ─────────────────────────────────────────
@@ -114,20 +170,21 @@ async function buildTotalScoreExcel(rows, includeHod) {
   const row2 = ws.addRow([
     null, null, null, null,
     ...groups.flatMap(g =>
-      g.cols === 5 ? ['Part A', 'Part B', 'Total', '%', 'Grade'] : ['Part A', 'Part B', 'Total', '%']
+      ['Part A', 'A Max', 'Part B', 'B Max', 'Total', 'Max', '%']
     ),
   ])
   row2.height = 18
   for (let ci = 1; ci <= FIXED; ci++) ws.mergeCells(1, ci, 2, ci)
   let c2 = FIXED + 1
   groups.forEach(g => {
-    const subs = g.cols === 5
-      ? ['Part A', 'Part B', 'Total', '%', 'Grade'] : ['Part A', 'Part B', 'Total', '%']
+    const subs = ['Part A', 'A Max', 'Part B', 'B Max', 'Total', 'Max', '%']
     subs.forEach((_, j) => {
+      const fill = scoreFillForOffset(j)
       row2.getCell(c2 + j).style = {
         font: { bold: true, size: 9, name: 'Calibri' },
         alignment: { horizontal: 'center', vertical: 'middle' },
         border: bdr,
+        ...(fill ? { fill } : {}),
       }
     })
     c2 += g.cols
@@ -135,8 +192,8 @@ async function buildTotalScoreExcel(rows, includeHod) {
 
   // ── Data rows ─────────────────────────────────────────────────────────────
   rows.forEach((r, i) => {
-    const eff = computeEffectiveMax(r.vc_section_scores)
-    const effTotal = eff.partA + eff.partB
+    const selfMax = getSelfMax(r)
+    const reviewerMax = getReviewerMax(r)
     const selfA = r.part_a_total    || 0, selfB = r.part_b_total    || 0, selfT = r.grand_total    || 0
     const hodA  = r.hod_part_a      || 0, hodB  = r.hod_part_b      || 0, hodT  = r.hod_total      || 0
     const dirA  = r.director_part_a || 0, dirB  = r.director_part_b || 0, dirT  = r.director_total || 0
@@ -144,33 +201,44 @@ async function buildTotalScoreExcel(rows, includeHod) {
     const vcA   = r.vc_part_a       || 0, vcB   = r.vc_part_b       || 0, vcT   = r.vc_total       || 0
     const isEMR = r.school === 'SoEMR'
     const revs  = isEMR
-      ? [[hodA,hodB,hodT],[dirA,dirB,dirT],[dnA,dnB,dnT],[vcA,vcB,vcT]]
-      : [[dirA,dirB,dirT],[dnA,dnB,dnT],[vcA,vcB,vcT]]
+      ? [[hodA,hodB,hodT,reviewerMax],[dirA,dirB,dirT,reviewerMax],[dnA,dnB,dnT,reviewerMax],[vcA,vcB,vcT,reviewerMax]]
+      : [[dirA,dirB,dirT,reviewerMax],[dnA,dnB,dnT,reviewerMax],[vcA,vcB,vcT,reviewerMax]]
     const nz   = revs.filter(([,,t]) => t > 0)
     const avgA = nz.length ? nz.reduce((s,[a])   => s+a, 0)/nz.length : 0
     const avgB = nz.length ? nz.reduce((s,[,b])  => s+b, 0)/nz.length : 0
     const avgT = nz.length ? nz.reduce((s,[,,t]) => s+t, 0)/nz.length : 0
-    let bestA = 0, bestB = 0, bestT = 0
-    revs.forEach(([a,b,t]) => { if (t > bestT) { bestT = t; bestA = a; bestB = b } })
-    const grade = vcT > 0 ? gradeLabel((vcT / effTotal) * 100) : ''
+    const avgMax = nz.length ? {
+      partA: nz.reduce((s,[,,,m]) => s + m.partA, 0) / nz.length,
+      partB: nz.reduce((s,[,,,m]) => s + m.partB, 0) / nz.length,
+      total: nz.reduce((s,[,,,m]) => s + m.total, 0) / nz.length,
+    } : reviewerMax
+    let bestA = 0, bestB = 0, bestT = 0, bestMax = reviewerMax
+    revs.forEach(([a,b,t,m]) => { if (t > bestT) { bestT = t; bestA = a; bestB = b; bestMax = m } })
     const n = v => v > 0 ? parseFloat(v.toFixed(1)) : null
     const p = (s, m) => s > 0 && m > 0 ? parseFloat(((s/m)*100).toFixed(1)) : null
+    const mx = v => parseFloat(v.toFixed(1))
+    const scoreCols = (a, b, t, max, enabled = true) => enabled
+      ? [n(a), mx(max.partA), n(b), mx(max.partB), n(t), mx(max.total), p(t, max.total)]
+      : [null, null, null, null, null, null, null]
 
-    const rowData = [i+1, r.name||'', r.designation||'', r.school||'', n(selfA),n(selfB),n(selfT),p(selfT,effTotal)]
-    if (includeHod) rowData.push(isEMR?n(hodA):null,isEMR?n(hodB):null,isEMR?n(hodT):null,isEMR?p(hodT,effTotal):null)
-    rowData.push(n(dirA),n(dirB),n(dirT),p(dirT,effTotal))
-    rowData.push(n(dnA),n(dnB),n(dnT),p(dnT,effTotal))
-    rowData.push(n(vcA),n(vcB),n(vcT),p(vcT,effTotal),grade||null)
-    rowData.push(avgT>0?parseFloat(avgA.toFixed(1)):null,avgT>0?parseFloat(avgB.toFixed(1)):null,avgT>0?parseFloat(avgT.toFixed(1)):null,avgT>0?p(avgT,effTotal):null)
-    rowData.push(bestT>0?parseFloat(bestA.toFixed(1)):null,bestT>0?parseFloat(bestB.toFixed(1)):null,bestT>0?parseFloat(bestT.toFixed(1)):null,bestT>0?p(bestT,effTotal):null)
+    const rowData = [i+1, r.name||'', r.designation||'', r.school||'', ...scoreCols(selfA, selfB, selfT, selfMax)]
+    if (includeHod) rowData.push(...scoreCols(hodA, hodB, hodT, reviewerMax, isEMR))
+    rowData.push(...scoreCols(dirA, dirB, dirT, reviewerMax))
+    rowData.push(...scoreCols(dnA, dnB, dnT, reviewerMax))
+    rowData.push(...scoreCols(vcA, vcB, vcT, reviewerMax))
+    rowData.push(...scoreCols(avgA, avgB, avgT, avgMax, avgT > 0))
+    rowData.push(...scoreCols(bestA, bestB, bestT, bestMax, bestT > 0))
 
     const dataRow = ws.addRow(rowData)
     dataRow.height = 17
     dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      const groupOffset = scoreOffsetForColumn(colNum)
+      const fill = scoreFillForOffset(groupOffset)
       cell.style = {
         font: { size: 9, name: 'Calibri' },
         alignment: { horizontal: colNum <= 2 ? 'left' : 'center', vertical: 'middle' },
         border: bdr,
+        ...(fill ? { fill } : {}),
       }
     })
   })
@@ -195,7 +263,7 @@ function buildTotalScoreCSV(rows, includeHod) {
     ...(includeHod ? [{ label: 'Head of Department', extra: 0 }] : []),
     { label: 'Director Score',  extra: 0 },
     { label: 'Dean Score',      extra: 0 },
-    { label: 'Vice Chancellor', extra: 1 },  // +Grade
+    { label: 'Vice Chancellor', extra: 0 },
     { label: 'Average Score',   extra: 0 },
     { label: 'Best Score',      extra: 0 },
   ]
@@ -204,18 +272,18 @@ function buildTotalScoreCSV(rows, includeHod) {
 
   const row1 = [
     ...FIXED,
-    ...groups.flatMap(g => [g.label, ...Array(3 + g.extra).fill('')]),
+    ...groups.flatMap(g => [g.label, ...Array(6 + g.extra).fill('')]),
   ]
   const row2 = [
     ...FIXED.map(() => ''),
     ...groups.flatMap(g =>
-      g.extra ? ['Part A', 'Part B', 'Total', '%', 'Grade'] : ['Part A', 'Part B', 'Total', '%']
+      ['Part A', 'A Max', 'Part B', 'B Max', 'Total', 'Max', '%']
     ),
   ]
 
   const dataRows = rows.map((r, i) => {
-    const eff      = computeEffectiveMax(r.vc_section_scores)
-    const effTotal = eff.partA + eff.partB
+    const selfMax = getSelfMax(r)
+    const reviewerMax = getReviewerMax(r)
 
     const selfA = r.part_a_total    || 0, selfB = r.part_b_total    || 0, selfT = r.grand_total    || 0
     const hodA  = r.hod_part_a      || 0, hodB  = r.hod_part_b      || 0, hodT  = r.hod_total      || 0
@@ -225,41 +293,39 @@ function buildTotalScoreCSV(rows, includeHod) {
 
     const isEMR = r.school === 'SoEMR'
     const revs  = isEMR
-      ? [[hodA, hodB, hodT], [dirA, dirB, dirT], [dnA, dnB, dnT], [vcA, vcB, vcT]]
-      : [[dirA, dirB, dirT], [dnA, dnB, dnT], [vcA, vcB, vcT]]
+      ? [[hodA, hodB, hodT, reviewerMax], [dirA, dirB, dirT, reviewerMax], [dnA, dnB, dnT, reviewerMax], [vcA, vcB, vcT, reviewerMax]]
+      : [[dirA, dirB, dirT, reviewerMax], [dnA, dnB, dnT, reviewerMax], [vcA, vcB, vcT, reviewerMax]]
 
     const nz   = revs.filter(([,,t]) => t > 0)
     const avgA = nz.length ? nz.reduce((s,[a])   => s+a, 0)/nz.length : 0
     const avgB = nz.length ? nz.reduce((s,[,b])  => s+b, 0)/nz.length : 0
     const avgT = nz.length ? nz.reduce((s,[,,t]) => s+t, 0)/nz.length : 0
+    const avgMax = nz.length ? {
+      partA: nz.reduce((s,[,,,m]) => s + m.partA, 0) / nz.length,
+      partB: nz.reduce((s,[,,,m]) => s + m.partB, 0) / nz.length,
+      total: nz.reduce((s,[,,,m]) => s + m.total, 0) / nz.length,
+    } : reviewerMax
 
-    let bestA = 0, bestB = 0, bestT = 0
-    revs.forEach(([a,b,t]) => { if (t > bestT) { bestT = t; bestA = a; bestB = b } })
+    let bestA = 0, bestB = 0, bestT = 0, bestMax = reviewerMax
+    revs.forEach(([a,b,t,m]) => { if (t > bestT) { bestT = t; bestA = a; bestB = b; bestMax = m } })
 
-    const vcPct = vcT > 0 ? (vcT / effTotal) * 100 : 0
-    const grade = vcT > 0 ? gradeLabel(vcPct) : ''
+    const fmtMax = (n) => Number(n).toFixed(1)
+    const scoreCols = (a, b, t, max, enabled = true) => enabled
+      ? [fmt(a), fmtMax(max.partA), fmt(b), fmtMax(max.partB), fmt(t), fmtMax(max.total), pct(t, max.total)]
+      : ['', '', '', '', '', '', '']
 
     const cells = [
       esc(i + 1), esc(r.name || ''), esc(r.designation || ''), esc(r.school || ''),
-      fmt(selfA), fmt(selfB), fmt(selfT), pct(selfT, effTotal),
+      ...scoreCols(selfA, selfB, selfT, selfMax),
     ]
     if (includeHod) {
-      cells.push(
-        isEMR ? fmt(hodA) : '', isEMR ? fmt(hodB) : '',
-        isEMR ? fmt(hodT) : '', isEMR ? pct(hodT, effTotal) : '',
-      )
+      cells.push(...scoreCols(hodA, hodB, hodT, reviewerMax, isEMR))
     }
-    cells.push(fmt(dirA), fmt(dirB), fmt(dirT), pct(dirT, effTotal))
-    cells.push(fmt(dnA),  fmt(dnB),  fmt(dnT),  pct(dnT,  effTotal))
-    cells.push(fmt(vcA),  fmt(vcB),  fmt(vcT),  pct(vcT,  effTotal), grade)
-    cells.push(
-      avgT > 0 ? avgA.toFixed(1) : '', avgT > 0 ? avgB.toFixed(1) : '',
-      avgT > 0 ? avgT.toFixed(1) : '', avgT > 0 ? pct(avgT, effTotal) : '',
-    )
-    cells.push(
-      bestT > 0 ? bestA.toFixed(1) : '', bestT > 0 ? bestB.toFixed(1) : '',
-      bestT > 0 ? bestT.toFixed(1) : '', bestT > 0 ? pct(bestT, effTotal) : '',
-    )
+    cells.push(...scoreCols(dirA, dirB, dirT, reviewerMax))
+    cells.push(...scoreCols(dnA, dnB, dnT, reviewerMax))
+    cells.push(...scoreCols(vcA, vcB, vcT, reviewerMax))
+    cells.push(...scoreCols(avgA, avgB, avgT, avgMax, avgT > 0))
+    cells.push(...scoreCols(bestA, bestB, bestT, bestMax, bestT > 0))
     return cells
   })
 
@@ -641,7 +707,8 @@ export default function ExportReportPage() {
       }
 
       const includeHod = !tsSchool || tsSchool === 'SoEMR';
-      const csv        = buildTotalScoreCSV(faculty, includeHod);
+      const enriched   = await enrichTotalScoreRows(faculty, tsYear);
+      const csv        = buildTotalScoreCSV(enriched, includeHod);
       const blob       = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
       const deptSlug   = tsDept ? '_' + tsDept.replace(/\s+/g, '_') : '';
       triggerDownload(blob, `total_score_${tsYear}${tsSchool ? '_' + tsSchool : '_all'}${deptSlug}.csv`);
@@ -666,7 +733,8 @@ export default function ExportReportPage() {
         });
       if (!faculty.length) { setTsErr('No faculty records found for the selected filters.'); return; }
       const includeHod = !tsSchool || tsSchool === 'SoEMR';
-      const blob       = await buildTotalScoreExcel(faculty, includeHod);
+      const enriched   = await enrichTotalScoreRows(faculty, tsYear);
+      const blob       = await buildTotalScoreExcel(enriched, includeHod);
       const deptSlug   = tsDept ? '_' + tsDept.replace(/\s+/g, '_') : '';
       triggerDownload(blob, `total_score_${tsYear}${tsSchool ? '_' + tsSchool : '_all'}${deptSlug}.xlsx`);
     } catch (e) { setTsErr(e.message); }
@@ -737,7 +805,7 @@ export default function ExportReportPage() {
           icon={I.star}
           title="Total Score Report"
           subtitle="Full score breakdown for teaching faculty — all reviewer levels"
-          description="Part A (200) + Part B (375) scores from every reviewer level. N/A sections reduce the effective max below 575. VC column includes a performance grade."
+          description="Part A (200) + Part B (375) scores from every reviewer level. N/A sections reduce the effective max below 575."
           accent="#10b981"
           loading={tsLoading}
           onDownload={handleTotalScore}

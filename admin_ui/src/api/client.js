@@ -116,6 +116,8 @@ const marks = {
     if (schools) qs.set('schools', schools)
     return request(`/dashboard/subordinates?${qs}`)
   },
+  detail: (email, academic_year) =>
+    request(`/dashboard/faculty/${encodeURIComponent(email)}?academic_year=${encodeURIComponent(academic_year)}`),
 }
 
 // ---------------------------------------------------------------------------
