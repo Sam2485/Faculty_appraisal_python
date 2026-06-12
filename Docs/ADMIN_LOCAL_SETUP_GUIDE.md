@@ -320,7 +320,7 @@ This downloads and installs all the backend libraries. It should complete in und
 ## Step 8 — Run the backend server
 
 ```
-uvicorn main:app --reload --port 8000
+
 ```
 
 You should see output like:
@@ -421,3 +421,4 @@ Double-check your `SMTP_USER`, `SMTP_PASSWORD`, and that you are using a Gmail *
 - **Never run schema.sql or DROP TABLE commands against the production database** — that is a destructive operation that cannot be undone without restoring a backup.
 - Your `.env` file is in `.gitignore` and will never be committed. Do not copy production secrets into it.
 - The `./uploads` folder created by local storage is also gitignored — files you upload locally stay on your machine only.
+uvicorn main:app --reload --port 8000
