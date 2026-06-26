@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct, text, update as sql_update
@@ -1341,8 +1341,274 @@ async def update_module_config(
         config = ModuleConfig(id=1)
         db.add(config)
 
-    for field, value in data.model_dump(exclude_none=True).items():
-        setattr(config, field, value)
-
     await db.commit()
     return {"message": "Updated"}
+
+
+# ---------------------------------------------------------------------------
+# Super Admin Backup and Restore Endpoints (Database & Uploads)
+# ---------------------------------------------------------------------------
+
+def _check_super_admin(current_user: CurrentUser):
+    if "super_admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=403,
+            detail="Super Admin access required for backup/restore operations"
+        )
+
+
+def _get_db_connection_params():
+    url_str = os.getenv("DATABASE_URL")
+    if not url_str:
+        raise ValueError("DATABASE_URL environment variable is not set")
+    
+    if url_str.startswith("postgresql+asyncpg://"):
+        url_str = url_str.replace("postgresql+asyncpg://", "postgresql://", 1)
+    elif url_str.startswith("postgres://"):
+        url_str = url_str.replace("postgres://", "postgresql://", 1)
+        
+    parsed = urllib.parse.urlparse(url_str)
+    return {
+        "user": parsed.username or "postgres",
+        "password": parsed.password or "",
+        "host": parsed.hostname or "localhost",
+        "port": str(parsed.port or 5432),
+        "dbname": parsed.path.lstrip("/") or "postgres"
+    }
+
+
+@router.get("/backup/db")
+async def backup_database(
+    current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Generates a SQL dump of the database and returns it as a file download.
+    Available only to super_admin.
+    """
+    import subprocess
+    import urllib.parse
+    import tempfile
+    from fastapi.responses import FileResponse
+    
+    _check_super_admin(current_user)
+    
+    try:
+        params = _get_db_connection_params()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    # Generate backup in a temporary file
+    temp_dir = tempfile.gettempdir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file_path = os.path.join(temp_dir, f"db_backup_{timestamp}.sql")
+    
+    env = os.environ.copy()
+    if params["password"]:
+        env["PGPASSWORD"] = params["password"]
+        
+    cmd = [
+        "pg_dump",
+        "-h", params["host"],
+        "-p", params["port"],
+        "-U", params["user"],
+        "-d", params["dbname"],
+        "-F", "p",  # plain SQL format
+        "-f", backup_file_path
+    ]
+    
+    try:
+        # Run pg_dump process
+        subprocess.run(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr or e.stdout or str(e)
+        logger.error(f"pg_dump failed: {error_msg}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database backup failed: {error_msg}"
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=500,
+            detail="pg_dump executable not found. Make sure postgresql-client is installed in the system."
+        )
+        
+    # Clean up file in the background after it is sent
+    background_tasks.add_task(os.remove, backup_file_path)
+    
+    return FileResponse(
+        path=backup_file_path,
+        filename=os.path.basename(backup_file_path),
+        media_type="application/sql"
+    )
+
+
+@router.post("/restore/db")
+async def restore_database(
+    current_user: CurrentUser,
+    file: UploadFile = File(...),
+):
+    """
+    Restores the database from an uploaded SQL dump file.
+    Available only to super_admin.
+    """
+    import subprocess
+    import urllib.parse
+    import tempfile
+    import uuid
+    
+    _check_super_admin(current_user)
+    
+    if not file.filename.endswith(".sql"):
+        raise HTTPException(status_code=400, detail="Only .sql files are allowed")
+        
+    try:
+        params = _get_db_connection_params()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    # Save the uploaded file temporarily
+    temp_dir = tempfile.gettempdir()
+    temp_file_path = os.path.join(temp_dir, f"restore_{uuid.uuid4().hex}.sql")
+    
+    try:
+        content = await file.read()
+        with open(temp_file_path, "wb") as f:
+            f.write(content)
+            
+        env = os.environ.copy()
+        if params["password"]:
+            env["PGPASSWORD"] = params["password"]
+            
+        # Run psql command to execute SQL
+        cmd = [
+            "psql",
+            "-h", params["host"],
+            "-p", params["port"],
+            "-U", params["user"],
+            "-d", params["dbname"],
+            "-f", temp_file_path
+        ]
+        
+        subprocess.run(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr or e.stdout or str(e)
+        logger.error(f"psql restore failed: {error_msg}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database restore failed: {error_msg}"
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=500,
+            detail="psql executable not found. Make sure postgresql-client is installed in the system."
+        )
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+            
+    return {"message": "Database restored successfully"}
+
+
+@router.get("/backup/uploads")
+async def backup_uploads(
+    current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Zips the local uploads directory and returns it as a file download.
+    Available only to super_admin.
+    """
+    import zipfile
+    import tempfile
+    from fastapi.responses import FileResponse
+    
+    _check_super_admin(current_user)
+    
+    uploads_dir = os.getenv("LOCAL_STORAGE_DIR", "./uploads")
+    if not os.path.exists(uploads_dir):
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+    temp_dir = tempfile.gettempdir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_file_path = os.path.join(temp_dir, f"uploads_backup_{timestamp}.zip")
+    
+    try:
+        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(uploads_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, uploads_dir)
+                    zipf.write(file_path, arcname)
+    except Exception as e:
+        if os.path.exists(zip_file_path):
+            os.remove(zip_file_path)
+        raise HTTPException(status_code=500, detail=f"Failed to create zip backup: {str(e)}")
+        
+    background_tasks.add_task(os.remove, zip_file_path)
+    
+    return FileResponse(
+        path=zip_file_path,
+        filename=os.path.basename(zip_file_path),
+        media_type="application/zip"
+    )
+
+
+@router.post("/restore/uploads")
+async def restore_uploads(
+    current_user: CurrentUser,
+    file: UploadFile = File(...),
+):
+    """
+    Restores the uploads directory by extracting the uploaded zip file.
+    Available only to super_admin.
+    """
+    import zipfile
+    import tempfile
+    import uuid
+    
+    _check_super_admin(current_user)
+    
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip files are allowed")
+        
+    uploads_dir = os.getenv("LOCAL_STORAGE_DIR", "./uploads")
+    if not os.path.exists(uploads_dir):
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+    temp_dir = tempfile.gettempdir()
+    temp_zip_path = os.path.join(temp_dir, f"restore_{uuid.uuid4().hex}.zip")
+    
+    try:
+        # Save temporary zip file
+        content = await file.read()
+        with open(temp_zip_path, "wb") as f:
+            f.write(content)
+            
+        # Extract files (merge / overwrite existing)
+        with zipfile.ZipFile(temp_zip_path, 'r') as zipf:
+            zipf.extractall(uploads_dir)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract zip backup: {str(e)}")
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_zip_path):
+            os.remove(temp_zip_path)
+            
+    return {"message": "Uploads restored successfully"}
