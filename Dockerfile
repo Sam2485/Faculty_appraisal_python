@@ -17,6 +17,11 @@ RUN npm run build
 # =============================================================================
 FROM python:3.12-slim-bookworm
 
+# Install system dependencies including postgresql-client
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
